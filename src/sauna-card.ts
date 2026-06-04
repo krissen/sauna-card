@@ -1,4 +1,11 @@
-import { LitElement, html, css, nothing, type TemplateResult } from "lit";
+import {
+  LitElement,
+  html,
+  css,
+  nothing,
+  type TemplateResult,
+  type PropertyValues,
+} from "lit";
 import { property, state } from "lit/decorators.js";
 import type {
   Hass,
@@ -9,6 +16,22 @@ import type {
 } from "./types";
 import { pickIntegration } from "./adapter-registry";
 import { detectLang, t } from "./i18n";
+import {
+  toggleSwitch,
+  setTargetTemperature,
+  setActive,
+  MIN_TEMP,
+  MAX_TEMP,
+} from "./controls";
+
+const TEMP_STEP = 5;
+
+// HA states that mean "no usable value" — mirrors the adapter's handling.
+const UNAVAILABLE_STATES = new Set(["unavailable", "unknown", "none", ""]);
+
+function entityUnavailable(state: string | undefined): boolean {
+  return state === undefined || UNAVAILABLE_STATES.has(state);
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false;
@@ -50,6 +73,10 @@ export class SaunaCard extends LitElement {
   @property({ attribute: false }) hass?: Hass;
 
   @state() private _config: SaunaCardConfig = { type: "custom:sauna-card" };
+
+  // Optimistic target while the device catches up (it may echo slowly, or not
+  // at all in some setups), so rapid stepper clicks accumulate correctly.
+  @state() private _pendingTarget?: number;
 
   static getStubConfig(): Record<string, unknown> {
     return {};
@@ -120,6 +147,105 @@ export class SaunaCard extends LitElement {
       : html`${Math.round(value)}°<span>C</span>`;
   }
 
+  // ---- control handlers (I6) ----
+
+  private _toggle(s: SaunaState, key: string): void {
+    const id = s.entities[key];
+    if (id && this.hass) toggleSwitch(this.hass, id);
+  }
+
+  private _step(s: SaunaState, delta: number): void {
+    if (!this.hass) return;
+    const base = this._pendingTarget ?? s.targetTemp;
+    if (base === undefined) return;
+    // Round to match what setTargetTemperature sends, so the optimistic value
+    // shown never disagrees with the value actually requested.
+    const next = Math.max(
+      MIN_TEMP,
+      Math.min(MAX_TEMP, Math.round(base + delta)),
+    );
+    this._pendingTarget = next;
+    setTargetTemperature(this.hass, s, next);
+  }
+
+  // Clear the optimistic target once the device reports the value we set.
+  protected override updated(changed: PropertyValues): void {
+    if (changed.has("hass") && this._pendingTarget !== undefined && this.hass) {
+      const s = this._state();
+      if (s && s.targetTemp === this._pendingTarget) {
+        this._pendingTarget = undefined;
+      }
+    }
+  }
+
+  private _setActive(s: SaunaState, active: boolean): void {
+    if (!this.hass) return;
+    // Honour an in-flight stepper adjustment when starting a session.
+    setActive(
+      this.hass,
+      { ...s, targetTemp: this._effectiveTarget(s) },
+      active,
+    );
+  }
+
+  /** Optimistic pending target if set, otherwise the device's reported target. */
+  private _effectiveTarget(s: SaunaState): number | undefined {
+    return this._pendingTarget ?? s.targetTemp;
+  }
+
+  private _powerOn(s: SaunaState): boolean {
+    const id = s.entities.power;
+    return id ? this.hass?.states[id]?.state === "on" : false;
+  }
+
+  private _tempStepper(s: SaunaState): TemplateResult {
+    const thermo = s.entities.thermostat;
+    const thermoState = thermo ? this.hass?.states[thermo]?.state : undefined;
+    const disabled =
+      s.targetTemp === undefined || !thermo || entityUnavailable(thermoState);
+    const shown = this._effectiveTarget(s);
+    const tt = this._t("label.target_temperature");
+    return html`<div class="stepper">
+      <button
+        type="button"
+        class="step"
+        ?disabled=${disabled}
+        @click=${() => this._step(s, -TEMP_STEP)}
+        aria-label="${tt} −${TEMP_STEP}°"
+      >
+        −
+      </button>
+      <span class="tval">${this._temp(shown)}</span>
+      <button
+        type="button"
+        class="step"
+        ?disabled=${disabled}
+        @click=${() => this._step(s, TEMP_STEP)}
+        aria-label="${tt} +${TEMP_STEP}°"
+      >
+        +
+      </button>
+    </div>`;
+  }
+
+  private _cta(s: SaunaState): TemplateResult {
+    const powerState = s.entities.power
+      ? this.hass?.states[s.entities.power]?.state
+      : undefined;
+    const unavailable = !s.entities.power || entityUnavailable(powerState);
+    const on = this._powerOn(s);
+    return html`<div class="cta">
+      <button
+        type="button"
+        class="btn ${on ? "" : "primary"}"
+        ?disabled=${unavailable}
+        @click=${() => this._setActive(s, !on)}
+      >
+        ${on ? this._t("action.turn_off") : this._t("action.start_session")}
+      </button>
+    </div>`;
+  }
+
   override render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
     const s = this._state();
@@ -163,22 +289,26 @@ export class SaunaCard extends LitElement {
     return html`<div class="chips">
       ${CONTROLS.filter((c) => s.entities[c.key]).map((c) => {
         const st = this.hass?.states[s.entities[c.key]]?.state;
-        const unavailable =
-          st === undefined || st === "unavailable" || st === "unknown";
+        const unavailable = entityUnavailable(st);
         const on = st === "on";
         const label = this._t(c.labelKey);
         const stateText = this._t(
           unavailable ? "common.unavailable" : on ? "common.on" : "common.off",
         );
         // State is exposed in text (aria-label), not by colour alone (a11y).
-        return html`<span
+        // Interactive toggle (switch.toggle); keyboard-operable.
+        const toggle = () => this._toggle(s, c.key);
+        return html`<button
+          type="button"
           class="chip ${on ? "on" : ""} ${unavailable ? "unavailable" : ""}"
-          role="img"
+          ?disabled=${unavailable}
+          aria-pressed=${on}
           aria-label="${label}: ${stateText}"
           title="${label}: ${stateText}"
+          @click=${toggle}
         >
           <ha-icon icon=${c.icon}></ha-icon>${label}
-        </span>`;
+        </button>`;
       })}
     </div>`;
   }
@@ -213,7 +343,7 @@ export class SaunaCard extends LitElement {
           <div class="cur">${this._heroTemp(s.currentTemp)}</div>
           <div class="tgt">
             <span>${this._t("label.target_temperature")}</span>
-            <b>${this._temp(s.targetTemp)}</b>
+            ${this._tempStepper(s)}
           </div>
         </div>
         ${s.status === "heating"
@@ -249,7 +379,7 @@ export class SaunaCard extends LitElement {
             s.sessionsToday === undefined ? nothing : `${s.sessionsToday}`,
           )}
         </div>
-        ${this._controlChips(s)}
+        ${this._controlChips(s)} ${this._cta(s)}
       </div>
     </ha-card>`;
   }
@@ -297,11 +427,12 @@ export class SaunaCard extends LitElement {
           <div class="cur">${this._heroTemp(s.currentTemp)}</div>
           <div class="tgt">
             ${this._t("label.target_temperature")}
-            <b>${this._temp(s.targetTemp)}</b>
+            <b>${this._temp(this._effectiveTarget(s))}</b>
           </div>
         </div>
       </div>
-      ${this._doorWarning(s)} ${this._controlChips(s)}
+      ${this._doorWarning(s)} ${this._tempStepper(s)} ${this._controlChips(s)}
+      ${this._cta(s)}
     </ha-card>`;
   }
 
@@ -479,8 +610,72 @@ export class SaunaCard extends LitElement {
       border-color: var(--primary-color);
       background: var(--secondary-background-color);
     }
-    .chip.unavailable {
+    .chip {
+      cursor: pointer;
+      font-family: inherit;
+      background: transparent;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    .chip:disabled {
+      cursor: default;
       opacity: 0.5;
+    }
+    .stepper {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .stepper .tval {
+      font-weight: 650;
+      color: var(--sauna-heat-color);
+      min-width: 2.6em;
+      text-align: center;
+    }
+    .step {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    .step:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .cta {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn {
+      flex: 1;
+      padding: 11px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      font-family: inherit;
+      appearance: none;
+      -webkit-appearance: none;
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      cursor: pointer;
+    }
+    .btn.primary {
+      background: var(--sauna-heat-color);
+      border: none;
+      color: var(--text-primary-color, #fff);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: default;
     }
     .chip ha-icon {
       --mdc-icon-size: 18px;

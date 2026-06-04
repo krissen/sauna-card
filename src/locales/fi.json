@@ -29,6 +29,7 @@
   "control.auto_light": "Automaattinen valo",
   "control.auto_fan": "Automaattinen puhallin",
   "action.start_session": "Aloita saunominen",
+  "action.turn_off": "Sammuta",
   "door.open": "Auki",
   "door.closed": "Kiinni",
   "common.on": "Päällä",
