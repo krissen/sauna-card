@@ -36,6 +36,8 @@ def tokens_init(dark):
 
 
 def wait_ready(page, timeout_s=40):
+    """Return (ready, seconds). ready is False on timeout so the caller can
+    signal that the screenshot may be empty/partial instead of failing silently."""
     start = time.time()
     while time.time() - start < timeout_s:
         n = page.locator("sauna-badge").count()
@@ -44,9 +46,9 @@ def wait_ready(page, timeout_s=40):
             ".filter(b=>b.shadowRoot && b.shadowRoot.querySelector('.b')).length"
         )
         if n and rendered >= n:
-            return round(time.time() - start, 1)
+            return True, round(time.time() - start, 1)
         page.wait_for_timeout(500)
-    return round(time.time() - start, 1)
+    return False, round(time.time() - start, 1)
 
 
 def main():
@@ -67,15 +69,23 @@ def main():
         ctx.add_init_script(tokens_init(a.dark))
         pg = ctx.new_page()
         pg.goto(f"{URL}/{a.view}", wait_until="networkidle")
-        waited = wait_ready(pg, a.timeout)
+        ready, waited = wait_ready(pg, a.timeout)
         # The badge row sits in hui-view-badges at the top of the view.
         row = pg.locator("hui-view-badges").first
         if row.count():
             row.screenshot(path=a.out)
         else:
             pg.screenshot(path=a.out, full_page=False)
-        print(f"shot {a.out} (waited {waited}s, badges={pg.locator('sauna-badge').count()})")
+        n = pg.locator("sauna-badge").count()
+        print(f"shot {a.out} (waited {waited}s, badges={n}, ready={ready})")
         b.close()
+        if not ready:
+            print(
+                "WARNING: badges did not finish rendering before timeout; "
+                "the image may be empty or partial.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
 
 if __name__ == "__main__":
