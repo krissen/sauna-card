@@ -7,14 +7,9 @@ import {
   type PropertyValues,
 } from "lit";
 import { property, state } from "lit/decorators.js";
-import type {
-  Hass,
-  SaunaCardConfig,
-  SaunaState,
-  SaunaStatus,
-  SaunaLayout,
-} from "./types";
+import type { Hass, SaunaCardConfig, SaunaState, SaunaLayout } from "./types";
 import { pickIntegration } from "./adapter-registry";
+import { STATUS_ICON, STATUS_KEY } from "./status";
 import { detectLang, t } from "./i18n";
 import {
   toggleSwitch,
@@ -44,22 +39,6 @@ const LAYOUTS: SaunaLayout[] = [
   "thermostat-hero",
   "compact",
 ];
-
-const STATUS_ICON: Record<SaunaStatus, string> = {
-  off: "mdi:power",
-  heating: "mdi:fire",
-  ready: "mdi:check-circle",
-  idle: "mdi:timer-sand-empty",
-  unknown: "mdi:help-circle",
-};
-
-const STATUS_KEY: Record<SaunaStatus, string> = {
-  off: "state.off",
-  heating: "state.heating",
-  ready: "state.ready",
-  idle: "state.idle",
-  unknown: "common.unknown",
-};
 
 // Read-only control chips shown in I5. Interactivity (callService) lands in I6.
 const CONTROLS: Array<{ key: string; icon: string; labelKey: string }> = [
