@@ -1,5 +1,6 @@
 {
   "card.name": "Sauna",
+  "card.no_device": "Saunalaitetta ei löytynyt",
   "state.off": "Pois",
   "state.heating": "Lämmittää",
   "state.ready": "Valmis",

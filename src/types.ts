@@ -45,6 +45,8 @@ export type SaunaLayout = "status-dashboard" | "thermostat-hero" | "compact";
 
 export interface SaunaCardConfig {
   type: string;
+  /** Card title; defaults to the device name. */
+  name?: string;
   /** Integration id; auto-detected when omitted. */
   integration?: string;
   /** Device id within the integration; auto-selected when omitted. */
@@ -69,6 +71,8 @@ export interface SaunaState {
   targetTemp?: number;
   humidity?: number;
   remainingMinutes?: number;
+  /** Estimated minutes until ready, derived from the temperature trend. */
+  readyEtaMinutes?: number;
   power?: number;
   energy?: number;
   sessionsToday?: number;
