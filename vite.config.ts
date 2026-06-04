@@ -1,6 +1,10 @@
 import { defineConfig } from "vitest/config";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
+
+// ESM-safe __dirname equivalent (package.json sets "type": "module").
+const projectDir = dirname(fileURLToPath(import.meta.url));
 
 function gitVersion(): string {
   try {
@@ -30,7 +34,7 @@ export default defineConfig({
   },
   build: {
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
+      entry: resolve(projectDir, "src/index.ts"),
       name: "saunaCard",
       fileName: () => "sauna-card.js",
       formats: ["es"],
