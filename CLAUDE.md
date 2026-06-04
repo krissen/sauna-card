@@ -43,22 +43,30 @@ A LitElement card using the **adapter pattern**, ported from the mature
 `../pollenprognos-card` (read it for reference — port, don't copy: that project
 is plain JS, we are TypeScript + Lit 3).
 
-- **Entry** (`src/index.ts`) — registers card, editor, badge; advertises via
-  `window.customCards` (with `getEntitySuggestion`) and `window.customBadges`.
-- **Card** (`src/sauna-card.ts`), **editor** (`src/sauna-card-editor.ts`),
-  **badge** (`src/sauna-badge.ts` + `src/sauna-badge-editor.ts`).
-- **Adapter registry** (`src/adapter-registry.ts`) — id → `{ module, stub }`.
-- **Adapters** (`src/adapters/{harvia-xenio,fenix}.ts`) — each exports
-  `stubConfig`, `readState(hass, cfg)`, `resolveEntityIds(cfg, hass)`.
-- **Autodetect** (`src/utils/autodetect.ts`) — `INTEGRATION_PRIORITY`, detect
-  Harvia devices, pick model + device; shared by card, editor, badge.
-- **Controls** (`src/controls/`) — `hass.callService` wrappers
-  (`climate.set_temperature`, `switch.turn_on/off`, `number.set_value`,
-  `harvia_sauna.set_session`). This is the dimension pollenprognos-card lacks:
-  saunas are control + status, not read-only.
+- **Entry** (`src/index.ts`) — imports the card + editor, advertises via
+  `window.customCards` with `getEntitySuggestion`. (Badge + `window.customBadges`
+  arrive in I9.)
+- **Card** (`src/sauna-card.ts`) — three layouts (`status-dashboard` default,
+  `thermostat-hero`, `compact`), theme-first via HA CSS vars.
+- **Editor** (`src/sauna-card-editor.ts`) — built on `ha-form`; returned by
+  `SaunaCard.getConfigElement()`.
+- **Adapter registry** (`src/adapter-registry.ts`) — keyed by **integration**
+  id → adapter; `pickIntegration`, `detectAllDevices`.
+- **Adapter** (`src/adapters/harvia.ts`) — the single `harvia_sauna` adapter
+  (Xenio/Fenix are device *models*, not separate adapters). Exports `stubConfig`,
+  `detect`, `resolveEntityIds`, `readState`, `detectModel`, and the
+  `HARVIA_ENTITIES` catalog (logical key → `{domain, translationKey}`).
+- **Autodetect** (`src/utils/autodetect.ts`) — `INTEGRATION_PRIORITY`,
+  `findDevicesForPlatform`, and `resolveEntities` (matches by **(domain,
+  translation_key)** within a device — never by the localized entity_id slug).
+- **Controls** (`src/controls.ts`) — `hass.callService` wrappers
+  (`switch.toggle`, `climate.set_temperature`, `harvia_sauna.set_session`), with
+  rejections caught. This is the dimension pollenprognos-card lacks.
+- **Suggestion** (`src/suggestion.ts`) — `suggestEntity` powering
+  `getEntitySuggestion`.
 - **i18n** (`src/i18n.ts` + `src/locales/*.json`) — IntlMessageFormat, HA-locale
-  detection, English fallback.
-- **Editor base** (`src/editor/base.ts`) — shared editor sections.
+  detection, English source + per-key fallback; locales auto-discovered via
+  `import.meta.glob` (drop in a partial file; English back-fills).
 
 ### Harvia entity model (from `ha-harvia-sauna`)
 
@@ -72,14 +80,19 @@ is plain JS, we are TypeScript + Lit 3).
 - **service** — `harvia_sauna.set_session` (target_temp 40–110 °C, duration, active)
 - **events** — `harvia_sauna_session_start`, `harvia_sauna_session_end`
 
-## Adding a new sauna model / integration
+## Adding a new sauna integration
 
-1. Create `src/adapters/<model>.ts` exporting `stubConfig`, `readState`, `resolveEntityIds`.
-2. Register it in `src/adapter-registry.ts`.
-3. Add its detection to `INTEGRATION_PRIORITY` + `detectIntegrationStates` in `src/utils/autodetect.ts`.
-4. Add locale keys to `src/locales/*.json` (edit `en.json`; others follow).
-5. Add contract tests in `test/adapters/<model>.test.ts`, with fixtures captured live.
-6. Handle model-specific config fields in the editor.
+The registry is keyed by integration. A new sauna *integration* (not a Harvia
+model — those are handled inside `harvia.ts` by entity presence + `detectModel`):
+
+1. Create `src/adapters/<integration>.ts` implementing the `SaunaAdapter`
+   contract (`stubConfig`, `detect`, `resolveEntityIds`, `readState`), with its
+   own entity catalog (logical key → `{domain, translationKey}`).
+2. Register it in `src/adapter-registry.ts` and add its platform to
+   `INTEGRATION_PRIORITY` in `src/utils/autodetect.ts`.
+3. Add locale keys to `src/locales/en.json` (others back-fill from English).
+4. Add contract tests in `test/adapters/<integration>.test.ts`, with fixtures
+   captured live from `hass-test`.
 
 ## Review loop (mandatory per PR)
 
