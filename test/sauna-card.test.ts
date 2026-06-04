@@ -12,7 +12,7 @@ describe("sauna-card", () => {
     expect(SaunaCard.getStubConfig()).toEqual({});
   });
 
-  it("rejects empty and non-object configurations", () => {
+  it("rejects null and non-plain-object configurations", () => {
     const card = new SaunaCard();
     expect(() => card.setConfig(undefined)).toThrow();
     expect(() => card.setConfig(null)).toThrow();
@@ -20,8 +20,9 @@ describe("sauna-card", () => {
     expect(() => card.setConfig("x")).toThrow();
   });
 
-  it("accepts a valid configuration", () => {
+  it("accepts a plain-object configuration (an empty object is valid)", () => {
     const card = new SaunaCard();
+    expect(() => card.setConfig({})).not.toThrow();
     card.setConfig({ type: "custom:sauna-card" });
     expect(card.getCardSize()).toBe(3);
   });
