@@ -50,10 +50,14 @@ export function t(
   lang: string,
   vars: Record<string, string | number> = {},
 ): string {
-  const localeData = LOCALES[lang] ?? LOCALES[DEFAULT_LANG] ?? {};
+  const hasLang = LOCALES[lang] !== undefined;
+  const localeData = hasLang ? LOCALES[lang] : (LOCALES[DEFAULT_LANG] ?? {});
   const msg = localeData[key] ?? LOCALES[DEFAULT_LANG]?.[key] ?? key;
+  // Format with a supported locale. An unsupported/invalid BCP47 tag would make
+  // IntlMessageFormat throw, dropping variable interpolation.
+  const formatLang = hasLang ? lang : DEFAULT_LANG;
   try {
-    const out = new IntlMessageFormat(msg, lang).format(vars);
+    const out = new IntlMessageFormat(msg, formatLang).format(vars);
     return typeof out === "string" ? out : String(out);
   } catch (err) {
     console.warn(`[sauna-card] translation failed for key: ${key}`, err);
