@@ -16,7 +16,13 @@ import type {
 } from "./types";
 import { pickIntegration } from "./adapter-registry";
 import { detectLang, t } from "./i18n";
-import { toggleSwitch, setTargetTemperature, setActive } from "./controls";
+import {
+  toggleSwitch,
+  setTargetTemperature,
+  setActive,
+  MIN_TEMP,
+  MAX_TEMP,
+} from "./controls";
 
 const TEMP_STEP = 5;
 
@@ -152,7 +158,7 @@ export class SaunaCard extends LitElement {
     if (!this.hass) return;
     const base = this._pendingTarget ?? s.targetTemp;
     if (base === undefined) return;
-    const next = Math.max(40, Math.min(110, base + delta));
+    const next = Math.max(MIN_TEMP, Math.min(MAX_TEMP, base + delta));
     this._pendingTarget = next;
     setTargetTemperature(this.hass, s, next);
   }
@@ -602,6 +608,7 @@ export class SaunaCard extends LitElement {
     .chip {
       cursor: pointer;
       font-family: inherit;
+      background: transparent;
       appearance: none;
       -webkit-appearance: none;
     }

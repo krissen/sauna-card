@@ -76,6 +76,12 @@ describe("controls", () => {
     ]);
   });
 
+  it("set_session clamps an out-of-range target_temp", () => {
+    const { hass, calls } = mockHass();
+    setSession(hass, state, { target_temp: 200 });
+    expect(calls[0][2]).toEqual({ device_id: "dev1", target_temp: 110 });
+  });
+
   it("setActive(true) sends the current target; setActive(false) just stops", () => {
     const { hass, calls } = mockHass();
     setActive(hass, state, true);
