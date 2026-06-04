@@ -80,10 +80,15 @@ export class SaunaCardEditor extends LitElement {
     t(LABEL_KEY[schema.name] ?? schema.name, this._lang);
 
   private _valueChanged(ev: CustomEvent): void {
-    const value = (ev.detail as { value: SaunaCardConfig }).value;
+    // ha-form only round-trips the keys it knows from the schema, so merge over
+    // the current config to preserve everything else (`type`, `integration`,
+    // and any future keys). Keep the editor's own copy in sync too.
+    const changed = (ev.detail as { value: Partial<SaunaCardConfig> }).value;
+    const next = { ...this._config, ...changed } as SaunaCardConfig;
+    this._config = next;
     this.dispatchEvent(
       new CustomEvent("config-changed", {
-        detail: { config: value },
+        detail: { config: next },
         bubbles: true,
         composed: true,
       }),
