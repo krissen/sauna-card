@@ -41,10 +41,10 @@ def wait_ready(page, timeout_s=40):
     start = time.time()
     while time.time() - start < timeout_s:
         n = page.locator("sauna-badge").count()
-        rendered = page.evaluate(
-            "() => [...document.querySelectorAll('sauna-badge')]"
-            ".filter(b=>b.shadowRoot && b.shadowRoot.querySelector('.b')).length"
-        )
+        # Playwright CSS locators pierce open shadow roots, so this counts the
+        # rendered `.b` pill inside each badge's shadow DOM (document.query* does
+        # NOT pierce and would always read 0).
+        rendered = page.locator("sauna-badge .b").count()
         if n and rendered >= n:
             return True, round(time.time() - start, 1)
         page.wait_for_timeout(500)
