@@ -1,12 +1,17 @@
 import { LitElement, html, css, type TemplateResult } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
 
 /**
  * Minimal placeholder card. Real status/control rendering arrives in later
  * increments (see docs/dev/ROADMAP.md). This skeleton only proves the build,
  * registration, and Home Assistant card lifecycle wiring.
  */
-@customElement("sauna-card")
 export class SaunaCard extends LitElement {
   @property({ attribute: false }) hass?: unknown;
 
@@ -19,10 +24,10 @@ export class SaunaCard extends LitElement {
   }
 
   setConfig(config: unknown): void {
-    if (!config || typeof config !== "object" || Array.isArray(config)) {
+    if (!isPlainObject(config)) {
       throw new Error("Invalid configuration");
     }
-    this._config = config as Record<string, unknown>;
+    this._config = config;
   }
 
   getCardSize(): number {
@@ -47,6 +52,13 @@ export class SaunaCard extends LitElement {
       color: var(--primary-text-color);
     }
   `;
+}
+
+// Guarded manual registration (instead of the @customElement decorator): avoids
+// a "tag already defined" throw if the bundle is evaluated twice (Vite dev/HMR,
+// or the resource loaded more than once).
+if (!customElements.get("sauna-card")) {
+  customElements.define("sauna-card", SaunaCard);
 }
 
 declare global {
