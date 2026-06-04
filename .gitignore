@@ -1,0 +1,14 @@
+node_modules/
+dist
+dist/sauna-card.js.map
+sauna-card.js.gz
+.DS_Store
+tmp
+*.log
+
+# Team structure (local tooling, not shipped)
+.claude/agents/
+.claude
+GUIDELINES.md
+research/
+_decisions/
