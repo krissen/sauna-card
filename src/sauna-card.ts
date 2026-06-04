@@ -1,4 +1,11 @@
-import { LitElement, html, css, nothing, type TemplateResult } from "lit";
+import {
+  LitElement,
+  html,
+  css,
+  nothing,
+  type TemplateResult,
+  type PropertyValues,
+} from "lit";
 import { property, state } from "lit/decorators.js";
 import type {
   Hass,
@@ -9,9 +16,16 @@ import type {
 } from "./types";
 import { pickIntegration } from "./adapter-registry";
 import { detectLang, t } from "./i18n";
-import { toggleSwitch, stepTargetTemperature, setActive } from "./controls";
+import { toggleSwitch, setTargetTemperature, setActive } from "./controls";
 
 const TEMP_STEP = 5;
+
+// HA states that mean "no usable value" — mirrors the adapter's handling.
+const UNAVAILABLE_STATES = new Set(["unavailable", "unknown", "none", ""]);
+
+function entityUnavailable(state: string | undefined): boolean {
+  return state === undefined || UNAVAILABLE_STATES.has(state);
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false;
@@ -53,6 +67,10 @@ export class SaunaCard extends LitElement {
   @property({ attribute: false }) hass?: Hass;
 
   @state() private _config: SaunaCardConfig = { type: "custom:sauna-card" };
+
+  // Optimistic target while the device catches up (it may echo slowly, or not
+  // at all in some setups), so rapid stepper clicks accumulate correctly.
+  @state() private _pendingTarget?: number;
 
   static getStubConfig(): Record<string, unknown> {
     return {};
@@ -131,7 +149,22 @@ export class SaunaCard extends LitElement {
   }
 
   private _step(s: SaunaState, delta: number): void {
-    if (this.hass) stepTargetTemperature(this.hass, s, delta);
+    if (!this.hass) return;
+    const base = this._pendingTarget ?? s.targetTemp;
+    if (base === undefined) return;
+    const next = Math.max(40, Math.min(110, base + delta));
+    this._pendingTarget = next;
+    setTargetTemperature(this.hass, s, next);
+  }
+
+  // Clear the optimistic target once the device reports the value we set.
+  protected override updated(changed: PropertyValues): void {
+    if (changed.has("hass") && this._pendingTarget !== undefined && this.hass) {
+      const s = this._state();
+      if (s && s.targetTemp === this._pendingTarget) {
+        this._pendingTarget = undefined;
+      }
+    }
   }
 
   private _setActive(s: SaunaState, active: boolean): void {
@@ -143,7 +176,11 @@ export class SaunaCard extends LitElement {
   }
 
   private _tempStepper(s: SaunaState): TemplateResult {
-    const disabled = s.targetTemp === undefined || !s.entities.thermostat;
+    const thermo = s.entities.thermostat;
+    const thermoState = thermo ? this.hass?.states[thermo]?.state : undefined;
+    const disabled =
+      s.targetTemp === undefined || !thermo || entityUnavailable(thermoState);
+    const shown = this._pendingTarget ?? s.targetTemp;
     return html`<div class="stepper">
       <button
         class="step"
@@ -153,7 +190,7 @@ export class SaunaCard extends LitElement {
       >
         −
       </button>
-      <span class="tval">${this._temp(s.targetTemp)}</span>
+      <span class="tval">${this._temp(shown)}</span>
       <button
         class="step"
         ?disabled=${disabled}
@@ -220,8 +257,7 @@ export class SaunaCard extends LitElement {
     return html`<div class="chips">
       ${CONTROLS.filter((c) => s.entities[c.key]).map((c) => {
         const st = this.hass?.states[s.entities[c.key]]?.state;
-        const unavailable =
-          st === undefined || st === "unavailable" || st === "unknown";
+        const unavailable = entityUnavailable(st);
         const on = st === "on";
         const label = this._t(c.labelKey);
         const stateText = this._t(
@@ -544,6 +580,8 @@ export class SaunaCard extends LitElement {
     .chip {
       cursor: pointer;
       font-family: inherit;
+      appearance: none;
+      -webkit-appearance: none;
     }
     .chip:disabled {
       cursor: default;
@@ -569,6 +607,8 @@ export class SaunaCard extends LitElement {
       font-size: 1.1rem;
       line-height: 1;
       cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
     }
     .step:disabled {
       opacity: 0.4;
@@ -586,6 +626,8 @@ export class SaunaCard extends LitElement {
       font-weight: 600;
       font-size: 0.85rem;
       font-family: inherit;
+      appearance: none;
+      -webkit-appearance: none;
       border: 1px solid var(--divider-color);
       background: var(--secondary-background-color);
       color: var(--primary-text-color);
