@@ -10,7 +10,17 @@ function gitVersion(): string {
       .toString()
       .trim();
   } catch {
-    return execSync("git rev-parse --short HEAD").toString().trim();
+    // No exact tag — fall back to the short commit SHA.
+    try {
+      return execSync("git rev-parse --short HEAD", {
+        stdio: ["pipe", "pipe", "ignore"],
+      })
+        .toString()
+        .trim();
+    } catch {
+      // No git metadata at all (e.g. building from a source tarball).
+      return "0.0.0-unknown";
+    }
   }
 }
 
