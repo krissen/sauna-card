@@ -81,9 +81,10 @@ describe("i18n / locale coverage", () => {
     const enKeys = Object.keys(en);
     const enSet = new Set(enKeys);
     for (const [code, data] of Object.entries({ sv, fi, de })) {
-      const unknown = Object.keys(data).filter((k) => !enSet.has(k));
+      const dataKeys = new Set(Object.keys(data));
+      const unknown = [...dataKeys].filter((k) => !enSet.has(k));
       expect(unknown, `${code} has unknown/misspelled keys`).toEqual([]);
-      const missing = enKeys.filter((k) => !(k in data));
+      const missing = enKeys.filter((k) => !dataKeys.has(k));
       if (missing.length) {
         console.info(
           `[i18n] ${code}: ${missing.length}/${enKeys.length} keys untranslated (English back-fills)`,

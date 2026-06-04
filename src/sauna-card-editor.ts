@@ -27,7 +27,9 @@ export class SaunaCardEditor extends LitElement {
   @state() private _config: SaunaCardConfig = { type: "custom:sauna-card" };
 
   setConfig(config: SaunaCardConfig): void {
-    this._config = config;
+    // Back-fill the required `type` so emissions can never produce an invalid
+    // card config, even if a config without it is ever passed at runtime.
+    this._config = { ...config, type: config.type ?? "custom:sauna-card" };
   }
 
   private get _lang(): string {
@@ -70,7 +72,10 @@ export class SaunaCardEditor extends LitElement {
             // that isn't one of ours, so editing never silently drops it.
             options: [
               { value: "", label: t("editor.auto", lang) },
-              ...this._languageCodes().map((l) => ({ value: l, label: l })),
+              ...this._languageCodes().map((l) => ({
+                value: l,
+                label: this._languageLabel(l, lang),
+              })),
             ],
           },
         },
@@ -84,6 +89,17 @@ export class SaunaCardEditor extends LitElement {
       return [...SUPPORTED_LOCALES, current];
     }
     return SUPPORTED_LOCALES;
+  }
+
+  /** Native language name in the UI language (e.g. "Svenska"), falling back to the code. */
+  private _languageLabel(code: string, uiLang: string): string {
+    try {
+      return (
+        new Intl.DisplayNames([uiLang], { type: "language" }).of(code) ?? code
+      );
+    } catch {
+      return code;
+    }
   }
 
   private _computeLabel = (schema: { name: string }): string =>
