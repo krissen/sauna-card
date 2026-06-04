@@ -29,6 +29,7 @@
   "control.auto_light": "Automatisches Licht",
   "control.auto_fan": "Automatischer Lüfter",
   "action.start_session": "Sitzung starten",
+  "action.turn_off": "Ausschalten",
   "door.open": "Offen",
   "door.closed": "Geschlossen",
   "common.on": "Ein",
