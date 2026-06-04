@@ -28,7 +28,8 @@ export class SaunaCard extends LitElement {
   }
 
   override render(): TemplateResult {
-    const header = (this._config.name as string | undefined) ?? "Sauna";
+    const name = this._config.name;
+    const header = typeof name === "string" ? name : "Sauna";
     return html`
       <ha-card .header=${header}>
         <div class="content">
