@@ -4,9 +4,12 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
   release:
-    name: Build and attach bundle
+    name: Build, attach bundle and validate HACS
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,3 +32,11 @@ jobs:
           asset_name: sauna-card.js
           tag: ${{ github.event.release.tag_name }}
           overwrite: true
+      # Enforce HACS plugin compliance now that the release asset exists. A
+      # broken hacs.json or repository layout fails the release. Pinned to an
+      # immutable SHA for reproducibility; bump deliberately to pick up new
+      # HACS validation rules.
+      - name: Validate HACS manifest & structure
+        uses: hacs/action@dcb30e72781db3f207d5236b861172774ab0b485 # main @ 2026-06-04
+        with:
+          category: "plugin"
