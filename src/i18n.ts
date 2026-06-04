@@ -34,8 +34,11 @@ export const SUPPORTED_LOCALES = Object.keys(LOCALES).sort();
  */
 function resolveLocale(lang: string): string {
   if (LOCALES[lang]) return lang;
-  const short = lang.slice(0, 2).toLowerCase();
-  if (LOCALES[short]) return short;
+  // Match the primary language subtag (before any region/script separator),
+  // e.g. `sv-SE` → `sv`. Splitting avoids mis-truncating 3-letter tags like
+  // `fil` (Filipino) into `fi` (Finnish).
+  const primary = lang.toLowerCase().split(/[-_]/)[0];
+  if (LOCALES[primary]) return primary;
   return DEFAULT_LANG;
 }
 

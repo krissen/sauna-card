@@ -38,6 +38,12 @@ describe("i18n / t", () => {
     expect(t("label.humidity", "de-DE")).toBe("Luftfeuchtigkeit");
   });
 
+  it("does not mis-detect a 3-letter tag as a 2-letter prefix", () => {
+    // `fil` (Filipino) must not collapse to `fi` (Finnish) → falls back to en.
+    expect(t("control.steamer", "fil")).toBe("Steamer");
+    expect(detectLang({ language: "fil" })).toBe("en");
+  });
+
   it("falls back to English for a key missing in the target language", () => {
     // Every key currently exists everywhere, so simulate via a fake lang.
     expect(t("label.temperature", "xx")).toBe("Temperature");
