@@ -160,11 +160,18 @@ export class SaunaCard extends LitElement {
         const unavailable =
           st === undefined || st === "unavailable" || st === "unknown";
         const on = st === "on";
+        const label = this._t(c.labelKey);
+        const stateText = this._t(
+          unavailable ? "common.unavailable" : on ? "common.on" : "common.off",
+        );
+        // State is exposed in text (aria-label), not by colour alone (a11y).
         return html`<span
           class="chip ${on ? "on" : ""} ${unavailable ? "unavailable" : ""}"
-          title=${this._t(c.labelKey)}
+          role="img"
+          aria-label="${label}: ${stateText}"
+          title="${label}: ${stateText}"
         >
-          <ha-icon icon=${c.icon}></ha-icon>${this._t(c.labelKey)}
+          <ha-icon icon=${c.icon}></ha-icon>${label}
         </span>`;
       })}
     </div>`;
@@ -421,6 +428,8 @@ export class SaunaCard extends LitElement {
       border-radius: 10px;
       font-size: 0.85rem;
       font-weight: 600;
+      /* --text-primary-color is HA's "text on a coloured background" var
+         (defaults to white), distinct from --primary-text-color (body text). */
       color: var(--text-primary-color, #fff);
       background: var(--error-color, #db4437);
     }
