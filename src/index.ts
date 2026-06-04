@@ -4,7 +4,9 @@ import "./sauna-card";
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "sauna-card",
+  // Lovelace card type as used in YAML: the "custom:" prefix is the current
+  // convention (matches HA's getEntitySuggestion example and modern cards).
+  type: "custom:sauna-card",
   name: "Sauna Card",
   preview: true,
   description: "Show and control Harvia sauna heaters (Xenio, Fenix).",
