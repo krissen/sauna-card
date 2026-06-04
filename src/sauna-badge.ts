@@ -286,7 +286,10 @@ export class SaunaBadge extends LitElement {
     const label = this._showLabel
       ? html`<span class="lbl">${this._t(u.labelKey)}</span>`
       : nothing;
-    return html`<span class="seg">${core}${label}</span>`;
+    // Keep icon+value together on one line; only the label moves below it.
+    return html`<span class="seg"
+      ><span class="core">${core}</span>${label}</span
+    >`;
   }
 
   private _doorWarn(): TemplateResult {
@@ -390,17 +393,22 @@ export class SaunaBadge extends LitElement {
       outline: 2px solid var(--primary-color);
       outline-offset: 2px;
     }
+    /* Label below: the pill stays a single horizontal row of segments; only
+       each segment stacks its label under the icon+value (never wraps). */
     .b.below {
-      flex-direction: column;
       height: auto;
       padding: calc(var(--s) * 0.18) calc(var(--s) * 0.3);
-      gap: 2px;
       border-radius: calc(var(--s) * 0.5);
     }
     .b.multi {
       gap: calc(var(--s) * 0.3);
     }
     .seg {
+      display: inline-flex;
+      align-items: center;
+      gap: calc(var(--s) * 0.16);
+    }
+    .core {
       display: inline-flex;
       align-items: center;
       gap: calc(var(--s) * 0.16);
