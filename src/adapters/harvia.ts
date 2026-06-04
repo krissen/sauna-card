@@ -151,6 +151,20 @@ export const harviaAdapter: SaunaAdapter = {
     const targetTemp = num(hass, e.targetTemperature);
     const powerOn = isOn(hass, e.power);
     const heatingActive = isOn(hass, e.heating);
+    const tempTrend = num(hass, e.tempTrend);
+
+    // Ready ETA from the temperature trend (°C/min), only while heating up.
+    let readyEtaMinutes: number | undefined;
+    if (
+      heatingActive &&
+      currentTemp !== undefined &&
+      targetTemp !== undefined &&
+      tempTrend !== undefined &&
+      tempTrend > 0 &&
+      currentTemp < targetTemp
+    ) {
+      readyEtaMinutes = Math.ceil((targetTemp - currentTemp) / tempTrend);
+    }
 
     return {
       integration: HARVIA_PLATFORM,
@@ -162,10 +176,11 @@ export const harviaAdapter: SaunaAdapter = {
       targetTemp,
       humidity: num(hass, e.humidity),
       remainingMinutes: num(hass, e.remainingTime),
+      readyEtaMinutes,
       power: num(hass, e.powerSensor),
       energy: num(hass, e.energy),
       sessionsToday: num(hass, e.sessionsToday),
-      tempTrend: num(hass, e.tempTrend),
+      tempTrend,
       wifiRssi: num(hass, e.wifi),
       doorOpen: isOn(hass, e.door),
       heatingActive,
