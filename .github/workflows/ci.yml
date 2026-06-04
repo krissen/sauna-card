@@ -8,27 +8,6 @@ on:
     - cron: "0 0 * * *"
 
 jobs:
-  validate-hacs:
-    # HACS plugin validation discovers the bundle via the GitHub repository tree
-    # and releases (not the runner's filesystem). Since `dist/` is gitignored and
-    # we do not commit build artifacts, it is satisfied by the release asset that
-    # `release.yml` uploads. Until the first release (v0.0.1) exists there is
-    # nothing for it to find, so this job is informational pre-release
-    # (continue-on-error) and becomes enforcing once a release is published.
-    # `hacs/action` is intentionally pinned to @main: it is a validation action
-    # whose rules track HACS itself, so we want the current ruleset, not a frozen
-    # copy. Skipped on fork PRs (hacs/action resolves the repo from
-    # GITHUB_REPOSITORY, which for forks is not in the HACS list).
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate HACS manifest & structure
-        uses: hacs/action@main
-        with:
-          category: "plugin"
-
   build-test:
     runs-on: ubuntu-latest
     steps:
@@ -44,3 +23,9 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npm run build
+
+# HACS plugin validation is enforced in release.yml, where the published release
+# asset exists for hacs/action to discover. Running it here would always fail
+# pre-release (dist/ is gitignored and we do not commit build artifacts), so it
+# is deliberately not part of the per-push CI. The repository is kept
+# HACS-compliant (hacs.json, topics, README, MIT) from the start.
