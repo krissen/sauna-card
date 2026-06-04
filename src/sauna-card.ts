@@ -139,9 +139,12 @@ export class SaunaCard extends LitElement {
   private _controlChips(s: SaunaState): TemplateResult {
     return html`<div class="chips">
       ${CONTROLS.filter((c) => s.entities[c.key]).map((c) => {
-        const on = this.hass?.states[s.entities[c.key]]?.state === "on";
+        const st = this.hass?.states[s.entities[c.key]]?.state;
+        const unavailable =
+          st === undefined || st === "unavailable" || st === "unknown";
+        const on = st === "on";
         return html`<span
-          class="chip ${on ? "on" : ""}"
+          class="chip ${on ? "on" : ""} ${unavailable ? "unavailable" : ""}"
           title=${this._t(c.labelKey)}
         >
           <ha-icon icon=${c.icon}></ha-icon>${this._t(c.labelKey)}
@@ -298,8 +301,7 @@ export class SaunaCard extends LitElement {
   }
 
   private _configName(s: SaunaState): string {
-    const configured = this._config as { name?: unknown };
-    if (typeof configured.name === "string") return configured.name;
+    if (this._config.name) return this._config.name;
     const dev = this.hass?.devices?.[s.deviceId];
     return dev?.name_by_user ?? dev?.name ?? this._t("card.name");
   }
@@ -444,6 +446,9 @@ export class SaunaCard extends LitElement {
       color: var(--primary-text-color);
       border-color: var(--primary-color);
       background: var(--secondary-background-color);
+    }
+    .chip.unavailable {
+      opacity: 0.5;
     }
     .chip ha-icon {
       --mdc-icon-size: 18px;
