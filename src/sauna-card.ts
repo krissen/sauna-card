@@ -1,5 +1,14 @@
-import { LitElement, html, css, type TemplateResult } from "lit";
+import { LitElement, html, css, nothing, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
+import type {
+  Hass,
+  SaunaCardConfig,
+  SaunaState,
+  SaunaStatus,
+  SaunaLayout,
+} from "./types";
+import { pickIntegration } from "./adapter-registry";
+import { detectLang, t } from "./i18n";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false;
@@ -7,19 +16,36 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
-/**
- * Minimal placeholder card. Real status/control rendering arrives in later
- * increments (see docs/dev/ROADMAP.md). This skeleton only proves the build,
- * registration, and Home Assistant card lifecycle wiring.
- */
-export class SaunaCard extends LitElement {
-  @property({ attribute: false }) hass?: unknown;
+const STATUS_ICON: Record<SaunaStatus, string> = {
+  off: "mdi:power",
+  heating: "mdi:fire",
+  ready: "mdi:check-circle",
+  idle: "mdi:timer-sand-empty",
+  unknown: "mdi:help-circle",
+};
 
-  @state() private _config: Record<string, unknown> = {};
+const STATUS_KEY: Record<SaunaStatus, string> = {
+  off: "state.off",
+  heating: "state.heating",
+  ready: "state.ready",
+  idle: "state.idle",
+  unknown: "common.unknown",
+};
+
+// Read-only control chips shown in I5. Interactivity (callService) lands in I6.
+const CONTROLS: Array<{ key: string; icon: string; labelKey: string }> = [
+  { key: "power", icon: "mdi:power", labelKey: "control.power" },
+  { key: "light", icon: "mdi:lightbulb", labelKey: "control.light" },
+  { key: "fan", icon: "mdi:fan", labelKey: "control.fan" },
+  { key: "steamer", icon: "mdi:pot-steam", labelKey: "control.steamer" },
+];
+
+export class SaunaCard extends LitElement {
+  @property({ attribute: false }) hass?: Hass;
+
+  @state() private _config: SaunaCardConfig = { type: "custom:sauna-card" };
 
   static getStubConfig(): Record<string, unknown> {
-    // Home Assistant supplies `type` from the window.customCards entry, so the
-    // stub returns only the default config fragment (empty for now).
     return {};
   }
 
@@ -27,36 +53,468 @@ export class SaunaCard extends LitElement {
     if (!isPlainObject(config)) {
       throw new Error("Invalid configuration");
     }
-    this._config = config;
+    this._config = config as unknown as SaunaCardConfig;
   }
 
   getCardSize(): number {
-    return 3;
+    return this._layout === "compact" ? 2 : 5;
   }
 
-  override render(): TemplateResult {
-    const name = this._config.name;
-    const header = typeof name === "string" ? name : "Sauna";
-    return html`
-      <ha-card .header=${header}>
-        <div class="content">
-          <p>sauna-card — early development (${__VERSION__}).</p>
+  getGridOptions(): Record<string, number> {
+    if (this._layout === "compact") {
+      return { rows: 2, columns: 12, min_columns: 6 };
+    }
+    return { rows: 6, columns: 12, min_columns: 6 };
+  }
+
+  private get _layout(): SaunaLayout {
+    return this._config.layout ?? "status-dashboard";
+  }
+
+  private get _lang(): string {
+    return detectLang(this.hass, this._config.language);
+  }
+
+  private _state(): SaunaState | null {
+    if (!this.hass) return null;
+    const adapter = pickIntegration(this.hass, this._config.integration);
+    return adapter ? adapter.readState(this.hass, this._config) : null;
+  }
+
+  private _t(key: string, vars?: Record<string, string | number>): string {
+    return t(key, this._lang, vars);
+  }
+
+  private _temp(value: number | undefined): string {
+    return value === undefined ? "—" : `${Math.round(value)}°`;
+  }
+
+  override render(): TemplateResult | typeof nothing {
+    if (!this.hass) return nothing;
+    const s = this._state();
+    if (!s) {
+      return html`<ha-card>
+        <div class="empty">${this._t("card.name")}: no Harvia device found</div>
+      </ha-card>`;
+    }
+    switch (this._layout) {
+      case "thermostat-hero":
+        return this._renderHero(s);
+      case "compact":
+        return this._renderCompact(s);
+      default:
+        return this._renderDashboard(s);
+    }
+  }
+
+  // ---- shared partials ----
+
+  private _statusBadge(s: SaunaState): TemplateResult {
+    const eta =
+      s.status === "heating" && s.readyEtaMinutes !== undefined
+        ? ` · ${this._t("common.minutes", { count: s.readyEtaMinutes })}`
+        : "";
+    return html`<span class="badge status-${s.status}">
+      <ha-icon icon=${STATUS_ICON[s.status]}></ha-icon>
+      ${this._t(STATUS_KEY[s.status])}${eta}
+    </span>`;
+  }
+
+  private _doorWarning(s: SaunaState): TemplateResult | typeof nothing {
+    if (!(s.doorOpen && s.heatingActive)) return nothing;
+    return html`<div class="warn" role="alert">
+      <ha-icon icon="mdi:alert"></ha-icon>${this._t("label.door")}:
+      ${this._t("door.open")}
+    </div>`;
+  }
+
+  private _controlChips(s: SaunaState): TemplateResult {
+    return html`<div class="chips">
+      ${CONTROLS.filter((c) => s.entities[c.key]).map((c) => {
+        const on = this.hass?.states[s.entities[c.key]]?.state === "on";
+        return html`<span
+          class="chip ${on ? "on" : ""}"
+          title=${this._t(c.labelKey)}
+        >
+          <ha-icon icon=${c.icon}></ha-icon>${this._t(c.labelKey)}
+        </span>`;
+      })}
+    </div>`;
+  }
+
+  private _tile(
+    labelKey: string,
+    value: string | typeof nothing,
+  ): TemplateResult | typeof nothing {
+    if (value === nothing) return nothing;
+    return html`<div class="tile">
+      <div class="k">${this._t(labelKey)}</div>
+      <div class="v">${value}</div>
+    </div>`;
+  }
+
+  // ---- layout: status-dashboard (default) ----
+
+  private _renderDashboard(s: SaunaState): TemplateResult {
+    const progress =
+      s.currentTemp !== undefined && s.targetTemp && s.targetTemp > 0
+        ? Math.max(0, Math.min(1, s.currentTemp / s.targetTemp))
+        : 0;
+    const num = (v: number | undefined, unit: string) =>
+      v === undefined ? nothing : `${Math.round(v)} ${unit}`;
+    return html`<ha-card>
+      <div class="head">
+        <span class="title">${this._configName(s)}</span>
+        ${this._statusBadge(s)}
+      </div>
+      <div class="body">
+        <div class="hero">
+          <div class="cur">${this._temp(s.currentTemp)}<span>C</span></div>
+          <div class="tgt">
+            <span>${this._t("label.target_temperature")}</span>
+            <b>${this._temp(s.targetTemp)}</b>
+          </div>
         </div>
-      </ha-card>
-    `;
+        ${s.status === "heating"
+          ? html`<div class="progress">
+                <i style=${`width:${(progress * 100).toFixed(0)}%`}></i>
+              </div>
+              ${s.readyEtaMinutes !== undefined
+                ? html`<div class="eta">
+                    ${this._t("state.ready")}:
+                    ${this._t("common.minutes", { count: s.readyEtaMinutes })}
+                  </div>`
+                : nothing}`
+          : nothing}
+        ${this._doorWarning(s)}
+        <div class="tiles">
+          ${this._tile("label.humidity", num(s.humidity, "%"))}
+          ${this._tile("label.power", num(s.power, "W"))}
+          ${this._tile("label.energy", num(s.energy, "kWh"))}
+          ${this._tile(
+            "label.remaining_time",
+            s.remainingMinutes === undefined
+              ? nothing
+              : this._t("common.minutes", { count: s.remainingMinutes }),
+          )}
+          ${this._tile(
+            "label.door",
+            s.doorOpen === undefined
+              ? nothing
+              : this._t(s.doorOpen ? "door.open" : "door.closed"),
+          )}
+          ${this._tile(
+            "label.sessions_today",
+            s.sessionsToday === undefined ? nothing : `${s.sessionsToday}`,
+          )}
+        </div>
+        ${this._controlChips(s)}
+      </div>
+    </ha-card>`;
+  }
+
+  // ---- layout: thermostat-hero ----
+
+  private _renderHero(s: SaunaState): TemplateResult {
+    // Arc from 135° over 270° (dasharray 471 on r=100). Progress toward target.
+    const progress =
+      s.currentTemp !== undefined && s.targetTemp && s.targetTemp > 0
+        ? Math.max(0, Math.min(1, s.currentTemp / s.targetTemp))
+        : 0;
+    const full = 471;
+    const arcColor =
+      s.status === "ready"
+        ? "var(--success-color, #43a047)"
+        : "var(--sauna-heat-color, #ff7a18)";
+    return html`<ha-card>
+      <div class="head">
+        <span class="title">${this._configName(s)}</span>
+        ${this._statusBadge(s)}
+      </div>
+      <div class="dial">
+        <svg viewBox="0 0 240 240">
+          <circle
+            class="track"
+            cx="120"
+            cy="120"
+            r="100"
+            stroke-dasharray=${full}
+            stroke-dashoffset="118"
+            transform="rotate(135 120 120)"
+          />
+          <circle
+            cx="120"
+            cy="120"
+            r="100"
+            stroke=${arcColor}
+            stroke-dasharray=${full}
+            stroke-dashoffset=${118 + (full - 118) * (1 - progress)}
+            transform="rotate(135 120 120)"
+          />
+        </svg>
+        <div class="center">
+          <div class="cur">${this._temp(s.currentTemp)}<span>C</span></div>
+          <div class="tgt">
+            ${this._t("label.target_temperature")}
+            <b>${this._temp(s.targetTemp)}</b>
+          </div>
+        </div>
+      </div>
+      ${this._doorWarning(s)} ${this._controlChips(s)}
+    </ha-card>`;
+  }
+
+  // ---- layout: compact ----
+
+  private _renderCompact(s: SaunaState): TemplateResult {
+    const detail =
+      s.status === "heating" && s.readyEtaMinutes !== undefined
+        ? `${this._temp(s.currentTemp)} → ${this._temp(s.targetTemp)} · ${this._t(
+            "common.minutes",
+            { count: s.readyEtaMinutes },
+          )}`
+        : `${this._temp(s.currentTemp)}`;
+    return html`<ha-card>
+      <div class="compact">
+        <div class="ic status-${s.status}">
+          <ha-icon icon=${STATUS_ICON[s.status]}></ha-icon>
+        </div>
+        <div class="txt">
+          <div class="name">${this._configName(s)}</div>
+          <div class="sub">${this._t(STATUS_KEY[s.status])} · ${detail}</div>
+        </div>
+        <div class="big">${this._temp(s.currentTemp)}</div>
+      </div>
+      ${this._doorWarning(s)}
+    </ha-card>`;
+  }
+
+  private _configName(s: SaunaState): string {
+    const configured = this._config as { name?: unknown };
+    if (typeof configured.name === "string") return configured.name;
+    return this.hass?.devices?.[s.deviceId]?.name ?? this._t("card.name");
   }
 
   static override styles = css`
-    .content {
+    :host {
+      --sauna-heat-color: #ff7a18;
+    }
+    ha-card {
       padding: 16px;
       color: var(--primary-text-color);
+    }
+    .empty {
+      padding: 8px;
+      color: var(--secondary-text-color);
+    }
+    .head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .title {
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+    .head .badge {
+      margin-left: auto;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--secondary-background-color);
+      color: var(--secondary-text-color);
+    }
+    .badge ha-icon {
+      --mdc-icon-size: 16px;
+    }
+    .status-heating {
+      color: var(--sauna-heat-color);
+    }
+    .status-ready {
+      color: var(--success-color, #43a047);
+    }
+    .body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .hero {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .hero .cur {
+      font-size: 3rem;
+      font-weight: 300;
+      line-height: 1;
+    }
+    .hero .cur span {
+      font-size: 1.2rem;
+      color: var(--secondary-text-color);
+      margin-left: 2px;
+    }
+    .tgt {
+      display: flex;
+      flex-direction: column;
+      font-size: 0.8rem;
+      color: var(--secondary-text-color);
+    }
+    .tgt b {
+      color: var(--sauna-heat-color);
+      font-size: 1rem;
+    }
+    .progress {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--divider-color);
+      overflow: hidden;
+    }
+    .progress > i {
+      display: block;
+      height: 100%;
+      background: var(--sauna-heat-color);
+    }
+    .eta {
+      font-size: 0.8rem;
+      color: var(--secondary-text-color);
+    }
+    .warn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary-color, #fff);
+      background: var(--error-color, #db4437);
+    }
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .tile {
+      background: var(--secondary-background-color);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .tile .k {
+      font-size: 0.7rem;
+      color: var(--secondary-text-color);
+    }
+    .tile .v {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 550;
+      padding: 6px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--divider-color);
+      color: var(--secondary-text-color);
+    }
+    .chip.on {
+      color: var(--primary-text-color);
+      border-color: var(--primary-color);
+      background: var(--secondary-background-color);
+    }
+    .chip ha-icon {
+      --mdc-icon-size: 18px;
+    }
+    .dial {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      margin: 4px auto 12px;
+    }
+    .dial svg {
+      width: 100%;
+      height: 100%;
+    }
+    .dial circle {
+      fill: none;
+      stroke-width: 14;
+      stroke-linecap: round;
+    }
+    .dial .track {
+      stroke: var(--divider-color);
+    }
+    .dial .center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .dial .cur {
+      font-size: 2.6rem;
+      font-weight: 300;
+    }
+    .dial .cur span {
+      font-size: 1rem;
+      color: var(--secondary-text-color);
+    }
+    .dial .tgt {
+      flex-direction: row;
+      gap: 5px;
+      margin-top: 4px;
+    }
+    .compact {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .compact .ic {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--secondary-background-color);
+    }
+    .compact .ic ha-icon {
+      --mdc-icon-size: 24px;
+    }
+    .compact .name {
+      font-weight: 600;
+    }
+    .compact .sub {
+      font-size: 0.85rem;
+      color: var(--secondary-text-color);
+    }
+    .compact .big {
+      margin-left: auto;
+      font-size: 1.8rem;
+      font-weight: 300;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .progress > i {
+        transition: none;
+      }
     }
   `;
 }
 
-// Guarded manual registration (instead of the @customElement decorator): avoids
-// a "tag already defined" throw if the bundle is evaluated twice (Vite dev/HMR,
-// or the resource loaded more than once).
 if (!customElements.get("sauna-card")) {
   customElements.define("sauna-card", SaunaCard);
 }
