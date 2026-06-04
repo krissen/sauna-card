@@ -307,6 +307,25 @@ export class SaunaCard extends LitElement {
     </div>`;
   }
 
+  // The progress bar and ETA line are always rendered (the bar empty, the ETA
+  // blank) so starting/stopping a session doesn't reflow the card height — only
+  // their contents change, never the layout. Reserving the space avoids the
+  // "jump" when the heating block appears.
+  private _heatProgress(s: SaunaState, progress: number): TemplateResult {
+    const heating = s.status === "heating";
+    const width = heating ? (progress * 100).toFixed(0) : "0";
+    const showEta = heating && s.readyEtaMinutes !== undefined;
+    return html`<div class="progress" aria-hidden=${heating ? "false" : "true"}>
+        <i style=${`width:${width}%`}></i>
+      </div>
+      <div class="eta" aria-hidden=${showEta ? "false" : "true"}>
+        ${showEta
+          ? html`${this._t("state.ready")}:
+            ${this._t("common.minutes", { count: s.readyEtaMinutes! })}`
+          : html`&nbsp;`}
+      </div>`;
+  }
+
   // ---- layout: status-dashboard (default) ----
 
   private _renderDashboard(s: SaunaState): TemplateResult {
@@ -329,18 +348,7 @@ export class SaunaCard extends LitElement {
             ${this._tempStepper(s)}
           </div>
         </div>
-        ${s.status === "heating"
-          ? html`<div class="progress">
-                <i style=${`width:${(progress * 100).toFixed(0)}%`}></i>
-              </div>
-              ${s.readyEtaMinutes !== undefined
-                ? html`<div class="eta">
-                    ${this._t("state.ready")}:
-                    ${this._t("common.minutes", { count: s.readyEtaMinutes })}
-                  </div>`
-                : nothing}`
-          : nothing}
-        ${this._doorWarning(s)}
+        ${this._heatProgress(s, progress)} ${this._doorWarning(s)}
         <div class="tiles">
           ${this._tile("label.humidity", fmt(s.humidity, "%"))}
           ${this._tile("label.power", fmt(s.power, "W"))}
@@ -539,6 +547,8 @@ export class SaunaCard extends LitElement {
     .eta {
       font-size: 0.8rem;
       color: var(--secondary-text-color);
+      /* Reserve one line so the ETA appearing/disappearing never shifts layout. */
+      min-height: 1.1em;
     }
     .warn {
       display: flex;
