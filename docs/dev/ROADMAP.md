@@ -56,7 +56,7 @@ releases/version bumps, new npm dependencies.
       behind a `layout` option sharing one token system — `status-dashboard`
       (default), `thermostat-hero`, `compact` — styled **theme-first** (HA CSS
       vars, no hard-coded theme colors). `getCardSize`/`getGridOptions`.
-      Door-open-while-heating warning. Verified in `hass-test`. See ADR 0005.
+      Door-open-while-heating warning. Verified in `hass-test`.
 - [ ] **I6 · Controls (write).** `controls/` `callService` wrappers
       (`climate.set_temperature`, `switch.turn_on/off`, `number.set_value`,
       `harvia_sauna.set_session`) wired into the card.
