@@ -79,8 +79,10 @@ function heatProgress(s: SaunaState): number | undefined {
   return clamp01(s.currentTemp / s.targetTemp);
 }
 
+// The degree sign rides along in the value text (full size, naturally
+// top-aligned like the card), not as a shrunk trailing unit.
 const temp = (v: number | undefined): ItemValue | null =>
-  v === undefined ? null : { text: `${Math.round(v)}`, unit: "°" };
+  v === undefined ? null : { text: `${Math.round(v)}°` };
 
 export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
   status: {
