@@ -19,9 +19,17 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      # Re-run the same quality gates as CI so a release can never ship a broken
+      # bundle, even if cut from a commit that bypassed CI.
+      - name: Quality gates
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run test
       - name: Build the bundle
         run: |
-          npm ci
           npm run update-version
           npm run build
       - name: Upload dist/sauna-card.js
