@@ -170,12 +170,21 @@ export class SaunaCard extends LitElement {
   private _setActive(s: SaunaState, active: boolean): void {
     if (!this.hass) return;
     // Honour an in-flight stepper adjustment when starting a session.
-    const target = this._pendingTarget ?? s.targetTemp;
-    setActive(this.hass, { ...s, targetTemp: target }, active);
+    setActive(
+      this.hass,
+      { ...s, targetTemp: this._effectiveTarget(s) },
+      active,
+    );
+  }
+
+  /** Optimistic pending target if set, otherwise the device's reported target. */
+  private _effectiveTarget(s: SaunaState): number | undefined {
+    return this._pendingTarget ?? s.targetTemp;
   }
 
   private _powerOn(s: SaunaState): boolean {
-    return this.hass?.states[s.entities.power]?.state === "on";
+    const id = s.entities.power;
+    return id ? this.hass?.states[id]?.state === "on" : false;
   }
 
   private _tempStepper(s: SaunaState): TemplateResult {
@@ -183,7 +192,7 @@ export class SaunaCard extends LitElement {
     const thermoState = thermo ? this.hass?.states[thermo]?.state : undefined;
     const disabled =
       s.targetTemp === undefined || !thermo || entityUnavailable(thermoState);
-    const shown = this._pendingTarget ?? s.targetTemp;
+    const shown = this._effectiveTarget(s);
     const tt = this._t("label.target_temperature");
     return html`<div class="stepper">
       <button
@@ -407,7 +416,7 @@ export class SaunaCard extends LitElement {
           <div class="cur">${this._heroTemp(s.currentTemp)}</div>
           <div class="tgt">
             ${this._t("label.target_temperature")}
-            <b>${this._temp(s.targetTemp)}</b>
+            <b>${this._temp(this._effectiveTarget(s))}</b>
           </div>
         </div>
       </div>
