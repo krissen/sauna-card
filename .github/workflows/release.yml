@@ -19,9 +19,10 @@ jobs:
       - name: Build the bundle
         run: |
           npm ci
+          npm run update-version
           npm run build
       - name: Upload dist/sauna-card.js
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: dist/sauna-card.js

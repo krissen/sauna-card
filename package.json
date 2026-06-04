@@ -9,7 +9,6 @@
     "build": "vite build",
     "preview": "vite preview",
     "update-version": "node scripts/update-version.mjs",
-    "prebuild": "npm run update-version",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
