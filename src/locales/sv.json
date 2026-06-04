@@ -38,5 +38,13 @@
   "common.no": "Nej",
   "common.unavailable": "Otillgänglig",
   "common.unknown": "Okänd",
-  "common.minutes": "{count, plural, one {# minut} other {# minuter}}"
+  "common.minutes": "{count, plural, one {# minut} other {# minuter}}",
+  "editor.name": "Namn",
+  "editor.layout": "Layout",
+  "editor.language": "Språk",
+  "editor.device": "Enhet",
+  "editor.auto": "Automatiskt",
+  "editor.layout_status_dashboard": "Statuspanel",
+  "editor.layout_thermostat_hero": "Termostatratt",
+  "editor.layout_compact": "Kompakt"
 }

@@ -1,6 +1,7 @@
 // Entry point: registers custom elements and advertises the card to Home
 // Assistant's Lovelace picker (and, later, the badge picker).
 import "./sauna-card";
+import "./sauna-card-editor";
 
 const customCards = (window.customCards ??= []);
 customCards.push({
