@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+
+# HACS plugin validation is enforced in release.yml, where the published release
+# asset exists for hacs/action to discover. Running it here would always fail
+# pre-release (dist/ is gitignored and we do not commit build artifacts), so it
+# is deliberately not part of the per-push CI. The repository is kept
+# HACS-compliant (hacs.json, topics, README, MIT) from the start.

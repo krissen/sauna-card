@@ -26,14 +26,20 @@ releases/version bumps, new npm dependencies.
 
 ## Phase 0 — Foundation (`0.0.x`, tag `v0.0.1`)
 
-- [ ] **F0 · Repo & team.** `git init`, branch model (`master` protected, work via
+- [x] **F0 · Repo & team.** `git init`, branch model (`master` default, work via
       feature → `dev`), MIT license, README, `hacs.json`, `.gitignore`, team
       structure, ADRs 0001–0004.
-- [ ] **F1 · Tooling skeleton.** `package.json` (lit@3, typescript, vite, vitest,
-      eslint/prettier, intl-messageformat), `tsconfig.json`, `vite.config.ts`
-      (entry `src/index.ts` → `dist/sauna-card.js`, `__VERSION__` inject), CI
-      (`ci.yml`: hacs/action + hassfest + lint + vitest; `release.yml`). Empty
-      `<sauna-card>` registered, builds, visible in `hass-test`. Tag `v0.0.1`.
+- [x] **F1 · Tooling skeleton.** TypeScript + Lit 3 + Vite → `dist/sauna-card.js`
+      with `__VERSION__` injection; Vitest, ESLint, Prettier; CI (`ci.yml`:
+      typecheck/lint/test/build) and `release.yml` (build + enforcing
+      `hacs/action` at release time — `hassfest` omitted, this is a frontend
+      card). Placeholder `<sauna-card>` registered and deployed to `hass-test`.
+      Merged via PR #1 after dual-bot review. **Tag `v0.0.1` (tag only, no
+      GitHub release).**
+
+> Release policy: `v0.0.1` is an internal tag only. The **first GitHub release
+> will be `0.1.0-beta1`** (which triggers `release.yml`). HACS submission follows
+> once 0.1.0 is stable.
 
 ## Phase 1 — 0.1.0 increments (each its own branch/PR → `dev`)
 
@@ -58,7 +64,8 @@ releases/version bumps, new npm dependencies.
 - [ ] **I9 · Badge.** `sauna-badge.ts` + `sauna-badge-editor.ts`,
       `window.customBadges`, shared status mixin.
 - [ ] **I10 · Docs & release.** README, `docs/configuration.md`, finalize locales,
-      `CHANGELOG.md` `[0.1.0]`. Merge `dev → master`, tag `v0.1.0`, GitHub release.
+      `CHANGELOG.md`. Merge `dev → master`, tag and cut the **first GitHub release
+      `0.1.0-beta1`** (triggers `release.yml`); promote to `0.1.0` once stable.
 
 Dependencies: I1–I2 underpin I3–I4; I3–I4 underpin I5; I5 underpins I6/I7; I9
 follows I5; I8 can run in parallel after I2.
