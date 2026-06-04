@@ -29,35 +29,40 @@ for (const filePath in localeModules) {
 export const SUPPORTED_LOCALES = Object.keys(LOCALES).sort();
 
 /**
- * Pick the best language: an explicit override, then the Home Assistant locale,
- * then its 2-letter prefix, then English. Always returns a code that exists.
+ * Resolve any language tag to a supported locale code: an exact match first,
+ * then the 2-letter prefix (so `sv-SE` → `sv`), then English.
  */
-export function detectLang(hass?: HassLike, userLocale?: string): string {
-  const tag =
-    userLocale || hass?.locale?.language || hass?.language || DEFAULT_LANG;
-  if (LOCALES[tag]) return tag;
-  const short = tag.slice(0, 2).toLowerCase();
+function resolveLocale(lang: string): string {
+  if (LOCALES[lang]) return lang;
+  const short = lang.slice(0, 2).toLowerCase();
   if (LOCALES[short]) return short;
   return DEFAULT_LANG;
 }
 
 /**
- * Translate `key` into `lang`, formatting any ICU variables. Falls back to the
- * English string, then to the raw key, so a missing translation never throws.
+ * Pick the best language: an explicit config override, then the Home Assistant
+ * locale, then English. Always returns a supported code.
+ */
+export function detectLang(hass?: HassLike, override?: string): string {
+  const tag =
+    override || hass?.locale?.language || hass?.language || DEFAULT_LANG;
+  return resolveLocale(tag);
+}
+
+/**
+ * Translate `key` into `lang` (any BCP47 tag), formatting ICU variables. Falls
+ * back to the English string, then to the raw key, so it never throws. Both the
+ * lookup and the ICU formatter use the resolved, supported locale.
  */
 export function t(
   key: string,
   lang: string,
   vars: Record<string, string | number> = {},
 ): string {
-  const hasLang = LOCALES[lang] !== undefined;
-  const localeData = hasLang ? LOCALES[lang] : (LOCALES[DEFAULT_LANG] ?? {});
-  const msg = localeData[key] ?? LOCALES[DEFAULT_LANG]?.[key] ?? key;
-  // Format with a supported locale. An unsupported/invalid BCP47 tag would make
-  // IntlMessageFormat throw, dropping variable interpolation.
-  const formatLang = hasLang ? lang : DEFAULT_LANG;
+  const code = resolveLocale(lang);
+  const msg = LOCALES[code]?.[key] ?? LOCALES[DEFAULT_LANG]?.[key] ?? key;
   try {
-    const out = new IntlMessageFormat(msg, formatLang).format(vars);
+    const out = new IntlMessageFormat(msg, code).format(vars);
     return typeof out === "string" ? out : String(out);
   } catch (err) {
     console.warn(`[sauna-card] translation failed for key: ${key}`, err);

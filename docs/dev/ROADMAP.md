@@ -52,8 +52,11 @@ releases/version bumps, new npm dependencies.
       `stubConfig`, `readState`, `resolveEntityIds`. Contract tests + fixtures
       captured from the live integration.
 - [ ] **I4 · Fenix adapter (read).** `adapters/fenix.ts`, same contract.
-- [ ] **I5 · Card read-only view.** Status through adapters + i18n; `getCardSize`/
-      `getGridOptions`. Verified in `hass-test`.
+- [ ] **I5 · Card read-only view.** Status through adapters + i18n. Three layouts
+      behind a `layout` option sharing one token system — `status-dashboard`
+      (default), `thermostat-hero`, `compact` — styled **theme-first** (HA CSS
+      vars, no hard-coded theme colors). `getCardSize`/`getGridOptions`.
+      Door-open-while-heating warning. Verified in `hass-test`. See ADR 0005.
 - [ ] **I6 · Controls (write).** `controls/` `callService` wrappers
       (`climate.set_temperature`, `switch.turn_on/off`, `number.set_value`,
       `harvia_sauna.set_session`) wired into the card.
