@@ -21,6 +21,7 @@ const REG: Record<string, [string, string]> = {
   "sensor.bastu_temperatur": ["harvia_sauna", "current_temperature"],
   "sensor.bastu_maltemperatur": ["harvia_sauna", "target_temperature"],
   "sensor.bastu_luftfuktighet": ["harvia_sauna", "humidity"],
+  "sensor.bastu_temperaturtrend": ["harvia_sauna", "temp_trend"],
   "sensor.bastu_effekt": ["harvia_sauna", "power"],
   "switch.bastu_strom": ["harvia_sauna", "power"],
   "switch.bastu_belysning": ["harvia_sauna", "light"],
@@ -48,6 +49,7 @@ function makeHass(states: Record<string, string> = {}): Hass {
     "sensor.bastu_temperatur": "82",
     "sensor.bastu_maltemperatur": "90",
     "sensor.bastu_luftfuktighet": "12",
+    "sensor.bastu_temperaturtrend": "1",
     "sensor.bastu_effekt": "6000",
     "switch.bastu_strom": "on",
     "switch.bastu_belysning": "on",
@@ -161,6 +163,28 @@ describe("harvia adapter readState", () => {
     expect(
       harviaAdapter.readState(empty, { type: "custom:sauna-card" }),
     ).toBeNull();
+  });
+
+  it("derives ready ETA from the temperature trend while heating", () => {
+    // current 82, target 90, trend 1 °C/min → ceil(8/1) = 8
+    const s = harviaAdapter.readState(makeHass(), {
+      type: "custom:sauna-card",
+    });
+    expect(s!.readyEtaMinutes).toBe(8);
+  });
+
+  it("has no ready ETA when not heating or trend is non-positive", () => {
+    const notHeating = harviaAdapter.readState(
+      makeHass({ "binary_sensor.bastu_uppvarmning_aktiv": "off" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(notHeating!.readyEtaMinutes).toBeUndefined();
+
+    const flatTrend = harviaAdapter.readState(
+      makeHass({ "sensor.bastu_temperaturtrend": "0" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(flatTrend!.readyEtaMinutes).toBeUndefined();
   });
 
   it("ignores unavailable numeric states", () => {
