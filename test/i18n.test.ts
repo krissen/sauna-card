@@ -42,6 +42,12 @@ describe("i18n / t", () => {
     expect(t("nope.missing", "en")).toBe("nope.missing");
   });
 
+  it("still interpolates when the requested lang is unsupported/invalid", () => {
+    // Falls back to the English message AND a valid format locale, so ICU vars
+    // are still interpolated instead of returning the raw pattern.
+    expect(t("common.minutes", "pt_BR", { count: 2 })).toBe("2 minutes");
+  });
+
   it("formats ICU plurals", () => {
     expect(t("common.minutes", "en", { count: 1 })).toBe("1 minute");
     expect(t("common.minutes", "en", { count: 5 })).toBe("5 minutes");
