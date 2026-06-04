@@ -16,6 +16,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
+const LAYOUTS: SaunaLayout[] = [
+  "status-dashboard",
+  "thermostat-hero",
+  "compact",
+];
+
 const STATUS_ICON: Record<SaunaStatus, string> = {
   off: "mdi:power",
   heating: "mdi:fire",
@@ -52,6 +58,17 @@ export class SaunaCard extends LitElement {
   setConfig(config: unknown): void {
     if (!isPlainObject(config)) {
       throw new Error("Invalid configuration");
+    }
+    for (const key of ["name", "integration", "device_id", "language"]) {
+      if (config[key] !== undefined && typeof config[key] !== "string") {
+        throw new Error(`sauna-card: "${key}" must be a string`);
+      }
+    }
+    if (
+      config.layout !== undefined &&
+      !LAYOUTS.includes(config.layout as SaunaLayout)
+    ) {
+      throw new Error(`sauna-card: invalid layout "${String(config.layout)}"`);
     }
     this._config = config as unknown as SaunaCardConfig;
   }
