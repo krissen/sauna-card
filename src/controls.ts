@@ -7,12 +7,28 @@ function clampTemp(t: number): number {
   return Math.max(MIN_TEMP, Math.min(MAX_TEMP, Math.round(t)));
 }
 
+/**
+ * Invoke a service, swallowing rejections so callers can safely fire-and-forget
+ * without producing unhandled promise rejections.
+ */
+function call(
+  hass: Hass,
+  domain: string,
+  service: string,
+  data: Record<string, unknown>,
+): Promise<unknown> | undefined {
+  const result = hass.callService?.(domain, service, data);
+  return result?.catch((err: unknown) => {
+    console.error(`[sauna-card] ${domain}.${service} failed`, err);
+  });
+}
+
 /** Toggle a switch entity (power, light, fan, steamer, …). */
 export function toggleSwitch(
   hass: Hass,
   entityId: string,
 ): Promise<unknown> | undefined {
-  return hass.callService?.("switch", "toggle", { entity_id: entityId });
+  return call(hass, "switch", "toggle", { entity_id: entityId });
 }
 
 /** Set the thermostat target temperature (clamped to the Harvia range). */
@@ -23,7 +39,7 @@ export function setTargetTemperature(
 ): Promise<unknown> | undefined {
   const entityId = state.entities.thermostat;
   if (!entityId) return undefined;
-  return hass.callService?.("climate", "set_temperature", {
+  return call(hass, "climate", "set_temperature", {
     entity_id: entityId,
     temperature: clampTemp(temperature),
   });
@@ -53,7 +69,7 @@ export function setSession(
     data.target_temp = clampTemp(opts.target_temp);
   if (opts.duration !== undefined) data.duration = opts.duration;
   if (opts.active !== undefined) data.active = opts.active;
-  return hass.callService?.("harvia_sauna", "set_session", data);
+  return call(hass, "harvia_sauna", "set_session", data);
 }
 
 /** Start the heater at the current target; stop turns it off. */
