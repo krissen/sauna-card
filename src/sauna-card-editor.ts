@@ -66,14 +66,24 @@ export class SaunaCardEditor extends LitElement {
         selector: {
           select: {
             mode: "dropdown",
+            // Include any language already in the config (e.g. authored in YAML)
+            // that isn't one of ours, so editing never silently drops it.
             options: [
               { value: "", label: t("editor.auto", lang) },
-              ...SUPPORTED_LOCALES.map((l) => ({ value: l, label: l })),
+              ...this._languageCodes().map((l) => ({ value: l, label: l })),
             ],
           },
         },
       },
     ];
+  }
+
+  private _languageCodes(): string[] {
+    const current = this._config.language;
+    if (current && !SUPPORTED_LOCALES.includes(current)) {
+      return [...SUPPORTED_LOCALES, current];
+    }
+    return SUPPORTED_LOCALES;
   }
 
   private _computeLabel = (schema: { name: string }): string =>
