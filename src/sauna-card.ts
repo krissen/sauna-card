@@ -82,6 +82,10 @@ export class SaunaCard extends LitElement {
     return {};
   }
 
+  static getConfigElement(): HTMLElement {
+    return document.createElement("sauna-card-editor");
+  }
+
   setConfig(config: unknown): void {
     if (!isPlainObject(config)) {
       throw new Error("Invalid configuration");

@@ -38,5 +38,13 @@
   "common.no": "Ei",
   "common.unavailable": "Ei saatavilla",
   "common.unknown": "Tuntematon",
-  "common.minutes": "{count, plural, one {# minuutti} other {# minuuttia}}"
+  "common.minutes": "{count, plural, one {# minuutti} other {# minuuttia}}",
+  "editor.name": "Nimi",
+  "editor.layout": "Asettelu",
+  "editor.language": "Kieli",
+  "editor.device": "Laite",
+  "editor.auto": "Automaattinen",
+  "editor.layout_status_dashboard": "Tilapaneeli",
+  "editor.layout_thermostat_hero": "Termostaattikiekko",
+  "editor.layout_compact": "Tiivis"
 }
