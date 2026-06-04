@@ -69,6 +69,8 @@ export interface SaunaState {
   targetTemp?: number;
   humidity?: number;
   remainingMinutes?: number;
+  /** Estimated minutes until ready, derived from the temperature trend. */
+  readyEtaMinutes?: number;
   power?: number;
   energy?: number;
   sessionsToday?: number;
