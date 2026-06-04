@@ -56,6 +56,47 @@ export interface SaunaCardConfig {
   language?: string;
 }
 
+/** Badge content selection: the headline, one chosen value, or several. */
+export type BadgeContent = "primary" | "single" | "row";
+
+/** Badge appearance for each rendered value. */
+export type BadgeVisual =
+  | "chip"
+  | "icon"
+  | "value"
+  | "ring_value"
+  | "ring_icon"
+  | "ring";
+
+/** Where an optional item label sits relative to its value. */
+export type BadgeLabelPosition = "right" | "below";
+
+export interface SaunaBadgeConfig {
+  type: string;
+  /** Override label/aria text; defaults to the device name. */
+  name?: string;
+  /** Integration id; auto-detected when omitted. */
+  integration?: string;
+  /** Device id within the integration; auto-selected when omitted. */
+  device_id?: string;
+  /** Locale override; falls back to the Home Assistant locale. */
+  language?: string;
+  /** What the badge shows (default "primary": status + current temperature). */
+  content?: BadgeContent;
+  /** How each value is drawn (default "chip": icon + value). */
+  visual?: BadgeVisual;
+  /** The value shown when content = "single". */
+  single_item?: string;
+  /** The values shown when content = "row". */
+  items?: string[];
+  /** Show each value's text label. */
+  show_label?: boolean;
+  /** Label placement when show_label is set. */
+  label_position?: BadgeLabelPosition;
+  /** Overall size multiplier of the badge pill (default 1). */
+  scale?: number;
+}
+
 /**
  * Normalized state the card renders, independent of which integration/model
  * produced it. Adapters map their entities into this shape.
