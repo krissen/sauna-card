@@ -158,7 +158,12 @@ export class SaunaCard extends LitElement {
     if (!this.hass) return;
     const base = this._pendingTarget ?? s.targetTemp;
     if (base === undefined) return;
-    const next = Math.max(MIN_TEMP, Math.min(MAX_TEMP, base + delta));
+    // Round to match what setTargetTemperature sends, so the optimistic value
+    // shown never disagrees with the value actually requested.
+    const next = Math.max(
+      MIN_TEMP,
+      Math.min(MAX_TEMP, Math.round(base + delta)),
+    );
     this._pendingTarget = next;
     setTargetTemperature(this.hass, s, next);
   }
