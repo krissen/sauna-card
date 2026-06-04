@@ -16,11 +16,11 @@ export class SaunaCard extends LitElement {
     return { type: "custom:sauna-card" };
   }
 
-  setConfig(config: Record<string, unknown>): void {
-    if (!config) {
+  setConfig(config: unknown): void {
+    if (!config || typeof config !== "object") {
       throw new Error("Invalid configuration");
     }
-    this._config = config;
+    this._config = config as Record<string, unknown>;
   }
 
   getCardSize(): number {
