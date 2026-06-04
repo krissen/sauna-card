@@ -251,12 +251,14 @@ export class SaunaCard extends LitElement {
   // ---- layout: thermostat-hero ----
 
   private _renderHero(s: SaunaState): TemplateResult {
-    // Arc from 135° over 270° (dasharray 471 on r=100). Progress toward target.
+    // 270° gauge, rotated so the 90° gap sits at the bottom.
     const progress =
       s.currentTemp !== undefined && s.targetTemp && s.targetTemp > 0
         ? Math.max(0, Math.min(1, s.currentTemp / s.targetTemp))
         : 0;
-    const full = 471;
+    // r=100 → circumference ≈ 628.3; a 270° gauge shows 0.75 of it.
+    const CIRC = 2 * Math.PI * 100;
+    const ARC = CIRC * 0.75;
     const arcColor =
       s.status === "ready"
         ? "var(--success-color, #43a047)"
@@ -273,8 +275,7 @@ export class SaunaCard extends LitElement {
             cx="120"
             cy="120"
             r="100"
-            stroke-dasharray=${full}
-            stroke-dashoffset="118"
+            stroke-dasharray="${ARC.toFixed(1)} ${CIRC.toFixed(1)}"
             transform="rotate(135 120 120)"
           />
           <circle
@@ -282,8 +283,7 @@ export class SaunaCard extends LitElement {
             cy="120"
             r="100"
             stroke=${arcColor}
-            stroke-dasharray=${full}
-            stroke-dashoffset=${118 + (full - 118) * (1 - progress)}
+            stroke-dasharray="${(ARC * progress).toFixed(1)} ${CIRC.toFixed(1)}"
             transform="rotate(135 120 120)"
           />
         </svg>
