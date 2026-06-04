@@ -16,6 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      # HACS plugin validation looks for the bundle in dist/, the repo root, or
+      # the latest release. dist/ is gitignored and there is no release yet, so
+      # we build it here before validating.
+      - run: npm ci
+      - run: npm run build
       - name: Validate HACS manifest & structure
         uses: hacs/action@main
         with:
