@@ -59,7 +59,13 @@ export class SaunaCard extends LitElement {
     if (!isPlainObject(config)) {
       throw new Error("Invalid configuration");
     }
-    for (const key of ["name", "integration", "device_id", "language"]) {
+    for (const key of [
+      "type",
+      "name",
+      "integration",
+      "device_id",
+      "language",
+    ]) {
       if (config[key] !== undefined && typeof config[key] !== "string") {
         throw new Error(`sauna-card: "${key}" must be a string`);
       }
