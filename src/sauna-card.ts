@@ -13,11 +13,13 @@ export class SaunaCard extends LitElement {
   @state() private _config: Record<string, unknown> = {};
 
   static getStubConfig(): Record<string, unknown> {
-    return { type: "custom:sauna-card" };
+    // Home Assistant supplies `type` from the window.customCards entry, so the
+    // stub returns only the default config fragment (empty for now).
+    return {};
   }
 
   setConfig(config: unknown): void {
-    if (!config || typeof config !== "object") {
+    if (!config || typeof config !== "object" || Array.isArray(config)) {
       throw new Error("Invalid configuration");
     }
     this._config = config as Record<string, unknown>;
