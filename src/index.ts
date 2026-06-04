@@ -2,6 +2,8 @@
 // Assistant's Lovelace picker (and, later, the badge picker).
 import "./sauna-card";
 import "./sauna-card-editor";
+import type { Hass } from "./types";
+import { suggestEntity } from "./suggestion";
 
 const customCards = (window.customCards ??= []);
 customCards.push({
@@ -13,6 +15,8 @@ customCards.push({
   preview: true,
   description: "Show and control Harvia sauna heaters (Xenio, Fenix).",
   documentationURL: "https://github.com/krissen/sauna-card",
-  // HA 2026.6 card-picker suggestions (getEntitySuggestion) are added in
-  // increment I8, once autodetect can recognise Harvia entities.
+  // HA 2026.6 card-picker suggestions: offer the card when a Harvia climate
+  // entity is picked.
+  getEntitySuggestion: (hass: Hass, entityId: string) =>
+    suggestEntity(hass, entityId),
 });
