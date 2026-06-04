@@ -1,5 +1,6 @@
 {
   "card.name": "Sauna",
+  "card.no_device": "Kein Saunagerät gefunden",
   "state.off": "Aus",
   "state.heating": "Heizt",
   "state.ready": "Bereit",
