@@ -1,5 +1,6 @@
 {
   "card.name": "Bastu",
+  "card.no_device": "Ingen bastuenhet hittades",
   "state.off": "Av",
   "state.heating": "Värmer",
   "state.ready": "Klar",
