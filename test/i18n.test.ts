@@ -73,10 +73,22 @@ describe("i18n / locale coverage", () => {
     expect(DEFAULT_LANG).toBe("en");
   });
 
-  it("every locale has exactly the English key set", () => {
-    const enKeys = Object.keys(en).sort();
+  it("locales contain only known keys (missing keys fall back to English)", () => {
+    // Subset policy: a locale may omit keys (English back-fills them at runtime),
+    // so a partial translation can be dropped in and ships immediately. But it
+    // must not contain unknown/misspelled keys — those would never be read and
+    // signal drift from the English source.
+    const enKeys = Object.keys(en);
+    const enSet = new Set(enKeys);
     for (const [code, data] of Object.entries({ sv, fi, de })) {
-      expect(Object.keys(data).sort(), `${code} key set`).toEqual(enKeys);
+      const unknown = Object.keys(data).filter((k) => !enSet.has(k));
+      expect(unknown, `${code} has unknown/misspelled keys`).toEqual([]);
+      const missing = enKeys.filter((k) => !(k in data));
+      if (missing.length) {
+        console.info(
+          `[i18n] ${code}: ${missing.length}/${enKeys.length} keys untranslated (English back-fills)`,
+        );
+      }
     }
   });
 
