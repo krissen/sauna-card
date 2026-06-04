@@ -33,6 +33,11 @@ describe("i18n / t", () => {
     expect(t("control.steamer", "de")).toBe("Verdampfer");
   });
 
+  it("resolves a regional BCP47 tag to its base locale", () => {
+    expect(t("control.steamer", "sv-SE")).toBe("Ånggenerator");
+    expect(t("label.humidity", "de-DE")).toBe("Luftfeuchtigkeit");
+  });
+
   it("falls back to English for a key missing in the target language", () => {
     // Every key currently exists everywhere, so simulate via a fake lang.
     expect(t("label.temperature", "xx")).toBe("Temperature");
