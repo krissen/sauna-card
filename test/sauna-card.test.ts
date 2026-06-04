@@ -30,6 +30,19 @@ describe("sauna-card", () => {
     expect(card.getCardSize()).toBe(5);
   });
 
+  it("rejects wrong-typed fields and unknown layouts", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", language: 123 }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", layout: "fancy" }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", layout: "compact" }),
+    ).not.toThrow();
+  });
+
   it("sizes the compact layout smaller", () => {
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card", layout: "compact" });
