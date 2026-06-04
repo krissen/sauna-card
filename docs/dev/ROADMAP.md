@@ -45,13 +45,18 @@ releases/version bumps, new npm dependencies.
 
 - [ ] **I1 · i18n core.** `i18n.ts` (IntlMessageFormat, `import.meta.glob`,
       `detectLang`, `t`, English fallback) + `locales/{sv,fi,en,de}.json` skeletons.
-- [ ] **I2 · Adapter contract + registry.** TS interfaces (`SaunaConfig`,
-      `SaunaState`, adapter contract), `adapter-registry.ts`, `utils/autodetect.ts`
-      (`INTEGRATION_PRIORITY = ["harvia_xenio", "fenix"]`, detect/pick/select).
-- [ ] **I3 · Harvia Xenio adapter (read).** `adapters/harvia-xenio.ts`:
-      `stubConfig`, `readState`, `resolveEntityIds`. Contract tests + fixtures
-      captured from the live integration.
-- [ ] **I4 · Fenix adapter (read).** `adapters/fenix.ts`, same contract.
+- [ ] **I2 · Adapter contract + registry.** TS interfaces (`SaunaCardConfig`,
+      `SaunaState`, adapter contract), `adapter-registry.ts` keyed by
+      **integration**, `utils/autodetect.ts` (`INTEGRATION_PRIORITY =
+      ["harvia_sauna"]`; detect entities via `hass.entities` platform, group by
+      device, pick device). Resolution by **(domain, translation_key)** within
+      the device. Contract tests with fixtures from the live entity model.
+      (Xenio/Fenix are device *models* of one integration, not separate adapters.)
+- [ ] **I3 · Harvia adapter — readState.** `adapters/harvia.ts`: full
+      `stubConfig` + `resolveEntityIds` + `readState` → normalized `SaunaState`.
+      Verified against live Xenio entities in `hass-test`.
+- [ ] **I4 · Fenix model differences.** Per-device model detection; gate
+      entities/controls a Fenix lacks vs Xenio. Same adapter, model-aware.
 - [ ] **I5 · Card read-only view.** Status through adapters + i18n. Three layouts
       behind a `layout` option sharing one token system — `status-dashboard`
       (default), `thermostat-hero`, `compact` — styled **theme-first** (HA CSS
