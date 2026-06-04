@@ -12,6 +12,7 @@ import { pickIntegration } from "./adapter-registry";
 import {
   STATUS_ICON,
   BADGE_ITEMS,
+  isBadgeItemKey,
   type BadgeItemKey,
   type ItemValue,
   type TFn,
@@ -186,14 +187,11 @@ export class SaunaBadge extends LitElement {
   private _units(s: SaunaState): Unit[] {
     if (this._content === "single") {
       const raw = this._config.single_item;
-      const key: BadgeItemKey =
-        raw && raw in BADGE_ITEMS ? (raw as BadgeItemKey) : "current_temp";
+      const key: BadgeItemKey = isBadgeItemKey(raw) ? raw : "current_temp";
       return [unitFromItem(key, s, this._t)];
     }
     if (this._content === "row") {
-      const configured = (this._config.items ?? []).filter(
-        (k): k is BadgeItemKey => k in BADGE_ITEMS,
-      );
+      const configured = (this._config.items ?? []).filter(isBadgeItemKey);
       const keys = configured.length ? configured : DEFAULT_ITEMS;
       const units = keys
         .map((k) => unitFromItem(k, s, this._t))
@@ -293,9 +291,12 @@ export class SaunaBadge extends LitElement {
   }
 
   private _doorWarn(): TemplateResult {
+    // Name what is open (matches the card's "Door: Open"), not just "Open".
     return html`<span class="seg"
       ><span class="ic"><ha-icon icon="mdi:alert"></ha-icon></span
-      ><span class="val">${this._t("door.open")}</span></span
+      ><span class="val"
+        >${this._t("label.door")}: ${this._t("door.open")}</span
+      ></span
     >`;
   }
 
@@ -337,6 +338,8 @@ export class SaunaBadge extends LitElement {
       style="--s:${size}px"
       role="button"
       tabindex="0"
+      aria-haspopup="dialog"
+      aria-label=${this._title(s)}
       title=${this._title(s)}
       @click=${() => this._tap(s)}
       @keydown=${(e: KeyboardEvent) => {

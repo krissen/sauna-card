@@ -143,7 +143,14 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
       s.sessionsToday === undefined ? null : { text: `${s.sessionsToday}` },
   },
   door: {
-    icon: (s) => (s.doorOpen ? "mdi:door-open" : "mdi:door-closed"),
+    // Neutral icon when the door state is unknown, so an absent sensor doesn't
+    // masquerade as "closed".
+    icon: (s) =>
+      s.doorOpen === undefined
+        ? "mdi:door"
+        : s.doorOpen
+          ? "mdi:door-open"
+          : "mdi:door-closed",
     labelKey: "label.door",
     value: (s, tr) =>
       s.doorOpen === undefined
@@ -151,3 +158,11 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
         : { text: tr(s.doorOpen ? "door.open" : "door.closed") },
   },
 };
+
+/** Type guard for a badge item key, safe against prototype keys (toString …). */
+export function isBadgeItemKey(k: unknown): k is BadgeItemKey {
+  return (
+    typeof k === "string" &&
+    Object.prototype.hasOwnProperty.call(BADGE_ITEMS, k)
+  );
+}
