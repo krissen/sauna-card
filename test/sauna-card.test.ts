@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-// Importing the named export also evaluates the module and runs the
-// @customElement side effect that registers the element.
+// Importing the named export evaluates the module, which runs the guarded
+// customElements.define that registers the element.
 import { SaunaCard } from "../src/sauna-card";
 
 describe("sauna-card", () => {
@@ -25,6 +25,12 @@ describe("sauna-card", () => {
     const card = new SaunaCard();
     expect(() => card.setConfig({})).not.toThrow();
     card.setConfig({ type: "custom:sauna-card" });
-    expect(card.getCardSize()).toBe(3);
+    expect(card.getCardSize()).toBe(5);
+  });
+
+  it("sizes the compact layout smaller", () => {
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card", layout: "compact" });
+    expect(card.getCardSize()).toBe(2);
   });
 });
