@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { nothing } from "lit";
 // Importing the named export evaluates the module, which runs the guarded
 // customElements.define that registers the element.
 import { SaunaCard } from "../src/sauna-card";
+import type { Hass } from "../src/types";
 
 describe("sauna-card", () => {
   it("registers the custom element", () => {
@@ -32,5 +34,15 @@ describe("sauna-card", () => {
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card", layout: "compact" });
     expect(card.getCardSize()).toBe(2);
+  });
+
+  it("renders nothing without hass and a card when no device is found", () => {
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card" });
+    expect(card.render()).toBe(nothing);
+    card.hass = { states: {}, entities: {}, devices: {} } as Hass;
+    const out = card.render();
+    expect(out).not.toBe(nothing);
+    expect(out).toBeTruthy();
   });
 });
