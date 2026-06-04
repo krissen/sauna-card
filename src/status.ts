@@ -65,7 +65,8 @@ export interface BadgeItemDef {
   value: (s: SaunaState, tr: TFn) => ItemValue | null;
   /** Ring progress 0..1 for gauge visuals, or undefined when not gaugeable. */
   progress?: (s: SaunaState) => number | undefined;
-  /** Whether icon/value/ring should be tinted by the sauna status colour. */
+  /** Whether the icon and value should be tinted by the sauna status colour.
+   * (The ring gauge always derives its colour from the status, independently.) */
   statusTinted?: boolean;
 }
 
