@@ -2,6 +2,8 @@
 // Assistant's Lovelace picker (and, later, the badge picker).
 import "./sauna-card";
 import "./sauna-card-editor";
+import "./sauna-badge";
+import "./sauna-badge-editor";
 import type { Hass } from "./types";
 import { suggestEntity } from "./suggestion";
 
@@ -19,4 +21,15 @@ customCards.push({
   // entity is picked.
   getEntitySuggestion: (hass: Hass, entityId: string) =>
     suggestEntity(hass, entityId),
+});
+
+const customBadges = (window.customBadges ??= []);
+customBadges.push({
+  // Like customCards, this uses the bare custom element tag. Badges have no
+  // getEntitySuggestion hook (that is card-only in HA 2026.6).
+  type: "sauna-badge",
+  name: "Sauna Badge",
+  preview: true,
+  description: "Compact status badge for Harvia sauna heaters (Xenio, Fenix).",
+  documentationURL: "https://github.com/krissen/sauna-card",
 });
