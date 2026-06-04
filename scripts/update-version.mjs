@@ -5,7 +5,9 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
 function getVersion() {
   try {
-    const tag = execSync("git describe --tags --abbrev=0", {
+    // Exact-match only: version is updated when building from an actual tag
+    // (e.g. the release workflow), never from the latest reachable tag.
+    const tag = execSync("git describe --exact-match --tags", {
       stdio: ["pipe", "pipe", "ignore"],
     })
       .toString()
@@ -13,7 +15,7 @@ function getVersion() {
     // Strip leading 'v' and any pre-release suffix like '-beta1'.
     return tag.replace(/^v/, "").replace(/-.*/, "");
   } catch {
-    return null; // No tag yet; keep existing version.
+    return null; // Not on a tag; keep existing version.
   }
 }
 
