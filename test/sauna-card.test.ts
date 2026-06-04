@@ -12,7 +12,7 @@ describe("sauna-card", () => {
     expect(SaunaCard.getStubConfig()).toEqual({});
   });
 
-  it("rejects null and non-plain-object configurations", () => {
+  it("rejects null, primitive, and array configurations", () => {
     const card = new SaunaCard();
     expect(() => card.setConfig(undefined)).toThrow();
     expect(() => card.setConfig(null)).toThrow();
