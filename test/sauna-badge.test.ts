@@ -157,6 +157,17 @@ describe("sauna-badge", () => {
     }
   });
 
+  it("ignores prototype-named item keys without crashing", () => {
+    // A user-authored YAML could pass "toString"/"__proto__"; these are object
+    // prototype props but not real items and must not reach def.icon.
+    expect(() =>
+      badge({ content: "single", single_item: "toString" }).render(),
+    ).not.toThrow();
+    expect(() =>
+      badge({ content: "row", items: ["__proto__", "current_temp"] }).render(),
+    ).not.toThrow();
+  });
+
   it("falls back to status in row mode when chosen items have no value", () => {
     // Only ask for sensors absent from this hass; should not render an empty pill.
     const out = badge({
