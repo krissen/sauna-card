@@ -168,7 +168,10 @@ export class SaunaCard extends LitElement {
   }
 
   private _setActive(s: SaunaState, active: boolean): void {
-    if (this.hass) setActive(this.hass, s, active);
+    if (!this.hass) return;
+    // Honour an in-flight stepper adjustment when starting a session.
+    const target = this._pendingTarget ?? s.targetTemp;
+    setActive(this.hass, { ...s, targetTemp: target }, active);
   }
 
   private _powerOn(s: SaunaState): boolean {
@@ -181,21 +184,24 @@ export class SaunaCard extends LitElement {
     const disabled =
       s.targetTemp === undefined || !thermo || entityUnavailable(thermoState);
     const shown = this._pendingTarget ?? s.targetTemp;
+    const tt = this._t("label.target_temperature");
     return html`<div class="stepper">
       <button
+        type="button"
         class="step"
         ?disabled=${disabled}
         @click=${() => this._step(s, -TEMP_STEP)}
-        aria-label="-${TEMP_STEP}°"
+        aria-label="${tt} −${TEMP_STEP}°"
       >
         −
       </button>
       <span class="tval">${this._temp(shown)}</span>
       <button
+        type="button"
         class="step"
         ?disabled=${disabled}
         @click=${() => this._step(s, TEMP_STEP)}
-        aria-label="+${TEMP_STEP}°"
+        aria-label="${tt} +${TEMP_STEP}°"
       >
         +
       </button>
@@ -203,10 +209,16 @@ export class SaunaCard extends LitElement {
   }
 
   private _cta(s: SaunaState): TemplateResult {
+    const powerState = s.entities.power
+      ? this.hass?.states[s.entities.power]?.state
+      : undefined;
+    const unavailable = !s.entities.power || entityUnavailable(powerState);
     const on = this._powerOn(s);
     return html`<div class="cta">
       <button
+        type="button"
         class="btn ${on ? "" : "primary"}"
+        ?disabled=${unavailable}
         @click=${() => this._setActive(s, !on)}
       >
         ${on ? this._t("action.turn_off") : this._t("action.start_session")}
@@ -267,6 +279,7 @@ export class SaunaCard extends LitElement {
         // Interactive toggle (switch.toggle); keyboard-operable.
         const toggle = () => this._toggle(s, c.key);
         return html`<button
+          type="button"
           class="chip ${on ? "on" : ""} ${unavailable ? "unavailable" : ""}"
           ?disabled=${unavailable}
           aria-pressed=${on}
@@ -585,6 +598,7 @@ export class SaunaCard extends LitElement {
     }
     .chip:disabled {
       cursor: default;
+      opacity: 0.5;
     }
     .stepper {
       display: inline-flex;
@@ -637,6 +651,10 @@ export class SaunaCard extends LitElement {
       background: var(--sauna-heat-color);
       border: none;
       color: var(--text-primary-color, #fff);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: default;
     }
     .chip ha-icon {
       --mdc-icon-size: 18px;
