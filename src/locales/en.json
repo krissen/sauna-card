@@ -38,5 +38,13 @@
   "common.no": "No",
   "common.unavailable": "Unavailable",
   "common.unknown": "Unknown",
-  "common.minutes": "{count, plural, one {# minute} other {# minutes}}"
+  "common.minutes": "{count, plural, one {# minute} other {# minutes}}",
+  "editor.name": "Name",
+  "editor.layout": "Layout",
+  "editor.language": "Language",
+  "editor.device": "Device",
+  "editor.auto": "Automatic",
+  "editor.layout_status_dashboard": "Status dashboard",
+  "editor.layout_thermostat_hero": "Thermostat dial",
+  "editor.layout_compact": "Compact"
 }
