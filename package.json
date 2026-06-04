@@ -16,6 +16,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "intl-messageformat": "^10.7.18",
     "lit": "^3.2.1"
   },
   "devDependencies": {
