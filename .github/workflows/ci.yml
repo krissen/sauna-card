@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  validate-hacs:
+    # HACS requires this to pass for default-repository inclusion. Skipped on
+    # fork PRs (hacs/action resolves the repo from GITHUB_REPOSITORY, which for
+    # forks is not in the HACS list). Still runs on push and same-repo PRs.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate HACS manifest & structure
+        uses: hacs/action@main
+        with:
+          category: "plugin"
+
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
