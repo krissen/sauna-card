@@ -1,5 +1,6 @@
 {
   "card.name": "Sauna",
+  "card.no_device": "No sauna device found",
   "state.off": "Off",
   "state.heating": "Heating",
   "state.ready": "Ready",

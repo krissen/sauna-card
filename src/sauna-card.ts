@@ -89,12 +89,20 @@ export class SaunaCard extends LitElement {
     return value === undefined ? "—" : `${Math.round(value)}°`;
   }
 
+  // Big hero temperature: the "C" unit is only shown when a value exists, so a
+  // missing reading renders as just "—" rather than "—C".
+  private _heroTemp(value: number | undefined): TemplateResult {
+    return value === undefined
+      ? html`—`
+      : html`${Math.round(value)}°<span>C</span>`;
+  }
+
   override render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
     const s = this._state();
     if (!s) {
       return html`<ha-card>
-        <div class="empty">${this._t("card.name")}: no Harvia device found</div>
+        <div class="empty">${this._t("card.no_device")}</div>
       </ha-card>`;
     }
     switch (this._layout) {
@@ -160,8 +168,8 @@ export class SaunaCard extends LitElement {
       s.currentTemp !== undefined && s.targetTemp && s.targetTemp > 0
         ? Math.max(0, Math.min(1, s.currentTemp / s.targetTemp))
         : 0;
-    const num = (v: number | undefined, unit: string) =>
-      v === undefined ? nothing : `${Math.round(v)} ${unit}`;
+    const fmt = (v: number | undefined, unit: string, dec = 0) =>
+      v === undefined ? nothing : `${v.toFixed(dec)} ${unit}`;
     return html`<ha-card>
       <div class="head">
         <span class="title">${this._configName(s)}</span>
@@ -169,7 +177,7 @@ export class SaunaCard extends LitElement {
       </div>
       <div class="body">
         <div class="hero">
-          <div class="cur">${this._temp(s.currentTemp)}<span>C</span></div>
+          <div class="cur">${this._heroTemp(s.currentTemp)}</div>
           <div class="tgt">
             <span>${this._t("label.target_temperature")}</span>
             <b>${this._temp(s.targetTemp)}</b>
@@ -188,9 +196,9 @@ export class SaunaCard extends LitElement {
           : nothing}
         ${this._doorWarning(s)}
         <div class="tiles">
-          ${this._tile("label.humidity", num(s.humidity, "%"))}
-          ${this._tile("label.power", num(s.power, "W"))}
-          ${this._tile("label.energy", num(s.energy, "kWh"))}
+          ${this._tile("label.humidity", fmt(s.humidity, "%"))}
+          ${this._tile("label.power", fmt(s.power, "W"))}
+          ${this._tile("label.energy", fmt(s.energy, "kWh", 1))}
           ${this._tile(
             "label.remaining_time",
             s.remainingMinutes === undefined
@@ -253,7 +261,7 @@ export class SaunaCard extends LitElement {
           />
         </svg>
         <div class="center">
-          <div class="cur">${this._temp(s.currentTemp)}<span>C</span></div>
+          <div class="cur">${this._heroTemp(s.currentTemp)}</div>
           <div class="tgt">
             ${this._t("label.target_temperature")}
             <b>${this._temp(s.targetTemp)}</b>
@@ -292,7 +300,8 @@ export class SaunaCard extends LitElement {
   private _configName(s: SaunaState): string {
     const configured = this._config as { name?: unknown };
     if (typeof configured.name === "string") return configured.name;
-    return this.hass?.devices?.[s.deviceId]?.name ?? this._t("card.name");
+    const dev = this.hass?.devices?.[s.deviceId];
+    return dev?.name_by_user ?? dev?.name ?? this._t("card.name");
   }
 
   static override styles = css`
