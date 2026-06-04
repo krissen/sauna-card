@@ -275,7 +275,12 @@ export class SaunaBadge extends LitElement {
         core = this._ring(u, s, this._icon(u, cls));
         break;
       case "ring_value":
-        core = this._ring(u, s, u.value ? html`${u.value.text}` : html`—`);
+        // Keep the unit in the gauge centre (e.g. "35%"), don't drop it.
+        core = this._ring(
+          u,
+          s,
+          u.value ? html`${u.value.text}${u.value.unit ?? ""}` : html`—`,
+        );
         break;
       case "chip":
       default:

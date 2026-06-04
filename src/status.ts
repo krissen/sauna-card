@@ -117,6 +117,9 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
   remaining: {
     icon: () => "mdi:timer-outline",
     labelKey: "label.remaining_time",
+    // Deliberately compact: "45 min" rather than the localized long form
+    // ("45 minutes" / "45 minuter"). "min" is the SI symbol and identical
+    // across our locales (en/sv/fi/de), so this needs no separate locale key.
     value: (s) =>
       s.remainingMinutes === undefined
         ? null
