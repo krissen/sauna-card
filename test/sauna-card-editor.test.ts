@@ -24,23 +24,38 @@ describe("sauna-card-editor", () => {
     expect(editor._config).toEqual(cfg);
   });
 
-  it("re-emits ha-form value-changed as a config-changed event", () => {
+  it("merges ha-form changes over the config, preserving non-schema keys", () => {
     const editor = new SaunaCardEditor();
-    editor.setConfig({ type: "custom:sauna-card" });
+    // integration is not in the form schema and must survive an edit.
+    editor.setConfig({
+      type: "custom:sauna-card",
+      integration: "harvia_sauna",
+    });
     const received: SaunaCardConfig[] = [];
     editor.addEventListener("config-changed", (e) => {
       received.push((e as CustomEvent).detail.config);
     });
-    const next: SaunaCardConfig = {
-      type: "custom:sauna-card",
-      layout: "thermostat-hero",
-      name: "Bastu",
-    };
+    // ha-form emits only the keys it knows (no `integration`).
     (
       editor as unknown as { _valueChanged(e: CustomEvent): void }
     )._valueChanged(
-      new CustomEvent("value-changed", { detail: { value: next } }),
+      new CustomEvent("value-changed", {
+        detail: {
+          value: {
+            type: "custom:sauna-card",
+            layout: "thermostat-hero",
+            name: "Bastu",
+          },
+        },
+      }),
     );
-    expect(received).toEqual([next]);
+    expect(received).toEqual([
+      {
+        type: "custom:sauna-card",
+        integration: "harvia_sauna",
+        layout: "thermostat-hero",
+        name: "Bastu",
+      },
+    ]);
   });
 });
