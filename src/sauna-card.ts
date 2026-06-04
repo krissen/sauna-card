@@ -9,6 +9,9 @@ import type {
 } from "./types";
 import { pickIntegration } from "./adapter-registry";
 import { detectLang, t } from "./i18n";
+import { toggleSwitch, stepTargetTemperature, setActive } from "./controls";
+
+const TEMP_STEP = 5;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false;
@@ -120,6 +123,60 @@ export class SaunaCard extends LitElement {
       : html`${Math.round(value)}°<span>C</span>`;
   }
 
+  // ---- control handlers (I6) ----
+
+  private _toggle(s: SaunaState, key: string): void {
+    const id = s.entities[key];
+    if (id && this.hass) toggleSwitch(this.hass, id);
+  }
+
+  private _step(s: SaunaState, delta: number): void {
+    if (this.hass) stepTargetTemperature(this.hass, s, delta);
+  }
+
+  private _setActive(s: SaunaState, active: boolean): void {
+    if (this.hass) setActive(this.hass, s, active);
+  }
+
+  private _powerOn(s: SaunaState): boolean {
+    return this.hass?.states[s.entities.power]?.state === "on";
+  }
+
+  private _tempStepper(s: SaunaState): TemplateResult {
+    const disabled = s.targetTemp === undefined || !s.entities.thermostat;
+    return html`<div class="stepper">
+      <button
+        class="step"
+        ?disabled=${disabled}
+        @click=${() => this._step(s, -TEMP_STEP)}
+        aria-label="-${TEMP_STEP}°"
+      >
+        −
+      </button>
+      <span class="tval">${this._temp(s.targetTemp)}</span>
+      <button
+        class="step"
+        ?disabled=${disabled}
+        @click=${() => this._step(s, TEMP_STEP)}
+        aria-label="+${TEMP_STEP}°"
+      >
+        +
+      </button>
+    </div>`;
+  }
+
+  private _cta(s: SaunaState): TemplateResult {
+    const on = this._powerOn(s);
+    return html`<div class="cta">
+      <button
+        class="btn ${on ? "" : "primary"}"
+        @click=${() => this._setActive(s, !on)}
+      >
+        ${on ? this._t("action.turn_off") : this._t("action.start_session")}
+      </button>
+    </div>`;
+  }
+
   override render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
     const s = this._state();
@@ -171,14 +228,18 @@ export class SaunaCard extends LitElement {
           unavailable ? "common.unavailable" : on ? "common.on" : "common.off",
         );
         // State is exposed in text (aria-label), not by colour alone (a11y).
-        return html`<span
+        // Interactive toggle (switch.toggle); keyboard-operable.
+        const toggle = () => this._toggle(s, c.key);
+        return html`<button
           class="chip ${on ? "on" : ""} ${unavailable ? "unavailable" : ""}"
-          role="img"
+          ?disabled=${unavailable}
+          aria-pressed=${on}
           aria-label="${label}: ${stateText}"
           title="${label}: ${stateText}"
+          @click=${toggle}
         >
           <ha-icon icon=${c.icon}></ha-icon>${label}
-        </span>`;
+        </button>`;
       })}
     </div>`;
   }
@@ -213,7 +274,7 @@ export class SaunaCard extends LitElement {
           <div class="cur">${this._heroTemp(s.currentTemp)}</div>
           <div class="tgt">
             <span>${this._t("label.target_temperature")}</span>
-            <b>${this._temp(s.targetTemp)}</b>
+            ${this._tempStepper(s)}
           </div>
         </div>
         ${s.status === "heating"
@@ -249,7 +310,7 @@ export class SaunaCard extends LitElement {
             s.sessionsToday === undefined ? nothing : `${s.sessionsToday}`,
           )}
         </div>
-        ${this._controlChips(s)}
+        ${this._controlChips(s)} ${this._cta(s)}
       </div>
     </ha-card>`;
   }
@@ -301,7 +362,8 @@ export class SaunaCard extends LitElement {
           </div>
         </div>
       </div>
-      ${this._doorWarning(s)} ${this._controlChips(s)}
+      ${this._doorWarning(s)} ${this._tempStepper(s)} ${this._controlChips(s)}
+      ${this._cta(s)}
     </ha-card>`;
   }
 
@@ -479,8 +541,60 @@ export class SaunaCard extends LitElement {
       border-color: var(--primary-color);
       background: var(--secondary-background-color);
     }
-    .chip.unavailable {
-      opacity: 0.5;
+    .chip {
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .chip:disabled {
+      cursor: default;
+    }
+    .stepper {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .stepper .tval {
+      font-weight: 650;
+      color: var(--sauna-heat-color);
+      min-width: 2.6em;
+      text-align: center;
+    }
+    .step {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .step:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .cta {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn {
+      flex: 1;
+      padding: 11px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      font-family: inherit;
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      cursor: pointer;
+    }
+    .btn.primary {
+      background: var(--sauna-heat-color);
+      border: none;
+      color: var(--text-primary-color, #fff);
     }
     .chip ha-icon {
       --mdc-icon-size: 18px;
