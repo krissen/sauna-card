@@ -29,6 +29,7 @@
   "control.auto_light": "Auto light",
   "control.auto_fan": "Auto fan",
   "action.start_session": "Start session",
+  "action.turn_off": "Turn off",
   "door.open": "Open",
   "door.closed": "Closed",
   "common.on": "On",

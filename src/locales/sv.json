@@ -29,6 +29,7 @@
   "control.auto_light": "Automatisk belysning",
   "control.auto_fan": "Automatisk fläkt",
   "action.start_session": "Starta session",
+  "action.turn_off": "Stäng av",
   "door.open": "Öppen",
   "door.closed": "Stängd",
   "common.on": "På",
