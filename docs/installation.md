@@ -10,6 +10,11 @@ entity and a set of switches/sensors — the card finds it automatically.
 
 ## 2. Install the card
 
+> **Pre-release.** The first tagged release will be `0.1.0-beta1`; until it
+> ships there is no published release for HACS to fetch. For now, build the
+> bundle yourself (`npm run build`) and use the **Manual** steps; the HACS route
+> works once a release exists.
+
 ### HACS (recommended)
 
 1. HACS → ⋮ → **Custom repositories**.
