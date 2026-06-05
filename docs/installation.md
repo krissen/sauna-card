@@ -18,7 +18,9 @@ entity and a set of switches/sensors — the card finds it automatically.
 
 ### Manual
 
-1. Copy `dist/sauna-card.js` to `config/www/community/sauna-card/`.
+1. Download `sauna-card.js` from the
+   [latest release](https://github.com/krissen/sauna-card/releases) and copy it
+   to `config/www/community/sauna-card/`.
 2. Settings → Dashboards → ⋮ → **Resources** → add:
    `/local/community/sauna-card/sauna-card.js` as a **JavaScript Module**.
 3. Reload your browser.
