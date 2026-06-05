@@ -31,29 +31,68 @@ export interface ItemValue {
   unit?: string;
 }
 
-/** The logical values a badge item can surface. */
+/**
+ * Every value the card/badge can surface, covering all data the harvia_sauna
+ * integration normalizes into SaunaState. Selectable in any layout's slots.
+ */
 export type BadgeItemKey =
   | "status"
   | "current_temp"
   | "target_temp"
+  | "eta"
   | "humidity"
+  | "target_humidity"
+  | "temp_trend"
   | "remaining"
+  | "session_length"
   | "power"
   | "energy"
   | "sessions"
-  | "door";
+  | "last_session_duration"
+  | "last_session_max_temp"
+  | "aroma_level"
+  | "wifi"
+  | "door"
+  | "heating"
+  | "steam"
+  | "power_switch"
+  | "light"
+  | "fan"
+  | "steamer"
+  | "aroma"
+  | "dehumidifier"
+  | "auto_light"
+  | "auto_fan";
 
 /** Order used wherever the full item set is offered (editor, defaults). */
 export const BADGE_ITEM_KEYS: BadgeItemKey[] = [
   "status",
   "current_temp",
   "target_temp",
+  "eta",
   "humidity",
+  "target_humidity",
+  "temp_trend",
   "remaining",
+  "session_length",
   "power",
   "energy",
   "sessions",
+  "last_session_duration",
+  "last_session_max_temp",
+  "aroma_level",
+  "wifi",
   "door",
+  "heating",
+  "steam",
+  "power_switch",
+  "light",
+  "fan",
+  "steamer",
+  "aroma",
+  "dehumidifier",
+  "auto_light",
+  "auto_fan",
 ];
 
 export interface BadgeItemDef {
@@ -85,6 +124,47 @@ function heatProgress(s: SaunaState): number | undefined {
 const temp = (v: number | undefined): ItemValue | null =>
   v === undefined ? null : { text: `${Math.round(v)}°` };
 
+type Get<T> = (s: SaunaState) => T | undefined;
+
+/** Numeric value with an optional unit; null when the datum is absent. */
+function numVal(
+  get: Get<number>,
+  unit?: string,
+  dec = 0,
+): (s: SaunaState) => ItemValue | null {
+  return (s) => {
+    const v = get(s);
+    if (v === undefined) return null;
+    const text = dec ? v.toFixed(dec) : `${Math.round(v)}`;
+    return unit ? { text, unit } : { text };
+  };
+}
+
+/** Whole-minute value with the compact "min" unit (identical across locales). */
+const minutesVal = (get: Get<number>): ((s: SaunaState) => ItemValue | null) =>
+  numVal(get, "min");
+
+/** On/off value from a boolean field, localized; null when absent. */
+function boolVal(
+  get: Get<boolean>,
+): (s: SaunaState, tr: TFn) => ItemValue | null {
+  return (s, tr) => {
+    const v = get(s);
+    return v === undefined
+      ? null
+      : { text: tr(v ? "common.on" : "common.off") };
+  };
+}
+
+/** A fixed-icon on/off item reading an auxiliary switch by logical key. */
+function switchItem(key: string, icon: string, labelKey: string): BadgeItemDef {
+  return {
+    icon: () => icon,
+    labelKey,
+    value: boolVal((s) => s.switches?.[key]),
+  };
+}
+
 export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
   status: {
     icon: (s) => STATUS_ICON[s.status],
@@ -105,15 +185,34 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     labelKey: "label.target_temperature",
     value: (s) => temp(s.targetTemp),
   },
+  eta: {
+    icon: () => "mdi:timer-sand",
+    labelKey: "label.eta",
+    value: minutesVal((s) => s.readyEtaMinutes),
+  },
   humidity: {
     icon: () => "mdi:water-percent",
     labelKey: "label.humidity",
-    value: (s) =>
-      s.humidity === undefined
-        ? null
-        : { text: `${Math.round(s.humidity)}`, unit: "%" },
+    value: numVal((s) => s.humidity, "%"),
     progress: (s) =>
       s.humidity === undefined ? undefined : clamp01(s.humidity / 100),
+  },
+  target_humidity: {
+    icon: () => "mdi:water-check",
+    labelKey: "label.target_humidity",
+    value: numVal((s) => s.targetHumidity, "%"),
+  },
+  temp_trend: {
+    icon: (s) =>
+      (s.tempTrend ?? 0) < 0 ? "mdi:trending-down" : "mdi:trending-up",
+    labelKey: "label.temp_trend",
+    value: (s) =>
+      s.tempTrend === undefined
+        ? null
+        : {
+            text: `${s.tempTrend > 0 ? "+" : ""}${s.tempTrend.toFixed(1)}`,
+            unit: "°/min",
+          },
   },
   remaining: {
     icon: () => "mdi:timer-outline",
@@ -121,32 +220,48 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     // Deliberately compact: "45 min" rather than the localized long form
     // ("45 minutes" / "45 minuter"). "min" is the SI symbol and identical
     // across our locales (en/sv/fi/de), so this needs no separate locale key.
-    value: (s) =>
-      s.remainingMinutes === undefined
-        ? null
-        : { text: `${s.remainingMinutes}`, unit: "min" },
+    value: minutesVal((s) => s.remainingMinutes),
+  },
+  session_length: {
+    icon: () => "mdi:timer-cog-outline",
+    labelKey: "label.session_length",
+    value: minutesVal((s) => s.sessionLength),
   },
   power: {
     icon: () => "mdi:flash",
     labelKey: "label.power",
-    value: (s) =>
-      s.power === undefined
-        ? null
-        : { text: `${Math.round(s.power)}`, unit: "W" },
+    value: numVal((s) => s.power, "W"),
   },
   energy: {
     icon: () => "mdi:lightning-bolt-outline",
     labelKey: "label.energy",
-    value: (s) =>
-      s.energy === undefined
-        ? null
-        : { text: s.energy.toFixed(1), unit: "kWh" },
+    value: numVal((s) => s.energy, "kWh", 1),
   },
   sessions: {
     icon: () => "mdi:counter",
     labelKey: "label.sessions_today",
-    value: (s) =>
-      s.sessionsToday === undefined ? null : { text: `${s.sessionsToday}` },
+    value: numVal((s) => s.sessionsToday),
+  },
+  last_session_duration: {
+    icon: () => "mdi:history",
+    labelKey: "label.last_session",
+    value: minutesVal((s) => s.lastSessionDuration),
+  },
+  last_session_max_temp: {
+    icon: () => "mdi:thermometer-high",
+    labelKey: "label.last_session_max_temp",
+    value: (s) => temp(s.lastSessionMaxTemp),
+  },
+  aroma_level: {
+    icon: () => "mdi:scent",
+    labelKey: "label.aroma_level",
+    // Harvia exposes aroma level as a 0–100 percentage (number.py: PERCENTAGE).
+    value: numVal((s) => s.aromaLevel, "%"),
+  },
+  wifi: {
+    icon: () => "mdi:wifi",
+    labelKey: "label.wifi",
+    value: numVal((s) => s.wifiRssi, "dBm"),
   },
   door: {
     // Neutral icon when the door state is unknown, so an absent sensor doesn't
@@ -163,6 +278,33 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
         ? null
         : { text: tr(s.doorOpen ? "door.open" : "door.closed") },
   },
+  heating: {
+    icon: () => "mdi:fire",
+    labelKey: "label.heating",
+    value: boolVal((s) => s.heatingActive),
+  },
+  steam: {
+    icon: () => "mdi:pot-steam",
+    labelKey: "label.steam",
+    value: boolVal((s) => s.steamActive),
+  },
+  // The main power switch's on/off state (distinct from `power`, the watt draw).
+  power_switch: switchItem("power", "mdi:power", "control.power"),
+  light: switchItem("light", "mdi:lightbulb", "control.light"),
+  fan: switchItem("fan", "mdi:fan", "control.fan"),
+  steamer: switchItem("steamer", "mdi:pot-steam-outline", "control.steamer"),
+  aroma: switchItem("aroma", "mdi:air-filter", "control.aroma"),
+  dehumidifier: switchItem(
+    "dehumidifier",
+    "mdi:air-humidifier-off",
+    "control.dehumidifier",
+  ),
+  auto_light: switchItem(
+    "auto_light",
+    "mdi:lightbulb-auto",
+    "control.auto_light",
+  ),
+  auto_fan: switchItem("auto_fan", "mdi:fan-auto", "control.auto_fan"),
 };
 
 /** Type guard for a badge item key, safe against prototype keys (toString …). */

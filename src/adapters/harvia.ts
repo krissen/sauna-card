@@ -29,6 +29,7 @@ export const HARVIA_ENTITIES = {
   targetTemperature: { domain: "sensor", translationKey: "target_temperature" },
   humidity: { domain: "sensor", translationKey: "humidity" },
   remainingTime: { domain: "sensor", translationKey: "remaining_time" },
+  heatUpTime: { domain: "sensor", translationKey: "heat_up_time" },
   powerSensor: { domain: "sensor", translationKey: "power" },
   energy: { domain: "sensor", translationKey: "energy" },
   sessionsToday: { domain: "sensor", translationKey: "sessions_today" },
@@ -153,9 +154,16 @@ export const harviaAdapter: SaunaAdapter = {
     const heatingActive = isOn(hass, e.heating);
     const tempTrend = num(hass, e.tempTrend);
 
-    // Ready ETA from the temperature trend (°C/min), only while heating up.
-    let readyEtaMinutes: number | undefined;
+    // Ready ETA: prefer the integration's native heat_up_time sensor (enabled by
+    // default, in minutes). The coordinator initializes it to 0 until a real
+    // value arrives, so treat 0 as "not yet known" and fall through. Trend-derived
+    // estimate is the fallback for setups where only temp_trend is enabled.
+    let readyEtaMinutes = num(hass, e.heatUpTime);
+    if (readyEtaMinutes !== undefined && readyEtaMinutes <= 0) {
+      readyEtaMinutes = undefined;
+    }
     if (
+      readyEtaMinutes === undefined &&
       heatingActive &&
       currentTemp !== undefined &&
       targetTemp !== undefined &&
@@ -164,6 +172,23 @@ export const harviaAdapter: SaunaAdapter = {
       currentTemp < targetTemp
     ) {
       readyEtaMinutes = Math.ceil((targetTemp - currentTemp) / tempTrend);
+    }
+
+    // Auxiliary switch states, by logical key (omitting any that are absent).
+    const switchEntities: Record<string, string | undefined> = {
+      power: e.power,
+      light: e.light,
+      fan: e.fan,
+      steamer: e.steamer,
+      aroma: e.aroma,
+      dehumidifier: e.dehumidifier,
+      auto_light: e.autoLight,
+      auto_fan: e.autoFan,
+    };
+    const switches: Record<string, boolean> = {};
+    for (const [key, id] of Object.entries(switchEntities)) {
+      const on = isOn(hass, id);
+      if (on !== undefined) switches[key] = on;
     }
 
     return {
@@ -185,6 +210,12 @@ export const harviaAdapter: SaunaAdapter = {
       doorOpen: isOn(hass, e.door),
       heatingActive,
       steamActive: isOn(hass, e.steam),
+      targetHumidity: num(hass, e.targetHumidity),
+      aromaLevel: num(hass, e.aromaLevelSet),
+      sessionLength: num(hass, e.sessionLength),
+      lastSessionDuration: num(hass, e.lastSessionDuration),
+      lastSessionMaxTemp: num(hass, e.lastSessionMaxTemp),
+      switches,
       entities: e,
     };
   },
