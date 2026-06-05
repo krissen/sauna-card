@@ -100,7 +100,7 @@ layout becomes interactive).
 | `items` | `array<string>` | `[status, current_temp, humidity]` | The values shown when `content: row`. |
 | `show_label` | `boolean` | `false` | Show each value's label. |
 | `label_position` | `string` | `right` | `right` or `below` (when `show_label`). |
-| `scale` | `number` | `1` | Overall size multiplier (0.5–3). |
+| `scale` | `number` | `1` | Overall size multiplier (any positive number; the editor slider offers 0.5–3). |
 
 ## Examples
 

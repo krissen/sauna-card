@@ -77,9 +77,12 @@ def main():
         with sync_playwright() as p:
             b = p.chromium.launch(headless=True)
             for name, config in editors.items():
+                tag = tags.get(name)
+                if not tag:
+                    continue  # only known editor names are screenshottable
                 for dark in (False, True):
                     theme = DARK if dark else LIGHT
-                    tmp.write_text(page_html(tags[name], config, theme))
+                    tmp.write_text(page_html(tag, config, theme))
                     ctx = b.new_context(
                         viewport={"width": 560, "height": 720}, device_scale_factor=2
                     )

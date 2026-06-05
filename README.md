@@ -63,9 +63,9 @@ integration, installed and set up for your heater (Harvia **Xenio WiFi** or
 ### Manual
 
 Download `sauna-card.js` from the
-[latest release](https://github.com/krissen/sauna-card/releases), copy it to
-`config/www/community/sauna-card/`, and add a dashboard resource (Settings →
-Dashboards → ⋮ → Resources):
+[latest release](https://github.com/krissen/sauna-card/releases) (or build it
+yourself with `npm run build`), copy it to `config/www/community/sauna-card/`,
+and add a dashboard resource (Settings → Dashboards → ⋮ → Resources):
 
 ```
 /local/community/sauna-card/sauna-card.js   (type: JavaScript Module)
