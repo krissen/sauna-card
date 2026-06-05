@@ -85,5 +85,15 @@
   "editor.label_position": "Nimikkeen sijainti",
   "editor.label_right": "Oikealla",
   "editor.label_below": "Alla",
-  "editor.scale": "Koko"
+  "editor.scale": "Koko",
+  "editor.tiles_dashboard": "Tilapaneelin ruudut",
+  "editor.tiles_hero": "Termostaatin ruudut",
+  "editor.reset": "Palauta",
+  "editor.move_up": "Siirrä ylös",
+  "editor.move_down": "Siirrä alas",
+  "editor.remove": "Poista",
+  "editor.reset_all": "Palauta kaikki sisältö",
+  "editor.tiles_add": "+ Lisää arvo…",
+  "editor.tiles_empty": "Ei ruutuja",
+  "editor.tiles_hint": "Järjestä vetämällä tai ▲▼-painikkeilla. Tyhjä = ei ruutuja. Jokaisella asettelulla on oma lista."
 }
