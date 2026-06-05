@@ -1,0 +1,22 @@
+[
+  { "type": "custom:sauna-badge" },
+  { "type": "custom:sauna-badge", "visual": "ring_value" },
+  { "type": "custom:sauna-badge", "visual": "ring_icon" },
+  { "type": "custom:sauna-badge", "visual": "icon" },
+  { "type": "custom:sauna-badge", "visual": "value" },
+  {
+    "type": "custom:sauna-badge",
+    "content": "single",
+    "single_item": "humidity"
+  },
+  { "type": "custom:sauna-badge", "content": "single", "single_item": "door" },
+  { "type": "custom:sauna-badge", "content": "row" },
+  {
+    "type": "custom:sauna-badge",
+    "content": "row",
+    "items": ["current_temp", "humidity", "power"],
+    "show_label": true,
+    "label_position": "below"
+  },
+  { "type": "custom:sauna-badge", "scale": 1.5 }
+]

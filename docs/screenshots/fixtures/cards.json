@@ -1,0 +1,50 @@
+[
+  {
+    "name": "hero-dashboard",
+    "config": { "type": "custom:sauna-card", "name": "Sauna" }
+  },
+  {
+    "name": "hero-thermostat",
+    "config": {
+      "type": "custom:sauna-card",
+      "name": "Sauna",
+      "layout": "thermostat-hero"
+    }
+  },
+  {
+    "name": "hero-compact",
+    "config": {
+      "type": "custom:sauna-card",
+      "name": "Sauna",
+      "layout": "compact"
+    }
+  },
+  {
+    "name": "tiles-custom",
+    "config": {
+      "type": "custom:sauna-card",
+      "name": "Sauna",
+      "dashboard_tiles": [
+        "current_temp",
+        "target_temp",
+        "humidity",
+        "heating",
+        "steam",
+        "light"
+      ]
+    }
+  },
+  {
+    "name": "compact-controls",
+    "config": {
+      "type": "custom:sauna-card",
+      "name": "Sauna",
+      "layout": "compact",
+      "compact_slots": {
+        "left": "status",
+        "mid": "current_temp",
+        "right": "door"
+      }
+    }
+  }
+]
