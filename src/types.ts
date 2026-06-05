@@ -132,7 +132,8 @@ export interface SaunaState {
   lastSessionDuration?: number;
   /** Previous session's peak temperature (°C). */
   lastSessionMaxTemp?: number;
-  /** On/off state of each auxiliary switch, by logical key (light, fan, …). */
+  /** On/off state of each switch, by logical key — the main `power` switch plus
+   * the auxiliaries (light, fan, steamer, aroma, dehumidifier, auto_light, …). */
   switches?: Record<string, boolean>;
   /** Logical key → entity_id, for more-info, controls and rendering. */
   entities: Record<string, string>;
