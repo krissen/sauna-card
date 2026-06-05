@@ -55,6 +55,7 @@ export type BadgeItemKey =
   | "door"
   | "heating"
   | "steam"
+  | "power_switch"
   | "light"
   | "fan"
   | "steamer"
@@ -84,6 +85,7 @@ export const BADGE_ITEM_KEYS: BadgeItemKey[] = [
   "door",
   "heating",
   "steam",
+  "power_switch",
   "light",
   "fan",
   "steamer",
@@ -285,6 +287,8 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     labelKey: "label.steam",
     value: boolVal((s) => s.steamActive),
   },
+  // The main power switch's on/off state (distinct from `power`, the watt draw).
+  power_switch: switchItem("power", "mdi:power", "control.power"),
   light: switchItem("light", "mdi:lightbulb", "control.light"),
   fan: switchItem("fan", "mdi:fan", "control.fan"),
   steamer: switchItem("steamer", "mdi:pot-steam-outline", "control.steamer"),
