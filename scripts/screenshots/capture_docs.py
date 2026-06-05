@@ -36,7 +36,7 @@ TOKEN = os.environ.get("HASS_TOKEN") or (
     if (ROOT / "tmp/.ha_token").exists()
     else ""
 )
-READY_ENTITY = "climate.bastu_termostat"
+READY_ENTITY = os.environ.get("HASS_READY_ENTITY", "climate.bastu_termostat")
 
 
 def setup_view():
@@ -69,9 +69,10 @@ def restart_and_wait():
                 f"{URL}/api/states/{READY_ENTITY}",
                 headers={"Authorization": f"Bearer {TOKEN}"},
             )
-            if urllib.request.urlopen(req, timeout=5).status == 200:
-                print("HA ready")
-                return
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.status == 200:
+                    print("HA ready")
+                    return
         except Exception:
             pass
         time.sleep(3)
@@ -103,11 +104,15 @@ def shoot():
             ctx.add_init_script(tokens_init(dark))
             pg = ctx.new_page()
             pg.goto(f"{URL}/sauna-test/docs", wait_until="networkidle")
-            # wait for all cards + badges to render (shadow-pierce)
+            # wait for all cards AND badges to render (locators pierce shadow DOM)
             n = len(cards)
             for _ in range(40):
-                ready_cards = pg.locator("sauna-card .ha-card, sauna-card ha-card").count()
-                if pg.locator("sauna-card").count() >= n and ready_cards >= n:
+                cards_ready = pg.locator("sauna-card ha-card").count() >= n
+                badges_ready = (
+                    pg.locator("sauna-badge").count() == 0
+                    or pg.locator("sauna-badge .b").count() > 0
+                )
+                if cards_ready and badges_ready:
                     break
                 pg.wait_for_timeout(500)
             pg.wait_for_timeout(900)
