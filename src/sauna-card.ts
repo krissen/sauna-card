@@ -7,7 +7,13 @@ import {
   type PropertyValues,
 } from "lit";
 import { property, state } from "lit/decorators.js";
-import type { Hass, SaunaCardConfig, SaunaState, SaunaLayout } from "./types";
+import type {
+  Hass,
+  SaunaCardConfig,
+  SaunaState,
+  SaunaLayout,
+  ControlsMode,
+} from "./types";
 import { pickIntegration } from "./adapter-registry";
 import {
   STATUS_ICON,
@@ -45,6 +51,8 @@ const LAYOUTS: SaunaLayout[] = [
   "thermostat-hero",
   "compact",
 ];
+
+const CONTROLS_MODES: ControlsMode[] = ["none", "power", "power+temp"];
 
 // The compact slots shown when the user hasn't customized them.
 export const DEFAULT_COMPACT_SLOTS = {
@@ -120,22 +128,55 @@ export class SaunaCard extends LitElement {
     ) {
       throw new Error(`sauna-card: "compact_slots" must be an object`);
     }
+    if (
+      config.controls !== undefined &&
+      !CONTROLS_MODES.includes(config.controls as ControlsMode)
+    ) {
+      throw new Error(
+        `sauna-card: invalid controls "${String(config.controls)}"`,
+      );
+    }
     this._config = config as unknown as SaunaCardConfig;
   }
 
   getCardSize(): number {
-    return this._layout === "compact" ? 2 : 5;
+    if (this._layout === "compact") {
+      return this._controls === "none" ? 2 : 3;
+    }
+    return 5;
   }
 
   getGridOptions(): Record<string, number> {
     if (this._layout === "compact") {
-      return { rows: 2, columns: 12, min_columns: 6 };
+      const rows = this._controls === "none" ? 2 : 3;
+      return { rows, columns: 12, min_columns: 6 };
     }
     return { rows: 6, columns: 12, min_columns: 6 };
   }
 
   private get _layout(): SaunaLayout {
     return this._config.layout ?? "status-dashboard";
+  }
+
+  private get _controls(): ControlsMode {
+    return this._config.controls ?? "power+temp";
+  }
+
+  /** Control chips, unless controls are off. */
+  private _chips(s: SaunaState): TemplateResult | typeof nothing {
+    return this._controls === "none" ? nothing : this._controlChips(s);
+  }
+
+  /** Start/stop CTA, unless controls are off. */
+  private _ctaIf(s: SaunaState): TemplateResult | typeof nothing {
+    return this._controls === "none" ? nothing : this._cta(s);
+  }
+
+  /** Temperature control: the stepper when enabled, else a static target. */
+  private _targetControl(s: SaunaState): TemplateResult {
+    return this._controls === "power+temp"
+      ? this._tempStepper(s)
+      : html`<b class="tval">${this._temp(this._effectiveTarget(s))}</b>`;
   }
 
   private get _lang(): string {
@@ -405,7 +446,7 @@ export class SaunaCard extends LitElement {
           <div class="cur">${this._heroTemp(s.currentTemp)}</div>
           <div class="tgt">
             <span>${this._t("label.target_temperature")}</span>
-            ${this._tempStepper(s)}
+            ${this._targetControl(s)}
           </div>
         </div>
         ${this._heatProgress(s, progress)} ${this._doorWarning(s)}
@@ -413,7 +454,7 @@ export class SaunaCard extends LitElement {
           s,
           this._config.dashboard_tiles ?? DEFAULT_DASHBOARD_TILES,
         )}
-        ${this._controlChips(s)} ${this._cta(s)}
+        ${this._chips(s)} ${this._ctaIf(s)}
       </div>
     </ha-card>`;
   }
@@ -465,9 +506,10 @@ export class SaunaCard extends LitElement {
           </div>
         </div>
       </div>
-      ${this._doorWarning(s)} ${this._tempStepper(s)}
-      ${this._tilesRow(s, this._config.hero_items ?? [])}
-      ${this._controlChips(s)} ${this._cta(s)}
+      ${this._doorWarning(s)}
+      ${this._controls === "power+temp" ? this._tempStepper(s) : nothing}
+      ${this._tilesRow(s, this._config.hero_items ?? [])} ${this._chips(s)}
+      ${this._ctaIf(s)}
     </ha-card>`;
   }
 
@@ -507,6 +549,12 @@ export class SaunaCard extends LitElement {
         <div class="cslot mid">${this._slot(s, slots.mid)}</div>
         <div class="cslot right">${this._slot(s, slots.right)}</div>
       </div>
+      ${this._controls === "none"
+        ? nothing
+        : html`<div class="ccontrols">
+            ${this._controls === "power+temp" ? this._tempStepper(s) : nothing}
+            ${this._cta(s)}
+          </div>`}
       ${this._doorWarning(s)}
     </ha-card>`;
   }
@@ -818,6 +866,16 @@ export class SaunaCard extends LitElement {
       font-size: 0.66em;
       color: var(--secondary-text-color);
       margin-left: 1px;
+    }
+    .ccontrols {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .ccontrols .cta {
+      flex: 1;
+      margin-top: 0;
     }
     @media (prefers-reduced-motion: reduce) {
       .progress > i {

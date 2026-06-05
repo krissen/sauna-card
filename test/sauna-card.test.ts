@@ -43,10 +43,28 @@ describe("sauna-card", () => {
     ).not.toThrow();
   });
 
-  it("sizes the compact layout smaller", () => {
+  it("sizes the compact layout by its controls", () => {
     const card = new SaunaCard();
+    // Default (power+temp) adds a controls row, so compact needs one more row.
     card.setConfig({ type: "custom:sauna-card", layout: "compact" });
+    expect(card.getCardSize()).toBe(3);
+    // Display-only compact is the smallest.
+    card.setConfig({
+      type: "custom:sauna-card",
+      layout: "compact",
+      controls: "none",
+    });
     expect(card.getCardSize()).toBe(2);
+  });
+
+  it("rejects an invalid controls mode", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", controls: "bogus" }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", controls: "power" }),
+    ).not.toThrow();
   });
 
   it("accepts tile lists and rejects non-array tile config", () => {
