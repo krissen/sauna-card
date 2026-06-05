@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.0-beta1] - 2026-06-05
+
+First public beta — the card and badge are functional, theme-first, multilingual
+(sv/fi/en/de) and fully configurable.
+
 ### Added
 - **Badge** (`sauna-badge` + editor, `window.customBadges`). A compact companion
   for dashboard badge rows: six appearances (icon+value chip, icon, value, and
