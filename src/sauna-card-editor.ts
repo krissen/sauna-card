@@ -1,7 +1,15 @@
-import { LitElement, html, nothing, type TemplateResult } from "lit";
+import { LitElement, html, css, nothing, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
-import type { Hass, SaunaCardConfig } from "./types";
+import { repeat } from "lit/directives/repeat.js";
+import type { Hass, SaunaCardConfig, SaunaLayout, SaunaState } from "./types";
 import { detectLang, t, SUPPORTED_LOCALES } from "./i18n";
+import {
+  BADGE_ITEMS,
+  BADGE_ITEM_KEYS,
+  isBadgeItemKey,
+  type BadgeItemKey,
+} from "./status";
+import { DEFAULT_DASHBOARD_TILES } from "./sauna-card";
 
 interface SchemaItem {
   name: string;
@@ -16,10 +24,45 @@ const LABEL_KEY: Record<string, string> = {
   language: "editor.language",
 };
 
+/** A layout's configurable tile list: which config key, its defaults, its title. */
+interface TileSpec {
+  configKey: "dashboard_tiles" | "hero_items";
+  defaults: readonly BadgeItemKey[];
+  titleKey: string;
+}
+
+// Only layouts with a configurable tile area appear here (compact uses slots,
+// added in a later increment).
+const LAYOUT_TILES: Partial<Record<SaunaLayout, TileSpec>> = {
+  "status-dashboard": {
+    configKey: "dashboard_tiles",
+    defaults: DEFAULT_DASHBOARD_TILES,
+    titleKey: "editor.tiles_dashboard",
+  },
+  "thermostat-hero": {
+    configKey: "hero_items",
+    defaults: [],
+    titleKey: "editor.tiles_hero",
+  },
+};
+
+// Every per-layout content key, for the whole-card reset.
+const TILE_CONFIG_KEYS = ["dashboard_tiles", "hero_items"] as const;
+
+// Minimal state to evaluate item icons in the editor (no live hass needed).
+const ICON_STATE = {
+  integration: "",
+  deviceId: "",
+  available: false,
+  status: "idle",
+  entities: {},
+} as unknown as SaunaState;
+
 /**
- * Visual config editor for sauna-card, built on Home Assistant's `ha-form` so it
- * is fully themed and trivially extensible — add a schema entry to expose a new
- * option. Returned by SaunaCard.getConfigElement().
+ * Visual config editor for sauna-card. Standard fields run through `ha-form`;
+ * the active layout's tile list is edited in a custom section with drag + ▲▼
+ * reordering, removal, an add picker, and reset (per section + whole card).
+ * Returned by SaunaCard.getConfigElement().
  */
 export class SaunaCardEditor extends LitElement {
   @property({ attribute: false }) hass?: Hass;
@@ -27,8 +70,6 @@ export class SaunaCardEditor extends LitElement {
   @state() private _config: SaunaCardConfig = { type: "custom:sauna-card" };
 
   setConfig(config: SaunaCardConfig): void {
-    // Back-fill the required `type` so emissions can never produce an invalid
-    // card config, even if a config without it is ever passed at runtime.
     this._config = { ...config, type: config.type ?? "custom:sauna-card" };
   }
 
@@ -68,8 +109,6 @@ export class SaunaCardEditor extends LitElement {
         selector: {
           select: {
             mode: "dropdown",
-            // Include any language already in the config (e.g. authored in YAML)
-            // that isn't one of ours, so editing never silently drops it.
             options: [
               { value: "", label: t("editor.auto", lang) },
               ...this._languageCodes().map((l) => ({
@@ -105,12 +144,14 @@ export class SaunaCardEditor extends LitElement {
   private _computeLabel = (schema: { name: string }): string =>
     t(LABEL_KEY[schema.name] ?? schema.name, this._lang);
 
-  private _valueChanged(ev: CustomEvent): void {
-    // ha-form only round-trips the keys it knows from the schema, so merge over
-    // the current config to preserve everything else (`type`, `integration`,
-    // and any future keys). Keep the editor's own copy in sync too.
-    const changed = (ev.detail as { value: Partial<SaunaCardConfig> }).value;
-    const next = { ...this._config, ...changed } as SaunaCardConfig;
+  /** Merge a patch over the config and emit it; keys set to undefined are dropped. */
+  private _emit(patch: Partial<SaunaCardConfig>): void {
+    const next = { ...this._config, ...patch } as SaunaCardConfig;
+    const patchRec = patch as Record<string, unknown>;
+    const nextRec = next as unknown as Record<string, unknown>;
+    for (const k of Object.keys(patch)) {
+      if (patchRec[k] === undefined) delete nextRec[k];
+    }
     this._config = next;
     this.dispatchEvent(
       new CustomEvent("config-changed", {
@@ -121,16 +162,295 @@ export class SaunaCardEditor extends LitElement {
     );
   }
 
+  private _valueChanged(ev: CustomEvent): void {
+    // ha-form round-trips only its schema keys; merge over config to preserve
+    // everything else (type, integration, the per-layout tile lists).
+    this._emit((ev.detail as { value: Partial<SaunaCardConfig> }).value);
+  }
+
+  // ---- tile list section ----
+
+  private get _activeSpec(): TileSpec | undefined {
+    const layout = (this._config.layout ?? "status-dashboard") as SaunaLayout;
+    return LAYOUT_TILES[layout];
+  }
+
+  private _list(spec: TileSpec): BadgeItemKey[] {
+    const raw = this._config[spec.configKey] ?? spec.defaults;
+    return raw.filter(isBadgeItemKey);
+  }
+
+  private _setList(spec: TileSpec, list: BadgeItemKey[]): void {
+    this._emit({ [spec.configKey]: list } as Partial<SaunaCardConfig>);
+  }
+
+  private _move(spec: TileSpec, i: number, dir: -1 | 1): void {
+    const list = [...this._list(spec)];
+    const j = i + dir;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    this._setList(spec, list);
+  }
+
+  private _remove(spec: TileSpec, i: number): void {
+    const list = [...this._list(spec)];
+    list.splice(i, 1);
+    this._setList(spec, list);
+  }
+
+  private _add(spec: TileSpec, key: string): void {
+    if (!isBadgeItemKey(key)) return;
+    this._setList(spec, [...this._list(spec), key]);
+  }
+
+  private _itemMoved(spec: TileSpec, ev: CustomEvent): void {
+    const { oldIndex, newIndex } = ev.detail as {
+      oldIndex: number;
+      newIndex: number;
+    };
+    const list = [...this._list(spec)];
+    const [moved] = list.splice(oldIndex, 1);
+    list.splice(newIndex, 0, moved);
+    this._setList(spec, list);
+  }
+
+  private _resetSection(spec: TileSpec): void {
+    this._emit({ [spec.configKey]: undefined } as Partial<SaunaCardConfig>);
+  }
+
+  private _resetAll(): void {
+    const patch: Record<string, undefined> = {};
+    for (const k of TILE_CONFIG_KEYS) patch[k] = undefined;
+    this._emit(patch as Partial<SaunaCardConfig>);
+  }
+
+  private _tilesSection(): TemplateResult | typeof nothing {
+    const spec = this._activeSpec;
+    if (!spec) return nothing;
+    const lang = this._lang;
+    const list = this._list(spec);
+    const available = BADGE_ITEM_KEYS.filter((k) => !list.includes(k));
+    return html`<div class="section">
+      <div class="sec-head">
+        <span class="title">${t(spec.titleKey, lang)}</span>
+        <button
+          type="button"
+          class="reset"
+          @click=${() => this._resetSection(spec)}
+        >
+          <ha-icon icon="mdi:restore"></ha-icon>${t("editor.reset", lang)}
+        </button>
+      </div>
+      <ha-sortable
+        handle-selector=".handle"
+        @item-moved=${(e: CustomEvent) => this._itemMoved(spec, e)}
+      >
+        <div class="rows">
+          ${repeat(
+            list,
+            (k) => k,
+            (k, i) =>
+              html`<div class="row">
+                <ha-icon class="handle" icon="mdi:drag"></ha-icon>
+                <ha-icon
+                  class="ic"
+                  icon=${BADGE_ITEMS[k].icon(ICON_STATE)}
+                ></ha-icon>
+                <span class="name">${t(BADGE_ITEMS[k].labelKey, lang)}</span>
+                <button
+                  type="button"
+                  class="iconbtn"
+                  ?disabled=${i === 0}
+                  aria-label="↑"
+                  @click=${() => this._move(spec, i, -1)}
+                >
+                  <ha-icon icon="mdi:chevron-up"></ha-icon>
+                </button>
+                <button
+                  type="button"
+                  class="iconbtn"
+                  ?disabled=${i === list.length - 1}
+                  aria-label="↓"
+                  @click=${() => this._move(spec, i, 1)}
+                >
+                  <ha-icon icon="mdi:chevron-down"></ha-icon>
+                </button>
+                <button
+                  type="button"
+                  class="iconbtn del"
+                  aria-label="✕"
+                  @click=${() => this._remove(spec, i)}
+                >
+                  <ha-icon icon="mdi:close"></ha-icon>
+                </button>
+              </div>`,
+          )}
+        </div>
+      </ha-sortable>
+      ${list.length === 0
+        ? html`<div class="empty">${t("editor.tiles_empty", lang)}</div>`
+        : nothing}
+      <select
+        class="add"
+        @change=${(e: Event) => {
+          const el = e.target as HTMLSelectElement;
+          this._add(spec, el.value);
+          el.value = "";
+        }}
+      >
+        <option value="">${t("editor.tiles_add", lang)}</option>
+        ${available.map(
+          (k) =>
+            html`<option value=${k}>
+              ${t(BADGE_ITEMS[k].labelKey, lang)}
+            </option>`,
+        )}
+      </select>
+      <div class="hint">${t("editor.tiles_hint", lang)}</div>
+    </div>`;
+  }
+
   override render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
     return html`<ha-form
-      .hass=${this.hass}
-      .data=${this._config}
-      .schema=${this._schema()}
-      .computeLabel=${this._computeLabel}
-      @value-changed=${this._valueChanged}
-    ></ha-form>`;
+        .hass=${this.hass}
+        .data=${this._config}
+        .schema=${this._schema()}
+        .computeLabel=${this._computeLabel}
+        @value-changed=${this._valueChanged}
+      ></ha-form>
+      ${this._tilesSection()}
+      <div class="foot">
+        <button type="button" class="reset-all" @click=${this._resetAll}>
+          ${t("editor.reset_all", this._lang)}
+        </button>
+      </div>`;
   }
+
+  static override styles = css`
+    .section {
+      margin-top: 16px;
+    }
+    .sec-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .sec-head .title {
+      flex: 1;
+      font-weight: 600;
+    }
+    .reset {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font: inherit;
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--divider-color);
+      background: transparent;
+      color: var(--secondary-text-color);
+      cursor: pointer;
+    }
+    .reset:hover {
+      color: var(--primary-text-color);
+      border-color: var(--primary-color);
+    }
+    .reset ha-icon {
+      --mdc-icon-size: 16px;
+    }
+    .rows {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+    }
+    .row .handle {
+      cursor: grab;
+      color: var(--secondary-text-color);
+      --mdc-icon-size: 20px;
+    }
+    .row .ic {
+      color: var(--secondary-text-color);
+      --mdc-icon-size: 20px;
+    }
+    .row .name {
+      flex: 1;
+      font-size: 0.9rem;
+    }
+    .iconbtn {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--secondary-text-color);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .iconbtn ha-icon {
+      --mdc-icon-size: 20px;
+    }
+    .iconbtn:hover {
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color);
+    }
+    .iconbtn.del:hover {
+      color: var(--error-color);
+    }
+    .iconbtn:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+    .empty {
+      font-size: 0.8rem;
+      color: var(--secondary-text-color);
+      padding: 6px 2px;
+    }
+    .add {
+      margin-top: 8px;
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--secondary-background-color);
+      border: 1px dashed var(--divider-color);
+      border-radius: 8px;
+      padding: 9px 11px;
+      color: var(--secondary-text-color);
+      font: inherit;
+    }
+    .hint {
+      font-size: 0.72rem;
+      color: var(--secondary-text-color);
+      margin-top: 6px;
+    }
+    .foot {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+    .reset-all {
+      font: inherit;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--error-color);
+      background: transparent;
+      color: var(--error-color);
+      cursor: pointer;
+    }
+  `;
 }
 
 if (!customElements.get("sauna-card-editor")) {
