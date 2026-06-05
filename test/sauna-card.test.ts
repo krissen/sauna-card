@@ -66,6 +66,20 @@ describe("sauna-card", () => {
     ).toThrow();
   });
 
+  it("accepts compact_slots as an object and rejects non-objects", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({
+        type: "custom:sauna-card",
+        layout: "compact",
+        compact_slots: { left: "status", mid: "name", right: "current_temp" },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", compact_slots: "status" }),
+    ).toThrow();
+  });
+
   it("renders tiles whose value is localized without losing `this`", () => {
     // Regression: _itemTile passes the card's _t as a callback; door/status
     // tiles call it, so _t must stay bound (arrow field), not a plain method.
