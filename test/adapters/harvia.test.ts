@@ -126,6 +126,17 @@ describe("harvia adapter readState", () => {
     expect(s!.entities.thermostat).toBe("climate.bastu_termostat");
   });
 
+  it("normalizes auxiliary switch states by logical key", () => {
+    const s = harviaAdapter.readState(makeHass(), {
+      type: "custom:sauna-card",
+    });
+    // power=on, light=on, steamer=off are in the fixture; the rest are absent.
+    expect(s!.switches).toEqual({ power: true, light: true, steamer: false });
+    // Fields with no entity in the fixture stay undefined (item then hides).
+    expect(s!.targetHumidity).toBeUndefined();
+    expect(s!.lastSessionMaxTemp).toBeUndefined();
+  });
+
   it("derives 'ready' when at target and not heating", () => {
     const s = harviaAdapter.readState(
       makeHass({
