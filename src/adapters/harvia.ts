@@ -43,9 +43,32 @@ export const HARVIA_ENTITIES = {
     domain: "sensor",
     translationKey: "last_session_max_temp",
   },
+  heaterPowerActual: {
+    domain: "sensor",
+    translationKey: "heater_power_actual",
+  },
+  mainSensorTemp: { domain: "sensor", translationKey: "main_sensor_temp" },
+  extSensorTemp: { domain: "sensor", translationKey: "ext_sensor_temp" },
+  panelTemp: { domain: "sensor", translationKey: "panel_temp" },
+  statusCodes: { domain: "sensor", translationKey: "status_codes" },
+  activeProfile: { domain: "sensor", translationKey: "active_profile" },
+  heatOnCounter: { domain: "sensor", translationKey: "heat_on_counter" },
+  steamOnCounter: { domain: "sensor", translationKey: "steam_on_counter" },
+  ph1RelayCounter: { domain: "sensor", translationKey: "ph1_relay_counter" },
+  ph2RelayCounter: { domain: "sensor", translationKey: "ph2_relay_counter" },
+  ph3RelayCounter: { domain: "sensor", translationKey: "ph3_relay_counter" },
+  totalHours: { domain: "sensor", translationKey: "total_hours" },
+  totalBathingHours: {
+    domain: "sensor",
+    translationKey: "total_bathing_hours",
+  },
+  totalSessions: { domain: "sensor", translationKey: "total_sessions" },
   door: { domain: "binary_sensor", translationKey: "door" },
   heating: { domain: "binary_sensor", translationKey: "heat_on" },
   steam: { domain: "binary_sensor", translationKey: "steam_on" },
+  remoteAllowed: { domain: "binary_sensor", translationKey: "remote_allowed" },
+  safetyRelay: { domain: "binary_sensor", translationKey: "safety_relay" },
+  screenLock: { domain: "binary_sensor", translationKey: "screen_lock" },
   targetHumidity: { domain: "number", translationKey: "target_humidity" },
   aromaLevelSet: { domain: "number", translationKey: "aroma_level_set" },
   sessionLength: { domain: "number", translationKey: "on_time" },
@@ -76,6 +99,13 @@ function isOn(hass: Hass, entityId: string | undefined): boolean | undefined {
   const st = hass.states[entityId];
   if (!st || UNAVAILABLE.has(st.state)) return undefined;
   return st.state === "on";
+}
+
+function str(hass: Hass, entityId: string | undefined): string | undefined {
+  if (!entityId) return undefined;
+  const st = hass.states[entityId];
+  if (!st || UNAVAILABLE.has(st.state)) return undefined;
+  return st.state;
 }
 
 /** Best-effort device model: "xenio" | "fenix" | undefined. */
@@ -215,6 +245,23 @@ export const harviaAdapter: SaunaAdapter = {
       sessionLength: num(hass, e.sessionLength),
       lastSessionDuration: num(hass, e.lastSessionDuration),
       lastSessionMaxTemp: num(hass, e.lastSessionMaxTemp),
+      heaterPowerActual: num(hass, e.heaterPowerActual),
+      mainSensorTemp: num(hass, e.mainSensorTemp),
+      extSensorTemp: num(hass, e.extSensorTemp),
+      panelTemp: num(hass, e.panelTemp),
+      statusCodes: str(hass, e.statusCodes),
+      activeProfile: str(hass, e.activeProfile),
+      heatOnCounter: num(hass, e.heatOnCounter),
+      steamOnCounter: num(hass, e.steamOnCounter),
+      ph1RelayCounter: num(hass, e.ph1RelayCounter),
+      ph2RelayCounter: num(hass, e.ph2RelayCounter),
+      ph3RelayCounter: num(hass, e.ph3RelayCounter),
+      totalHours: num(hass, e.totalHours),
+      totalBathingHours: num(hass, e.totalBathingHours),
+      totalSessions: num(hass, e.totalSessions),
+      remoteAllowed: isOn(hass, e.remoteAllowed),
+      safetyRelay: isOn(hass, e.safetyRelay),
+      screenLock: isOn(hass, e.screenLock),
       switches,
       entities: e,
     };
