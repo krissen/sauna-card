@@ -9,7 +9,13 @@ import {
 import { property, state } from "lit/decorators.js";
 import type { Hass, SaunaCardConfig, SaunaState, SaunaLayout } from "./types";
 import { pickIntegration } from "./adapter-registry";
-import { STATUS_ICON, STATUS_KEY } from "./status";
+import {
+  STATUS_ICON,
+  STATUS_KEY,
+  BADGE_ITEMS,
+  isBadgeItemKey,
+  type BadgeItemKey,
+} from "./status";
 import { detectLang, t } from "./i18n";
 import {
   toggleSwitch,
@@ -38,6 +44,16 @@ const LAYOUTS: SaunaLayout[] = [
   "status-dashboard",
   "thermostat-hero",
   "compact",
+];
+
+// The status-dashboard tiles shown when the user hasn't customized them.
+const DEFAULT_DASHBOARD_TILES: BadgeItemKey[] = [
+  "humidity",
+  "power",
+  "energy",
+  "remaining",
+  "door",
+  "sessions",
 ];
 
 // Read-only control chips shown in I5. Interactivity (callService) lands in I6.
@@ -85,6 +101,11 @@ export class SaunaCard extends LitElement {
       !LAYOUTS.includes(config.layout as SaunaLayout)
     ) {
       throw new Error(`sauna-card: invalid layout "${String(config.layout)}"`);
+    }
+    for (const key of ["dashboard_tiles", "hero_items"]) {
+      if (config[key] !== undefined && !Array.isArray(config[key])) {
+        throw new Error(`sauna-card: "${key}" must be an array`);
+      }
     }
     this._config = config as unknown as SaunaCardConfig;
   }
@@ -307,6 +328,29 @@ export class SaunaCard extends LitElement {
     </div>`;
   }
 
+  /** Render one catalog item as a tile; hides when its datum is absent. */
+  private _itemTile(
+    s: SaunaState,
+    key: BadgeItemKey,
+  ): TemplateResult | typeof nothing {
+    const def = BADGE_ITEMS[key];
+    const v = def.value(s, this._t);
+    if (!v) return nothing;
+    return this._tile(def.labelKey, `${v.text}${v.unit ? ` ${v.unit}` : ""}`);
+  }
+
+  /** A tile grid for a configured, ordered list of item keys (per layout). */
+  private _tilesRow(
+    s: SaunaState,
+    keys: readonly string[],
+  ): TemplateResult | typeof nothing {
+    const valid = keys.filter(isBadgeItemKey);
+    if (!valid.length) return nothing;
+    return html`<div class="tiles">
+      ${valid.map((k) => this._itemTile(s, k))}
+    </div>`;
+  }
+
   // The progress bar and ETA line are always rendered (the bar empty, the ETA
   // blank) so starting/stopping a session doesn't reflow the card height — only
   // their contents change, never the layout. Reserving the space avoids the
@@ -333,8 +377,6 @@ export class SaunaCard extends LitElement {
       s.currentTemp !== undefined && s.targetTemp && s.targetTemp > 0
         ? Math.max(0, Math.min(1, s.currentTemp / s.targetTemp))
         : 0;
-    const fmt = (v: number | undefined, unit: string, dec = 0) =>
-      v === undefined ? nothing : `${v.toFixed(dec)} ${unit}`;
     return html`<ha-card>
       <div class="head">
         <span class="title">${this._configName(s)}</span>
@@ -349,27 +391,10 @@ export class SaunaCard extends LitElement {
           </div>
         </div>
         ${this._heatProgress(s, progress)} ${this._doorWarning(s)}
-        <div class="tiles">
-          ${this._tile("label.humidity", fmt(s.humidity, "%"))}
-          ${this._tile("label.power", fmt(s.power, "W"))}
-          ${this._tile("label.energy", fmt(s.energy, "kWh", 1))}
-          ${this._tile(
-            "label.remaining_time",
-            s.remainingMinutes === undefined
-              ? nothing
-              : this._t("common.minutes", { count: s.remainingMinutes }),
-          )}
-          ${this._tile(
-            "label.door",
-            s.doorOpen === undefined
-              ? nothing
-              : this._t(s.doorOpen ? "door.open" : "door.closed"),
-          )}
-          ${this._tile(
-            "label.sessions_today",
-            s.sessionsToday === undefined ? nothing : `${s.sessionsToday}`,
-          )}
-        </div>
+        ${this._tilesRow(
+          s,
+          this._config.dashboard_tiles ?? DEFAULT_DASHBOARD_TILES,
+        )}
         ${this._controlChips(s)} ${this._cta(s)}
       </div>
     </ha-card>`;
@@ -422,8 +447,9 @@ export class SaunaCard extends LitElement {
           </div>
         </div>
       </div>
-      ${this._doorWarning(s)} ${this._tempStepper(s)} ${this._controlChips(s)}
-      ${this._cta(s)}
+      ${this._doorWarning(s)} ${this._tempStepper(s)}
+      ${this._tilesRow(s, this._config.hero_items ?? [])}
+      ${this._controlChips(s)} ${this._cta(s)}
     </ha-card>`;
   }
 

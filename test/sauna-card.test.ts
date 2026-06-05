@@ -49,6 +49,23 @@ describe("sauna-card", () => {
     expect(card.getCardSize()).toBe(2);
   });
 
+  it("accepts tile lists and rejects non-array tile config", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({
+        type: "custom:sauna-card",
+        dashboard_tiles: ["humidity", "power"],
+        hero_items: ["status"],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      card.setConfig({
+        type: "custom:sauna-card",
+        dashboard_tiles: "humidity",
+      }),
+    ).toThrow();
+  });
+
   it("renders nothing without hass and a card when no device is found", () => {
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card" });
