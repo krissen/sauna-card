@@ -64,9 +64,11 @@ releases/version bumps, new npm dependencies.
 - [x] **I9 · Badge.** `sauna-badge.ts` + `sauna-badge-editor.ts`,
       `window.customBadges`; six visuals × three content modes, ring gauge,
       label, scale, door warning, tap→more-info. (PR #9.)
-- [ ] **I10 · Docs & release.** README, `docs/*.md`, screenshots, `CHANGELOG.md`
-      *(in progress)*. Then merge `dev → master`, tag and cut the **first GitHub
-      release `0.1.0-beta1`** (triggers `release.yml`); promote to `0.1.0`.
+- [x] **I10 · Docs & release.** README, `docs/*.md`, screenshots, `CHANGELOG.md`
+      (PR #16); CI/release workflows bumped to the Node 24 action runtime (PR #17).
+      `dev → master` merged and the **first GitHub release `0.1.0-beta1`** cut —
+      `release.yml` green (build + asset + HACS validation). Promote to `0.1.0`
+      once stable.
 
 ### Configurable content (shipped on `dev` beyond I9, PRs #10–#15)
 
@@ -85,14 +87,18 @@ releases/version bumps, new npm dependencies.
 
 ## Current status (2026-06-05)
 
-- **Merged on `dev`:** F0–F1, I1–I9, plus the configurability arc (PRs #10–#15).
-  `v0.0.1` tagged on `master` (tag only; the first GitHub release will be
-  `0.1.0-beta1`). All passed the dual-bot loop and were live-verified in
+- **Shipped:** F0–F1, I1–I10, plus the configurability arc (PRs #10–#15) and
+  docs (PR #16). **First GitHub release `0.1.0-beta1` is out** on `master`
+  (`release.yml` green: build + `sauna-card.js` asset + HACS validation; actions
+  on the Node 24 runtime). All passed the dual-bot loop and were live-verified in
   `hass-test` (Xenio device).
-- **Remaining for `0.1.0-beta1`:** I10 — docs (this), then the release.
+- **Next:** gather beta feedback, then promote to `0.1.0`.
 - **Deferred:** Fenix live verification (only a Xenio in `hass-test`); perf —
   cache entity-id resolution in `_state()`; dev-toolchain advisories (own PR);
   HACS default-repo submission at 0.1.0.
+- **Release note:** `0.1.0-beta1` is published **not** marked "prerelease" so the
+  HACS validator (which ignores prereleases, and our `dist/` is gitignored) can
+  resolve the asset. Revisit if strict beta opt-in is wanted before 0.1.0.
 
 ## Phase 2+ — Growth (`0.2.x+`)
 
