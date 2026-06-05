@@ -74,6 +74,8 @@ interface TileApi {
   _add(spec: TileSpec, key: string): void;
   _resetSection(spec: TileSpec): void;
   _resetAll(): void;
+  _setSlot(pos: "left" | "mid" | "right", value: string): void;
+  _resetCompact(): void;
 }
 
 function makeEditor(config: Partial<SaunaCardConfig> = {}): {
@@ -156,10 +158,28 @@ describe("sauna-card-editor tile list", () => {
     const { api, emitted } = makeEditor({
       dashboard_tiles: ["humidity"],
       hero_items: ["status"],
+      compact_slots: { left: "status" },
     });
     api._resetAll();
     const cfg = emitted.at(-1)!;
     expect("dashboard_tiles" in cfg).toBe(false);
     expect("hero_items" in cfg).toBe(false);
+    expect("compact_slots" in cfg).toBe(false);
+  });
+
+  it("compact slots: set one, keep the rest, reset all three", () => {
+    const { api, emitted } = makeEditor({ layout: "compact" });
+    // No tile spec for compact; slots are edited via _setSlot.
+    expect(api._activeSpec).toBeUndefined();
+    api._setSlot("right", "humidity");
+    const cfg = emitted.at(-1)!;
+    // Defaults fill the untouched slots; the chosen one overrides.
+    expect(cfg.compact_slots).toEqual({
+      left: "status",
+      mid: "name",
+      right: "humidity",
+    });
+    api._resetCompact();
+    expect("compact_slots" in emitted.at(-1)!).toBe(false);
   });
 });
