@@ -37,9 +37,9 @@ releases/version bumps, new npm dependencies.
       Merged via PR #1 after dual-bot review. **Tag `v0.0.1` (tag only, no
       GitHub release).**
 
-> Release policy: `v0.0.1` is an internal tag only. The **first GitHub release
-> will be `0.1.0-beta1`** (which triggers `release.yml`). HACS submission follows
-> once 0.1.0 is stable.
+> Release policy: `v0.0.1` is an internal tag only. The **first GitHub release is
+> `0.1.0`** (which triggers `release.yml`). HACS default-repo submission follows
+> once 0.1.0 has seen some use.
 
 ## Phase 1 — 0.1.0 increments (each its own branch/PR → `dev`)
 
@@ -66,9 +66,8 @@ releases/version bumps, new npm dependencies.
       label, scale, door warning, tap→more-info. (PR #9.)
 - [x] **I10 · Docs & release.** README, `docs/*.md`, screenshots, `CHANGELOG.md`
       (PR #16); CI/release workflows bumped to the Node 24 action runtime (PR #17).
-      `dev → master` merged and the **first GitHub release `0.1.0-beta1`** cut —
-      `release.yml` green (build + asset + HACS validation). Promote to `0.1.0`
-      once stable.
+      `dev → master` merged and the **first GitHub release `0.1.0`** cut —
+      `release.yml` green (build + asset + HACS validation).
 
 ### Configurable content (shipped on `dev` beyond I9, PRs #10–#15)
 
@@ -88,17 +87,16 @@ releases/version bumps, new npm dependencies.
 ## Current status (2026-06-05)
 
 - **Shipped:** F0–F1, I1–I10, plus the configurability arc (PRs #10–#15) and
-  docs (PR #16). **First GitHub release `0.1.0-beta1` is out** on `master`
+  docs (PR #16). **First GitHub release `0.1.0` is out** on `master`
   (`release.yml` green: build + `sauna-card.js` asset + HACS validation; actions
   on the Node 24 runtime). All passed the dual-bot loop and were live-verified in
   `hass-test` (Xenio device).
-- **Next:** gather beta feedback, then promote to `0.1.0`.
+- **Next:** gather feedback, then HACS default-repo submission.
 - **Deferred:** Fenix live verification (only a Xenio in `hass-test`); perf —
-  cache entity-id resolution in `_state()`; dev-toolchain advisories (own PR);
-  HACS default-repo submission at 0.1.0.
-- **Release note:** `0.1.0-beta1` is published **not** marked "prerelease" so the
-  HACS validator (which ignores prereleases, and our `dist/` is gitignored) can
-  resolve the asset. Revisit if strict beta opt-in is wanted before 0.1.0.
+  cache entity-id resolution in `_state()`; dev-toolchain advisories (own PR).
+- **Release note:** a plain stable `0.1.0` (not a `-beta` prerelease) — the HACS
+  validator ignores prereleases and our `dist/` is gitignored, so a prerelease
+  had no resolvable asset.
 
 ## Phase 2+ — Growth (`0.2.x+`)
 
