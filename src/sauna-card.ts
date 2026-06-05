@@ -47,7 +47,7 @@ const LAYOUTS: SaunaLayout[] = [
 ];
 
 // The status-dashboard tiles shown when the user hasn't customized them.
-const DEFAULT_DASHBOARD_TILES: BadgeItemKey[] = [
+export const DEFAULT_DASHBOARD_TILES: BadgeItemKey[] = [
   "humidity",
   "power",
   "energy",
@@ -135,9 +135,11 @@ export class SaunaCard extends LitElement {
     return adapter ? adapter.readState(this.hass, this._config) : null;
   }
 
-  private _t(key: string, vars?: Record<string, string | number>): string {
-    return t(key, this._lang, vars);
-  }
+  // Arrow field so it stays bound when passed as a callback (e.g. to a catalog
+  // item's value(s, tr)); a plain method would lose `this` and read _lang of
+  // undefined.
+  private _t = (key: string, vars?: Record<string, string | number>): string =>
+    t(key, this._lang, vars);
 
   private _temp(value: number | undefined): string {
     return value === undefined ? "—" : `${Math.round(value)}°`;
