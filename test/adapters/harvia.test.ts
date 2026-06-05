@@ -30,6 +30,9 @@ const REG: Record<string, [string, string]> = {
   "binary_sensor.bastu_uppvarmning_aktiv": ["harvia_sauna", "heat_on"],
   "binary_sensor.bastu_anga_aktiv": ["harvia_sauna", "steam_on"],
   "binary_sensor.bastu_dorr": ["harvia_sauna", "door"],
+  "binary_sensor.bastu_sakerhetsrela": ["harvia_sauna", "safety_relay"],
+  "sensor.bastu_statuskoder": ["harvia_sauna", "status_codes"],
+  "sensor.bastu_totala_timmar": ["harvia_sauna", "total_hours"],
   // foreign entity from another integration — must be ignored
   "sensor.vader_temp": ["met", "temperature"],
 };
@@ -58,6 +61,9 @@ function makeHass(states: Record<string, string> = {}): Hass {
     "binary_sensor.bastu_uppvarmning_aktiv": "on",
     "binary_sensor.bastu_anga_aktiv": "off",
     "binary_sensor.bastu_dorr": "off",
+    "binary_sensor.bastu_sakerhetsrela": "on",
+    "sensor.bastu_statuskoder": "0",
+    "sensor.bastu_totala_timmar": "1234",
     "sensor.vader_temp": "5",
   };
   for (const [id, state] of Object.entries({ ...defaults, ...states })) {
@@ -143,6 +149,17 @@ describe("harvia adapter readState", () => {
       { type: "custom:sauna-card" },
     );
     expect(s!.readyEtaMinutes).toBe(8);
+  });
+
+  it("normalizes diagnostic string, numeric and binary sensors", () => {
+    const s = harviaAdapter.readState(makeHass(), {
+      type: "custom:sauna-card",
+    });
+    expect(s!.statusCodes).toBe("0");
+    expect(s!.totalHours).toBe(1234);
+    expect(s!.safetyRelay).toBe(true);
+    // An unmapped diagnostic stays undefined so its item hides.
+    expect(s!.panelTemp).toBeUndefined();
   });
 
   it("normalizes auxiliary switch states by logical key", () => {
