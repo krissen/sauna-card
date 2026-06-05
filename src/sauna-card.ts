@@ -46,6 +46,13 @@ const LAYOUTS: SaunaLayout[] = [
   "compact",
 ];
 
+// The compact slots shown when the user hasn't customized them.
+export const DEFAULT_COMPACT_SLOTS = {
+  left: "status",
+  mid: "name",
+  right: "current_temp",
+} as const;
+
 // The status-dashboard tiles shown when the user hasn't customized them.
 export const DEFAULT_DASHBOARD_TILES: BadgeItemKey[] = [
   "humidity",
@@ -106,6 +113,12 @@ export class SaunaCard extends LitElement {
       if (config[key] !== undefined && !Array.isArray(config[key])) {
         throw new Error(`sauna-card: "${key}" must be an array`);
       }
+    }
+    if (
+      config.compact_slots !== undefined &&
+      !isPlainObject(config.compact_slots)
+    ) {
+      throw new Error(`sauna-card: "compact_slots" must be an object`);
     }
     this._config = config as unknown as SaunaCardConfig;
   }
@@ -460,24 +473,39 @@ export class SaunaCard extends LitElement {
 
   // ---- layout: compact ----
 
+  /** Render one compact slot: an item, the device name, or nothing. */
+  private _slot(
+    s: SaunaState,
+    value: string | undefined,
+  ): TemplateResult | typeof nothing {
+    if (!value || value === "none") return nothing;
+    if (value === "name") {
+      return html`<span class="cname">${this._configName(s)}</span>`;
+    }
+    if (!isBadgeItemKey(value)) return nothing;
+    const def = BADGE_ITEMS[value];
+    const v = def.value(s, this._t);
+    if (!v) return nothing;
+    const cls = def.statusTinted ? `status-${s.status}` : "";
+    return html`<span class="citem ${cls}">
+      <ha-icon icon=${def.icon(s)}></ha-icon>
+      <span class="cval"
+        >${v.text}${v.unit
+          ? html`<span class="cunit">${v.unit}</span>`
+          : nothing}</span
+      >
+    </span>`;
+  }
+
   private _renderCompact(s: SaunaState): TemplateResult {
-    const detail =
-      s.status === "heating" && s.readyEtaMinutes !== undefined
-        ? `${this._temp(s.currentTemp)} → ${this._temp(s.targetTemp)} · ${this._t(
-            "common.minutes",
-            { count: s.readyEtaMinutes },
-          )}`
-        : `${this._temp(s.currentTemp)}`;
+    // Merge over the defaults so a partial config (e.g. only `left`) still
+    // fills the other slots rather than leaving them blank.
+    const slots = { ...DEFAULT_COMPACT_SLOTS, ...this._config.compact_slots };
     return html`<ha-card>
       <div class="compact">
-        <div class="ic status-${s.status}">
-          <ha-icon icon=${STATUS_ICON[s.status]}></ha-icon>
-        </div>
-        <div class="txt">
-          <div class="name">${this._configName(s)}</div>
-          <div class="sub">${this._t(STATUS_KEY[s.status])} · ${detail}</div>
-        </div>
-        <div class="big">${this._temp(s.currentTemp)}</div>
+        <div class="cslot left">${this._slot(s, slots.left)}</div>
+        <div class="cslot mid">${this._slot(s, slots.mid)}</div>
+        <div class="cslot right">${this._slot(s, slots.right)}</div>
       </div>
       ${this._doorWarning(s)}
     </ha-card>`;
@@ -748,29 +776,48 @@ export class SaunaCard extends LitElement {
       align-items: center;
       gap: 14px;
     }
-    .compact .ic {
-      width: 42px;
-      height: 42px;
-      border-radius: 50%;
+    .cslot {
       display: flex;
       align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .cslot.mid {
+      flex: 1;
       justify-content: center;
-      background: var(--secondary-background-color);
     }
-    .compact .ic ha-icon {
-      --mdc-icon-size: 24px;
+    .cslot.right {
+      margin-left: auto;
     }
-    .compact .name {
+    .cname {
       font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .compact .sub {
-      font-size: 0.85rem;
+    .citem {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       color: var(--secondary-text-color);
     }
-    .compact .big {
-      margin-left: auto;
-      font-size: 1.8rem;
-      font-weight: 300;
+    .citem ha-icon {
+      --mdc-icon-size: 24px;
+    }
+    .citem .cval {
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--primary-text-color);
+    }
+    /* status tint (from .status-heating/.status-ready) flows to icon + value */
+    .citem.status-heating .cval,
+    .citem.status-ready .cval {
+      color: inherit;
+    }
+    .cunit {
+      font-size: 0.66em;
+      color: var(--secondary-text-color);
+      margin-left: 1px;
     }
     @media (prefers-reduced-motion: reduce) {
       .progress > i {

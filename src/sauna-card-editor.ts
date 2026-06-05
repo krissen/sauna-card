@@ -9,7 +9,7 @@ import {
   isBadgeItemKey,
   type BadgeItemKey,
 } from "./status";
-import { DEFAULT_DASHBOARD_TILES } from "./sauna-card";
+import { DEFAULT_DASHBOARD_TILES, DEFAULT_COMPACT_SLOTS } from "./sauna-card";
 
 interface SchemaItem {
   name: string;
@@ -46,8 +46,19 @@ const LAYOUT_TILES: Partial<Record<SaunaLayout, TileSpec>> = {
   },
 };
 
-// Every per-layout content key, for the whole-card reset.
-const TILE_CONFIG_KEYS = ["dashboard_tiles", "hero_items"] as const;
+// Every per-layout content key, for the whole-content reset.
+const CONTENT_CONFIG_KEYS = [
+  "dashboard_tiles",
+  "hero_items",
+  "compact_slots",
+] as const;
+
+// Compact slot positions, in display order, with their editor label keys.
+const COMPACT_SLOTS = [
+  { pos: "left", labelKey: "editor.slot_left" },
+  { pos: "mid", labelKey: "editor.slot_mid" },
+  { pos: "right", labelKey: "editor.slot_right" },
+] as const;
 
 // Minimal state to evaluate item icons in the editor (no live hass needed).
 const ICON_STATE = {
@@ -220,8 +231,64 @@ export class SaunaCardEditor extends LitElement {
 
   private _resetAll(): void {
     const patch: Record<string, undefined> = {};
-    for (const k of TILE_CONFIG_KEYS) patch[k] = undefined;
+    for (const k of CONTENT_CONFIG_KEYS) patch[k] = undefined;
     this._emit(patch as Partial<SaunaCardConfig>);
+  }
+
+  // ---- compact slots section ----
+
+  private _setSlot(pos: "left" | "mid" | "right", value: string): void {
+    const slots = { ...DEFAULT_COMPACT_SLOTS, ...this._config.compact_slots };
+    slots[pos] = value;
+    this._emit({ compact_slots: slots });
+  }
+
+  private _resetCompact(): void {
+    this._emit({ compact_slots: undefined });
+  }
+
+  private _slotsSection(): TemplateResult | typeof nothing {
+    if ((this._config.layout ?? "status-dashboard") !== "compact") {
+      return nothing;
+    }
+    const lang = this._lang;
+    const slots = { ...DEFAULT_COMPACT_SLOTS, ...this._config.compact_slots };
+    return html`<div class="section">
+      <div class="sec-head">
+        <span class="title">${t("editor.tiles_compact", lang)}</span>
+        <button
+          type="button"
+          class="reset"
+          @click=${() => this._resetCompact()}
+        >
+          <ha-icon icon="mdi:restore"></ha-icon>${t("editor.reset", lang)}
+        </button>
+      </div>
+      ${COMPACT_SLOTS.map((slot) => {
+        const cur = slots[slot.pos] || "none";
+        return html`<div class="slotrow">
+          <span class="slotlabel">${t(slot.labelKey, lang)}</span>
+          <select
+            aria-label=${t(slot.labelKey, lang)}
+            @change=${(e: Event) =>
+              this._setSlot(slot.pos, (e.target as HTMLSelectElement).value)}
+          >
+            <option value="none" ?selected=${cur === "none"}>
+              ${t("editor.slot_none", lang)}
+            </option>
+            <option value="name" ?selected=${cur === "name"}>
+              ${t("editor.slot_name", lang)}
+            </option>
+            ${BADGE_ITEM_KEYS.map(
+              (k) =>
+                html`<option value=${k} ?selected=${cur === k}>
+                  ${t(BADGE_ITEMS[k].labelKey, lang)}
+                </option>`,
+            )}
+          </select>
+        </div>`;
+      })}
+    </div>`;
   }
 
   private _tilesSection(): TemplateResult | typeof nothing {
@@ -320,7 +387,7 @@ export class SaunaCardEditor extends LitElement {
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
-      ${this._tilesSection()}
+      ${this._tilesSection()}${this._slotsSection()}
       <div class="foot">
         <button type="button" class="reset-all" @click=${this._resetAll}>
           ${t("editor.reset_all", this._lang)}
@@ -429,6 +496,26 @@ export class SaunaCardEditor extends LitElement {
       border-radius: 8px;
       padding: 9px 11px;
       color: var(--secondary-text-color);
+      font: inherit;
+    }
+    .slotrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 6px 0;
+    }
+    .slotrow .slotlabel {
+      width: 5.5em;
+      font-size: 0.85rem;
+      color: var(--secondary-text-color);
+    }
+    .slotrow select {
+      flex: 1;
+      background: var(--secondary-background-color);
+      border: 1px solid var(--divider-color);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--primary-text-color);
       font: inherit;
     }
     .hint {
