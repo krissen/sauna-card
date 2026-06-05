@@ -1,0 +1,7 @@
+{
+  "editor-card": {
+    "type": "custom:sauna-card",
+    "name": "Sauna",
+    "dashboard_tiles": ["humidity", "power", "energy", "remaining", "door"]
+  }
+}
