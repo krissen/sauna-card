@@ -92,7 +92,7 @@
   "editor.move_up": "Move up",
   "editor.move_down": "Move down",
   "editor.remove": "Remove",
-  "editor.reset_all": "Reset whole card",
+  "editor.reset_all": "Reset all content",
   "editor.tiles_add": "+ Add a value…",
   "editor.tiles_empty": "No tiles shown",
   "editor.tiles_hint": "Drag or use ▲▼ to reorder. Empty = no tiles. Each layout keeps its own list."

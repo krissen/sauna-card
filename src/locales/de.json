@@ -92,7 +92,7 @@
   "editor.move_up": "Nach oben",
   "editor.move_down": "Nach unten",
   "editor.remove": "Entfernen",
-  "editor.reset_all": "Ganze Karte zurücksetzen",
+  "editor.reset_all": "Gesamten Inhalt zurücksetzen",
   "editor.tiles_add": "+ Wert hinzufügen…",
   "editor.tiles_empty": "Keine Kacheln",
   "editor.tiles_hint": "Zum Sortieren ziehen oder ▲▼ verwenden. Leer = keine Kacheln. Jedes Layout behält seine eigene Liste."

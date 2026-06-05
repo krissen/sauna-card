@@ -292,6 +292,7 @@ export class SaunaCardEditor extends LitElement {
         : nothing}
       <select
         class="add"
+        aria-label=${t("editor.tiles_add", lang)}
         @change=${(e: Event) => {
           const el = e.target as HTMLSelectElement;
           this._add(spec, el.value);

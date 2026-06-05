@@ -92,7 +92,7 @@
   "editor.move_up": "Flytta upp",
   "editor.move_down": "Flytta ner",
   "editor.remove": "Ta bort",
-  "editor.reset_all": "Återställ hela kortet",
+  "editor.reset_all": "Återställ allt innehåll",
   "editor.tiles_add": "+ Lägg till ett värde…",
   "editor.tiles_empty": "Inga rutor visas",
   "editor.tiles_hint": "Dra eller använd ▲▼ för att ordna om. Tomt = inga rutor. Varje layout har sin egen lista."

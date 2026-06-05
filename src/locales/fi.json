@@ -92,7 +92,7 @@
   "editor.move_up": "Siirrä ylös",
   "editor.move_down": "Siirrä alas",
   "editor.remove": "Poista",
-  "editor.reset_all": "Palauta koko kortti",
+  "editor.reset_all": "Palauta kaikki sisältö",
   "editor.tiles_add": "+ Lisää arvo…",
   "editor.tiles_empty": "Ei ruutuja",
   "editor.tiles_hint": "Järjestä vetämällä tai ▲▼-painikkeilla. Tyhjä = ei ruutuja. Jokaisella asettelulla on oma lista."
