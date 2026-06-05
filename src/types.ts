@@ -58,6 +58,8 @@ export interface SaunaCardConfig {
   dashboard_tiles?: string[];
   /** Ordered item keys shown as tiles in the thermostat-hero layout. */
   hero_items?: string[];
+  /** Compact layout's three slots; each is an item key, "name", or "" (none). */
+  compact_slots?: { left?: string; mid?: string; right?: string };
 }
 
 /** Badge content selection: the headline, one chosen value, or several. */
