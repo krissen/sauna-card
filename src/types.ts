@@ -54,6 +54,10 @@ export interface SaunaCardConfig {
   layout?: SaunaLayout;
   /** Locale override; falls back to the Home Assistant locale. */
   language?: string;
+  /** Ordered item keys shown as tiles in the status-dashboard layout. */
+  dashboard_tiles?: string[];
+  /** Ordered item keys shown as tiles in the thermostat-hero layout. */
+  hero_items?: string[];
 }
 
 /** Badge content selection: the headline, one chosen value, or several. */

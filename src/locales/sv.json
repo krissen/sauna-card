@@ -85,5 +85,15 @@
   "editor.label_position": "Etikettposition",
   "editor.label_right": "Höger",
   "editor.label_below": "Under",
-  "editor.scale": "Storlek"
+  "editor.scale": "Storlek",
+  "editor.tiles_dashboard": "Statuspanelens rutor",
+  "editor.tiles_hero": "Termostatens rutor",
+  "editor.reset": "Återställ",
+  "editor.move_up": "Flytta upp",
+  "editor.move_down": "Flytta ner",
+  "editor.remove": "Ta bort",
+  "editor.reset_all": "Återställ allt innehåll",
+  "editor.tiles_add": "+ Lägg till ett värde…",
+  "editor.tiles_empty": "Inga rutor visas",
+  "editor.tiles_hint": "Dra eller använd ▲▼ för att ordna om. Tomt = inga rutor. Varje layout har sin egen lista."
 }
