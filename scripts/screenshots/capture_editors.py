@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Generate the visual-editor screenshots (card + badge), light and dark.
+"""Generate the card visual-editor screenshot, light and dark.
 
 Loads the deployed bundle on a standalone same-origin page (so Home Assistant's
-SPA can't wipe the injected element), stubs `ha-icon`, and renders each editor
-from docs/screenshots/fixtures/editors.json. The standalone page shows the
-card/badge's own configurable sections (tile list / slots / badge options); the
-standard `ha-form` fields (name/device/layout/language/controls) render above
-them inside real Home Assistant.
+SPA can't wipe the injected element), stubs `ha-icon`, and renders the card
+editor from docs/screenshots/fixtures/editors.json. The standalone page shows
+the editor's own configurable section (the tile list); the standard `ha-form`
+fields (name/device/layout/controls/language) render above it inside real Home
+Assistant. The badge editor is plain `ha-form` and isn't shot here.
 
 No auth: the bundle is served publicly at `/local/...`, so this script needs no
 token. A temp HTML file is written under hass-test's www and removed afterwards.
@@ -72,7 +72,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     WWW.mkdir(parents=True, exist_ok=True)
     tmp = WWW / "_doc-editor.html"
-    tags = {"editor-card": "sauna-card-editor", "editor-badge": "sauna-badge-editor"}
+    tags = {"editor-card": "sauna-card-editor"}
     try:
         with sync_playwright() as p:
             b = p.chromium.launch(headless=True)
