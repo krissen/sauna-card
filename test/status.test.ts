@@ -43,7 +43,12 @@ describe("status item catalog", () => {
       power: 6800,
       energy: 1.25,
       sessionLength: 60,
+      aromaLevel: 35,
     };
+    expect(BADGE_ITEMS.aroma_level.value(s, tr)).toEqual({
+      text: "35",
+      unit: "%",
+    });
     expect(BADGE_ITEMS.target_humidity.value(s, tr)).toEqual({
       text: "35",
       unit: "%",
