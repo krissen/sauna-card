@@ -29,6 +29,7 @@ export const HARVIA_ENTITIES = {
   targetTemperature: { domain: "sensor", translationKey: "target_temperature" },
   humidity: { domain: "sensor", translationKey: "humidity" },
   remainingTime: { domain: "sensor", translationKey: "remaining_time" },
+  heatUpTime: { domain: "sensor", translationKey: "heat_up_time" },
   powerSensor: { domain: "sensor", translationKey: "power" },
   energy: { domain: "sensor", translationKey: "energy" },
   sessionsToday: { domain: "sensor", translationKey: "sessions_today" },
@@ -153,9 +154,12 @@ export const harviaAdapter: SaunaAdapter = {
     const heatingActive = isOn(hass, e.heating);
     const tempTrend = num(hass, e.tempTrend);
 
-    // Ready ETA from the temperature trend (°C/min), only while heating up.
-    let readyEtaMinutes: number | undefined;
+    // Ready ETA: prefer the integration's native heat_up_time sensor (enabled by
+    // default, in minutes). Fall back to a trend-derived estimate for setups
+    // where only temp_trend is enabled (heat_up_time is then absent).
+    let readyEtaMinutes = num(hass, e.heatUpTime);
     if (
+      readyEtaMinutes === undefined &&
       heatingActive &&
       currentTemp !== undefined &&
       targetTemp !== undefined &&
