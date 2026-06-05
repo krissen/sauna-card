@@ -43,6 +43,9 @@ export type SaunaStatus = "off" | "heating" | "ready" | "idle" | "unknown";
 /** Card layout, per ADR design directions (status-dashboard is the default). */
 export type SaunaLayout = "status-dashboard" | "thermostat-hero" | "compact";
 
+/** Which interactive controls a layout shows. */
+export type ControlsMode = "none" | "power" | "power+temp";
+
 export interface SaunaCardConfig {
   type: string;
   /** Card title; defaults to the device name. */
@@ -62,6 +65,8 @@ export interface SaunaCardConfig {
    * device name), or "none"/empty (nothing). Missing slots fall back to the
    * defaults. */
   compact_slots?: { left?: string; mid?: string; right?: string };
+  /** Interactive controls shown across layouts (default "power+temp"). */
+  controls?: ControlsMode;
 }
 
 /** Badge content selection: the headline, one chosen value, or several. */
