@@ -21,6 +21,7 @@ const LABEL_KEY: Record<string, string> = {
   name: "editor.name",
   device_id: "editor.device",
   layout: "editor.layout",
+  controls: "editor.controls",
   language: "editor.language",
 };
 
@@ -111,6 +112,22 @@ export class SaunaCardEditor extends LitElement {
                 label: t("editor.layout_thermostat_hero", lang),
               },
               { value: "compact", label: t("editor.layout_compact", lang) },
+            ],
+          },
+        },
+      },
+      {
+        name: "controls",
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: [
+              { value: "none", label: t("editor.controls_none", lang) },
+              { value: "power", label: t("editor.controls_power", lang) },
+              {
+                value: "power+temp",
+                label: t("editor.controls_power_temp", lang),
+              },
             ],
           },
         },
