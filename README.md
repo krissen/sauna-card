@@ -50,7 +50,7 @@ The companion **badge**, in several appearances:
 
 The [`ha-harvia-sauna`](https://github.com/WiesiDeluxe/ha-harvia-sauna)
 integration, installed and set up for your heater (Harvia **Xenio WiFi** or
-**Fenix**). The card auto-detects the device it creates.
+**Fenix**). The card auto-detects the device it controls.
 
 ## Installation
 

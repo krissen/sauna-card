@@ -14,11 +14,13 @@ tmp/.venv/bin/playwright install chromium
 
 ## Auth
 
-A hass-test long-lived token (the dedicated `bot` user), injected into
-`localStorage` — **never committed**. Export it before running:
+`capture_docs.py` shoots authenticated dashboard views, so it needs a hass-test
+long-lived token (the dedicated `bot` user), injected into `localStorage` —
+**never committed**. `capture_editors.py` loads the public `/local/` bundle and
+needs **no** token.
 
 ```bash
-export HASS_TOKEN=$(cat tmp/.ha_token)   # or paste the token
+export HASS_TOKEN=$(cat tmp/.ha_token)   # or paste the token; capture_docs only
 # optional: export HASS_URL=http://localhost:8123
 #           export HASS_DIR=../hass-test
 ```
