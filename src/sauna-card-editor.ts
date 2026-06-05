@@ -172,12 +172,6 @@ export class SaunaCardEditor extends LitElement {
   private _computeLabel = (schema: { name: string }): string =>
     t(LABEL_KEY[schema.name] ?? schema.name, this._lang);
 
-  /** ha-form data with the effective `controls` default surfaced, so the
-   * dropdown reflects the card's actual default ("power+temp") when unset. */
-  private _formData(): SaunaCardConfig {
-    return { controls: "power+temp", ...this._config };
-  }
-
   /** Merge a patch over the config and emit it; keys set to undefined are dropped. */
   private _emit(patch: Partial<SaunaCardConfig>): void {
     const next = { ...this._config, ...patch } as SaunaCardConfig;
@@ -405,7 +399,7 @@ export class SaunaCardEditor extends LitElement {
     if (!this.hass) return nothing;
     return html`<ha-form
         .hass=${this.hass}
-        .data=${this._formData()}
+        .data=${this._config}
         .schema=${this._schema()}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}

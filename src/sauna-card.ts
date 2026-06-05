@@ -729,7 +729,9 @@ export class SaunaCard extends LitElement {
       align-items: center;
       gap: 8px;
     }
-    .stepper .tval {
+    /* Applies both inside the stepper and to the static target value shown when
+       the temperature control is disabled (_targetControl). */
+    .tval {
       font-weight: 650;
       color: var(--sauna-heat-color);
       min-width: 2.6em;
