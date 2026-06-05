@@ -22,6 +22,7 @@ const REG: Record<string, [string, string]> = {
   "sensor.bastu_maltemperatur": ["harvia_sauna", "target_temperature"],
   "sensor.bastu_luftfuktighet": ["harvia_sauna", "humidity"],
   "sensor.bastu_temperaturtrend": ["harvia_sauna", "temp_trend"],
+  "sensor.bastu_uppvarmningstid": ["harvia_sauna", "heat_up_time"],
   "sensor.bastu_effekt": ["harvia_sauna", "power"],
   "switch.bastu_strom": ["harvia_sauna", "power"],
   "switch.bastu_belysning": ["harvia_sauna", "light"],
@@ -124,6 +125,15 @@ describe("harvia adapter readState", () => {
       steamActive: false,
     });
     expect(s!.entities.thermostat).toBe("climate.bastu_termostat");
+  });
+
+  it("prefers the native heat_up_time sensor for the ready ETA", () => {
+    // heat_up_time present (12 min) wins over the trend-derived 8 min.
+    const s = harviaAdapter.readState(
+      makeHass({ "sensor.bastu_uppvarmningstid": "12" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.readyEtaMinutes).toBe(12);
   });
 
   it("normalizes auxiliary switch states by logical key", () => {
