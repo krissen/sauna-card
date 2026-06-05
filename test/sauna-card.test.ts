@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
-// Importing the named export also evaluates the module and runs the
-// @customElement side effect that registers the element.
+import { nothing } from "lit";
+// Importing the named export evaluates the module, which runs the guarded
+// customElements.define that registers the element.
 import { SaunaCard } from "../src/sauna-card";
+import type { Hass } from "../src/types";
 
 describe("sauna-card", () => {
   it("registers the custom element", () => {
@@ -25,6 +27,123 @@ describe("sauna-card", () => {
     const card = new SaunaCard();
     expect(() => card.setConfig({})).not.toThrow();
     card.setConfig({ type: "custom:sauna-card" });
+    expect(card.getCardSize()).toBe(5);
+  });
+
+  it("rejects wrong-typed fields and unknown layouts", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", language: 123 }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", layout: "fancy" }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", layout: "compact" }),
+    ).not.toThrow();
+  });
+
+  it("sizes the compact layout by its controls", () => {
+    const card = new SaunaCard();
+    // Default (power+temp) adds a controls row, so compact needs one more row.
+    card.setConfig({ type: "custom:sauna-card", layout: "compact" });
     expect(card.getCardSize()).toBe(3);
+    // Display-only compact is the smallest.
+    card.setConfig({
+      type: "custom:sauna-card",
+      layout: "compact",
+      controls: "none",
+    });
+    expect(card.getCardSize()).toBe(2);
+  });
+
+  it("rejects an invalid controls mode", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", controls: "bogus" }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", controls: "power" }),
+    ).not.toThrow();
+  });
+
+  it("accepts tile lists and rejects non-array tile config", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({
+        type: "custom:sauna-card",
+        dashboard_tiles: ["humidity", "power"],
+        hero_items: ["status"],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      card.setConfig({
+        type: "custom:sauna-card",
+        dashboard_tiles: "humidity",
+      }),
+    ).toThrow();
+  });
+
+  it("accepts compact_slots as an object and rejects non-objects", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({
+        type: "custom:sauna-card",
+        layout: "compact",
+        compact_slots: { left: "status", mid: "name", right: "current_temp" },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", compact_slots: "status" }),
+    ).toThrow();
+  });
+
+  it("renders tiles whose value is localized without losing `this`", () => {
+    // Regression: _itemTile passes the card's _t as a callback; door/status
+    // tiles call it, so _t must stay bound (arrow field), not a plain method.
+    const entities = {
+      "switch.p": {
+        entity_id: "switch.p",
+        platform: "harvia_sauna",
+        translation_key: "power",
+        device_id: "d1",
+      },
+      "binary_sensor.d": {
+        entity_id: "binary_sensor.d",
+        platform: "harvia_sauna",
+        translation_key: "door",
+        device_id: "d1",
+      },
+    };
+    const states = {
+      "switch.p": { entity_id: "switch.p", state: "on", attributes: {} },
+      "binary_sensor.d": {
+        entity_id: "binary_sensor.d",
+        state: "off",
+        attributes: {},
+      },
+    };
+    const card = new SaunaCard();
+    card.setConfig({
+      type: "custom:sauna-card",
+      dashboard_tiles: ["status", "door"],
+    });
+    card.hass = {
+      states,
+      entities,
+      devices: { d1: { id: "d1", name: "Bastu" } },
+    } as unknown as Hass;
+    expect(() => card.render()).not.toThrow();
+    expect(card.render()).toBeTruthy();
+  });
+
+  it("renders nothing without hass and a card when no device is found", () => {
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card" });
+    expect(card.render()).toBe(nothing);
+    card.hass = { states: {}, entities: {}, devices: {} } as Hass;
+    const out = card.render();
+    expect(out).not.toBe(nothing);
+    expect(out).toBeTruthy();
   });
 });

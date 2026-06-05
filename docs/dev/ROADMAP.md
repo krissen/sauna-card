@@ -43,32 +43,56 @@ releases/version bumps, new npm dependencies.
 
 ## Phase 1 — 0.1.0 increments (each its own branch/PR → `dev`)
 
-- [ ] **I1 · i18n core.** `i18n.ts` (IntlMessageFormat, `import.meta.glob`,
-      `detectLang`, `t`, English fallback) + `locales/{sv,fi,en,de}.json` skeletons.
-- [ ] **I2 · Adapter contract + registry.** TS interfaces (`SaunaConfig`,
-      `SaunaState`, adapter contract), `adapter-registry.ts`, `utils/autodetect.ts`
-      (`INTEGRATION_PRIORITY = ["harvia_xenio", "fenix"]`, detect/pick/select).
-- [ ] **I3 · Harvia Xenio adapter (read).** `adapters/harvia-xenio.ts`:
-      `stubConfig`, `readState`, `resolveEntityIds`. Contract tests + fixtures
-      captured from the live integration.
-- [ ] **I4 · Fenix adapter (read).** `adapters/fenix.ts`, same contract.
-- [ ] **I5 · Card read-only view.** Status through adapters + i18n; `getCardSize`/
-      `getGridOptions`. Verified in `hass-test`.
-- [ ] **I6 · Controls (write).** `controls/` `callService` wrappers
-      (`climate.set_temperature`, `switch.turn_on/off`, `number.set_value`,
-      `harvia_sauna.set_session`) wired into the card.
-- [ ] **I7 · Visual editor.** `editor/base.ts` + `sauna-card-editor.ts`,
-      `getConfigElement`/`getStubConfig`.
-- [ ] **I8 · Card suggestion (2026.6).** `getEntitySuggestion(hass, entityId)` on
-      `window.customCards` for Harvia climate entities.
-- [ ] **I9 · Badge.** `sauna-badge.ts` + `sauna-badge-editor.ts`,
-      `window.customBadges`, shared status mixin.
-- [ ] **I10 · Docs & release.** README, `docs/configuration.md`, finalize locales,
-      `CHANGELOG.md`. Merge `dev → master`, tag and cut the **first GitHub release
-      `0.1.0-beta1`** (triggers `release.yml`); promote to `0.1.0` once stable.
+- [x] **I1 · i18n core.** `i18n.ts` (IntlMessageFormat, `import.meta.glob`,
+      `detectLang`, `t`, English fallback) + `locales/{sv,fi,en,de}.json`.
+- [x] **I2 · Adapter contract + registry.** `SaunaCardConfig`/`SaunaState`/adapter
+      interfaces, `adapter-registry.ts` keyed by integration, `utils/autodetect.ts`.
+      Resolution by **(domain, translation_key)** within a device.
+- [x] **I3 · Harvia adapter — readState.** `adapters/harvia.ts` → normalized
+      `SaunaState`. Verified against live Xenio entities in `hass-test`.
+- [x] **I4 · Fenix model differences.** Handled implicitly: `detectModel` labels
+      the device and the card renders only the entities a device exposes (items
+      hide when absent), so a Fenix with fewer entities degrades gracefully.
+      ⚠️ **Not live-verified against real Fenix hardware** — confirm before 0.1.0.
+- [x] **I5 · Card read-only view.** Three theme-first layouts behind `layout`
+      (`status-dashboard` default, `thermostat-hero`, `compact`).
+      `getCardSize`/`getGridOptions`; door-open-while-heating warning.
+- [x] **I6 · Controls (write).** `controls.ts` `callService` wrappers
+      (`switch.toggle`, `climate.set_temperature`, `harvia_sauna.set_session`).
+- [x] **I7 · Visual editor.** `sauna-card-editor.ts` on `ha-form`.
+- [x] **I8 · Card suggestion (2026.6).** `getEntitySuggestion` on `window.customCards`.
+- [x] **I9 · Badge.** `sauna-badge.ts` + `sauna-badge-editor.ts`,
+      `window.customBadges`; six visuals × three content modes, ring gauge,
+      label, scale, door warning, tap→more-info. (PR #9.)
+- [ ] **I10 · Docs & release.** README, `docs/*.md`, screenshots, `CHANGELOG.md`
+      *(in progress)*. Then merge `dev → master`, tag and cut the **first GitHub
+      release `0.1.0-beta1`** (triggers `release.yml`); promote to `0.1.0`.
 
-Dependencies: I1–I2 underpin I3–I4; I3–I4 underpin I5; I5 underpins I6/I7; I9
-follows I5; I8 can run in parallel after I2.
+### Configurable content (shipped on `dev` beyond I9, PRs #10–#15)
+
+- [x] **Layout-jump fix** (PR #10) — the status-dashboard reserves the progress
+      bar / ETA space so starting a session no longer reflows the card.
+- [x] **Full item catalog** (PRs #11–#12) — `src/status.ts` normalizes **every**
+      value the `harvia_sauna` integration exposes (44 items, diagnostics
+      included) into a shared catalog used by the card and badge.
+- [x] **Configurable tiles** (PR #13) — `dashboard_tiles` / `hero_items` ordered,
+      reorderable lists with a custom editor (drag + ▲▼, add/remove, reset per
+      section + whole-content).
+- [x] **Compact slots** (PR #14) — `compact_slots` left/middle/right (item / name
+      / none).
+- [x] **Controls option** (PR #15) — `controls: none | power | power+temp`
+      (default `power+temp`); makes the compact layout interactive.
+
+## Current status (2026-06-05)
+
+- **Merged on `dev`:** F0–F1, I1–I9, plus the configurability arc (PRs #10–#15).
+  `v0.0.1` tagged on `master` (tag only; the first GitHub release will be
+  `0.1.0-beta1`). All passed the dual-bot loop and were live-verified in
+  `hass-test` (Xenio device).
+- **Remaining for `0.1.0-beta1`:** I10 — docs (this), then the release.
+- **Deferred:** Fenix live verification (only a Xenio in `hass-test`); perf —
+  cache entity-id resolution in `_state()`; dev-toolchain advisories (own PR);
+  HACS default-repo submission at 0.1.0.
 
 ## Phase 2+ — Growth (`0.2.x+`)
 
