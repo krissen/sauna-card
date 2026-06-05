@@ -8,16 +8,14 @@ card/badge's own configurable sections (tile list / slots / badge options); the
 standard `ha-form` fields (name/device/layout/language/controls) render above
 them inside real Home Assistant.
 
-Auth: HASS_TOKEN (or tmp/.ha_token). A temp HTML file is written under
-hass-test's www and removed afterwards.
+No auth: the bundle is served publicly at `/local/...`, so this script needs no
+token. A temp HTML file is written under hass-test's www and removed afterwards.
 
 Usage:
-    export HASS_TOKEN=$(cat tmp/.ha_token)
     python scripts/screenshots/capture_editors.py
 """
 import json
 import os
-import sys
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -28,11 +26,6 @@ OUT = ROOT / "docs/screenshots"
 HASS_DIR = Path(os.environ.get("HASS_DIR", ROOT.parent / "hass-test"))
 WWW = HASS_DIR / "config/www/community/sauna-card"
 URL = os.environ.get("HASS_URL", "http://localhost:8123")
-TOKEN = os.environ.get("HASS_TOKEN") or (
-    (ROOT / "tmp/.ha_token").read_text().strip()
-    if (ROOT / "tmp/.ha_token").exists()
-    else ""
-)
 
 LIGHT = {
     "--primary-text-color": "#212121", "--secondary-text-color": "#727272",
@@ -75,11 +68,9 @@ def page_html(tag, config, theme):
 
 
 def main():
-    if not TOKEN:
-        print("ERROR: set HASS_TOKEN (or create tmp/.ha_token)", file=sys.stderr)
-        sys.exit(2)
     editors = json.loads((FIX / "editors.json").read_text())
     OUT.mkdir(parents=True, exist_ok=True)
+    WWW.mkdir(parents=True, exist_ok=True)
     tmp = WWW / "_doc-editor.html"
     tags = {"editor-card": "sauna-card-editor", "editor-badge": "sauna-badge-editor"}
     try:
