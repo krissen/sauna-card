@@ -166,6 +166,23 @@ export const harviaAdapter: SaunaAdapter = {
       readyEtaMinutes = Math.ceil((targetTemp - currentTemp) / tempTrend);
     }
 
+    // Auxiliary switch states, by logical key (omitting any that are absent).
+    const switchEntities: Record<string, string | undefined> = {
+      power: e.power,
+      light: e.light,
+      fan: e.fan,
+      steamer: e.steamer,
+      aroma: e.aroma,
+      dehumidifier: e.dehumidifier,
+      auto_light: e.autoLight,
+      auto_fan: e.autoFan,
+    };
+    const switches: Record<string, boolean> = {};
+    for (const [key, id] of Object.entries(switchEntities)) {
+      const on = isOn(hass, id);
+      if (on !== undefined) switches[key] = on;
+    }
+
     return {
       integration: HARVIA_PLATFORM,
       deviceId: device.deviceId,
@@ -185,6 +202,12 @@ export const harviaAdapter: SaunaAdapter = {
       doorOpen: isOn(hass, e.door),
       heatingActive,
       steamActive: isOn(hass, e.steam),
+      targetHumidity: num(hass, e.targetHumidity),
+      aromaLevel: num(hass, e.aromaLevelSet),
+      sessionLength: num(hass, e.sessionLength),
+      lastSessionDuration: num(hass, e.lastSessionDuration),
+      lastSessionMaxTemp: num(hass, e.lastSessionMaxTemp),
+      switches,
       entities: e,
     };
   },

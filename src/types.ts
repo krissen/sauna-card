@@ -122,6 +122,18 @@ export interface SaunaState {
   doorOpen?: boolean;
   heatingActive?: boolean;
   steamActive?: boolean;
+  /** Target humidity setpoint (%). */
+  targetHumidity?: number;
+  /** Aroma intensity setpoint. */
+  aromaLevel?: number;
+  /** Configured session length (minutes). */
+  sessionLength?: number;
+  /** Previous session's duration (minutes). */
+  lastSessionDuration?: number;
+  /** Previous session's peak temperature (°C). */
+  lastSessionMaxTemp?: number;
+  /** On/off state of each auxiliary switch, by logical key (light, fan, …). */
+  switches?: Record<string, boolean>;
   /** Logical key → entity_id, for more-info, controls and rendering. */
   entities: Record<string, string>;
 }
