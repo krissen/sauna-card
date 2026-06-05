@@ -155,9 +155,13 @@ export const harviaAdapter: SaunaAdapter = {
     const tempTrend = num(hass, e.tempTrend);
 
     // Ready ETA: prefer the integration's native heat_up_time sensor (enabled by
-    // default, in minutes). Fall back to a trend-derived estimate for setups
-    // where only temp_trend is enabled (heat_up_time is then absent).
+    // default, in minutes). The coordinator initializes it to 0 until a real
+    // value arrives, so treat 0 as "not yet known" and fall through. Trend-derived
+    // estimate is the fallback for setups where only temp_trend is enabled.
     let readyEtaMinutes = num(hass, e.heatUpTime);
+    if (readyEtaMinutes !== undefined && readyEtaMinutes <= 0) {
+      readyEtaMinutes = undefined;
+    }
     if (
       readyEtaMinutes === undefined &&
       heatingActive &&
