@@ -269,6 +269,7 @@ export class SaunaCardEditor extends LitElement {
         return html`<div class="slotrow">
           <span class="slotlabel">${t(slot.labelKey, lang)}</span>
           <select
+            aria-label=${t(slot.labelKey, lang)}
             @change=${(e: Event) =>
               this._setSlot(slot.pos, (e.target as HTMLSelectElement).value)}
           >
