@@ -261,7 +261,7 @@ export class SaunaCardEditor extends LitElement {
                   type="button"
                   class="iconbtn"
                   ?disabled=${i === 0}
-                  aria-label="↑"
+                  aria-label=${t("editor.move_up", lang)}
                   @click=${() => this._move(spec, i, -1)}
                 >
                   <ha-icon icon="mdi:chevron-up"></ha-icon>
@@ -270,7 +270,7 @@ export class SaunaCardEditor extends LitElement {
                   type="button"
                   class="iconbtn"
                   ?disabled=${i === list.length - 1}
-                  aria-label="↓"
+                  aria-label=${t("editor.move_down", lang)}
                   @click=${() => this._move(spec, i, 1)}
                 >
                   <ha-icon icon="mdi:chevron-down"></ha-icon>
@@ -278,7 +278,7 @@ export class SaunaCardEditor extends LitElement {
                 <button
                   type="button"
                   class="iconbtn del"
-                  aria-label="✕"
+                  aria-label=${t("editor.remove", lang)}
                   @click=${() => this._remove(spec, i)}
                 >
                   <ha-icon icon="mdi:close"></ha-icon>
