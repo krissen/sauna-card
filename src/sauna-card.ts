@@ -346,11 +346,14 @@ export class SaunaCard extends LitElement {
     s: SaunaState,
     keys: readonly string[],
   ): TemplateResult | typeof nothing {
-    const valid = keys.filter(isBadgeItemKey);
-    if (!valid.length) return nothing;
-    return html`<div class="tiles">
-      ${valid.map((k) => this._itemTile(s, k))}
-    </div>`;
+    // Build the tiles first and drop the container entirely when every
+    // configured item is absent, so we never render an empty grid.
+    const tiles = keys
+      .filter(isBadgeItemKey)
+      .map((k) => this._itemTile(s, k))
+      .filter((tile) => tile !== nothing);
+    if (!tiles.length) return nothing;
+    return html`<div class="tiles">${tiles}</div>`;
   }
 
   // The progress bar and ETA line are always rendered (the bar empty, the ETA
