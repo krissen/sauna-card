@@ -136,6 +136,15 @@ describe("harvia adapter readState", () => {
     expect(s!.readyEtaMinutes).toBe(12);
   });
 
+  it("treats a zero heat_up_time as not-yet-known and uses the trend", () => {
+    // The coordinator initializes heat_up_time to 0; don't show "0 min" ETA.
+    const s = harviaAdapter.readState(
+      makeHass({ "sensor.bastu_uppvarmningstid": "0" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.readyEtaMinutes).toBe(8);
+  });
+
   it("normalizes auxiliary switch states by logical key", () => {
     const s = harviaAdapter.readState(makeHass(), {
       type: "custom:sauna-card",
