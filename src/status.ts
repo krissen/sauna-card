@@ -62,7 +62,24 @@ export type BadgeItemKey =
   | "aroma"
   | "dehumidifier"
   | "auto_light"
-  | "auto_fan";
+  | "auto_fan"
+  | "heater_power_actual"
+  | "main_sensor_temp"
+  | "ext_sensor_temp"
+  | "panel_temp"
+  | "status_codes"
+  | "active_profile"
+  | "heat_on_counter"
+  | "steam_on_counter"
+  | "ph1_relay_counter"
+  | "ph2_relay_counter"
+  | "ph3_relay_counter"
+  | "total_hours"
+  | "total_bathing_hours"
+  | "total_sessions"
+  | "remote_allowed"
+  | "safety_relay"
+  | "screen_lock";
 
 /** Order used wherever the full item set is offered (editor, defaults). */
 export const BADGE_ITEM_KEYS: BadgeItemKey[] = [
@@ -93,6 +110,23 @@ export const BADGE_ITEM_KEYS: BadgeItemKey[] = [
   "dehumidifier",
   "auto_light",
   "auto_fan",
+  "heater_power_actual",
+  "main_sensor_temp",
+  "ext_sensor_temp",
+  "panel_temp",
+  "status_codes",
+  "active_profile",
+  "heat_on_counter",
+  "steam_on_counter",
+  "ph1_relay_counter",
+  "ph2_relay_counter",
+  "ph3_relay_counter",
+  "total_hours",
+  "total_bathing_hours",
+  "total_sessions",
+  "remote_allowed",
+  "safety_relay",
+  "screen_lock",
 ];
 
 export interface BadgeItemDef {
@@ -162,6 +196,14 @@ function switchItem(key: string, icon: string, labelKey: string): BadgeItemDef {
     icon: () => icon,
     labelKey,
     value: boolVal((s) => s.switches?.[key]),
+  };
+}
+
+/** Raw-string value (status codes, profile); null when empty/absent. */
+function strVal(get: Get<string>): (s: SaunaState) => ItemValue | null {
+  return (s) => {
+    const v = get(s);
+    return v ? { text: v } : null;
   };
 }
 
@@ -305,6 +347,91 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     "control.auto_light",
   ),
   auto_fan: switchItem("auto_fan", "mdi:fan-auto", "control.auto_fan"),
+  heater_power_actual: {
+    icon: () => "mdi:flash-outline",
+    labelKey: "label.heater_power",
+    value: numVal((s) => s.heaterPowerActual, "W"),
+  },
+  main_sensor_temp: {
+    icon: () => "mdi:thermometer",
+    labelKey: "label.main_sensor_temp",
+    value: (s) => temp(s.mainSensorTemp),
+  },
+  ext_sensor_temp: {
+    icon: () => "mdi:thermometer-lines",
+    labelKey: "label.ext_sensor_temp",
+    value: (s) => temp(s.extSensorTemp),
+  },
+  panel_temp: {
+    icon: () => "mdi:thermometer",
+    labelKey: "label.panel_temp",
+    value: (s) => temp(s.panelTemp),
+  },
+  status_codes: {
+    icon: () => "mdi:alert-circle-outline",
+    labelKey: "label.status_codes",
+    value: strVal((s) => s.statusCodes),
+  },
+  active_profile: {
+    icon: () => "mdi:account-cog-outline",
+    labelKey: "label.active_profile",
+    value: strVal((s) => s.activeProfile),
+  },
+  heat_on_counter: {
+    icon: () => "mdi:counter",
+    labelKey: "label.heat_on_counter",
+    value: numVal((s) => s.heatOnCounter),
+  },
+  steam_on_counter: {
+    icon: () => "mdi:counter",
+    labelKey: "label.steam_on_counter",
+    value: numVal((s) => s.steamOnCounter),
+  },
+  ph1_relay_counter: {
+    icon: () => "mdi:counter",
+    labelKey: "label.ph1_relay_counter",
+    value: numVal((s) => s.ph1RelayCounter),
+  },
+  ph2_relay_counter: {
+    icon: () => "mdi:counter",
+    labelKey: "label.ph2_relay_counter",
+    value: numVal((s) => s.ph2RelayCounter),
+  },
+  ph3_relay_counter: {
+    icon: () => "mdi:counter",
+    labelKey: "label.ph3_relay_counter",
+    value: numVal((s) => s.ph3RelayCounter),
+  },
+  total_hours: {
+    icon: () => "mdi:clock-outline",
+    labelKey: "label.total_hours",
+    value: numVal((s) => s.totalHours, "h"),
+  },
+  total_bathing_hours: {
+    icon: () => "mdi:clock-check-outline",
+    labelKey: "label.total_bathing_hours",
+    value: numVal((s) => s.totalBathingHours, "h"),
+  },
+  total_sessions: {
+    icon: () => "mdi:counter",
+    labelKey: "label.total_sessions",
+    value: numVal((s) => s.totalSessions),
+  },
+  remote_allowed: {
+    icon: () => "mdi:remote",
+    labelKey: "label.remote_allowed",
+    value: boolVal((s) => s.remoteAllowed),
+  },
+  safety_relay: {
+    icon: () => "mdi:shield-check-outline",
+    labelKey: "label.safety_relay",
+    value: boolVal((s) => s.safetyRelay),
+  },
+  screen_lock: {
+    icon: () => "mdi:lock-outline",
+    labelKey: "label.screen_lock",
+    value: boolVal((s) => s.screenLock),
+  },
 };
 
 /** Type guard for a badge item key, safe against prototype keys (toString …). */
