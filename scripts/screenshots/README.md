@@ -31,7 +31,8 @@ Configs live under `docs/screenshots/fixtures/` so the image set is reproducible
 
 - `cards.json` — one card per layout/feature (`name` → config); shot by index.
 - `badges.json` — the badge-variant row.
-- `editors.json` — the card/badge editor configs.
+- `editors.json` — the card editor config. (The badge editor is plain `ha-form`,
+  which needs real Home Assistant, so it isn't shot from the standalone page.)
 
 ## Capture
 
