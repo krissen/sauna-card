@@ -552,9 +552,12 @@ export class SaunaCard extends LitElement {
       ${this._controls === "none"
         ? nothing
         : html`<div class="ccontrols">
-            ${this._controls === "power+temp" ? this._tempStepper(s) : nothing}
-            ${this._cta(s)}
-          </div>`}
+              ${this._controls === "power+temp"
+                ? this._tempStepper(s)
+                : nothing}
+              ${this._cta(s)}
+            </div>
+            ${this._controlChips(s)}`}
       ${this._doorWarning(s)}
     </ha-card>`;
   }
