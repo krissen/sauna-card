@@ -85,5 +85,12 @@
   "editor.label_position": "Label position",
   "editor.label_right": "Right",
   "editor.label_below": "Below",
-  "editor.scale": "Size"
+  "editor.scale": "Size",
+  "editor.tiles_dashboard": "Dashboard tiles",
+  "editor.tiles_hero": "Thermostat tiles",
+  "editor.reset": "Reset",
+  "editor.reset_all": "Reset whole card",
+  "editor.tiles_add": "+ Add a value…",
+  "editor.tiles_empty": "No tiles shown",
+  "editor.tiles_hint": "Drag or use ▲▼ to reorder. Empty = no tiles. Each layout keeps its own list."
 }

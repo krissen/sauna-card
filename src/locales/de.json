@@ -85,5 +85,12 @@
   "editor.label_position": "Position der Bezeichnung",
   "editor.label_right": "Rechts",
   "editor.label_below": "Unten",
-  "editor.scale": "Größe"
+  "editor.scale": "Größe",
+  "editor.tiles_dashboard": "Dashboard-Kacheln",
+  "editor.tiles_hero": "Thermostat-Kacheln",
+  "editor.reset": "Zurücksetzen",
+  "editor.reset_all": "Ganze Karte zurücksetzen",
+  "editor.tiles_add": "+ Wert hinzufügen…",
+  "editor.tiles_empty": "Keine Kacheln",
+  "editor.tiles_hint": "Zum Sortieren ziehen oder ▲▼ verwenden. Leer = keine Kacheln. Jedes Layout behält seine eigene Liste."
 }
