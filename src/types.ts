@@ -132,6 +132,29 @@ export interface SaunaState {
   lastSessionDuration?: number;
   /** Previous session's peak temperature (°C). */
   lastSessionMaxTemp?: number;
+  /** Actual heater output (W). */
+  heaterPowerActual?: number;
+  /** Main / external / panel temperature probes (°C). */
+  mainSensorTemp?: number;
+  extSensorTemp?: number;
+  panelTemp?: number;
+  /** Raw status code(s) and active profile, as the integration reports them. */
+  statusCodes?: string;
+  activeProfile?: string;
+  /** Lifetime relay/cycle counters. */
+  heatOnCounter?: number;
+  steamOnCounter?: number;
+  ph1RelayCounter?: number;
+  ph2RelayCounter?: number;
+  ph3RelayCounter?: number;
+  /** Lifetime totals (hours / sessions). */
+  totalHours?: number;
+  totalBathingHours?: number;
+  totalSessions?: number;
+  /** Diagnostic binary states. */
+  remoteAllowed?: boolean;
+  safetyRelay?: boolean;
+  screenLock?: boolean;
   /** On/off state of each switch, by logical key — the main `power` switch plus
    * the auxiliaries (light, fan, steamer, aroma, dehumidifier, auto_light, …). */
   switches?: Record<string, boolean>;

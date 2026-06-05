@@ -74,6 +74,29 @@ describe("status item catalog", () => {
     ).toEqual({ text: "-0.5", unit: "°/min" });
   });
 
+  it("renders raw-string and diagnostic items", () => {
+    const s: SaunaState = {
+      ...base,
+      statusCodes: "E1",
+      totalHours: 1234,
+      ph1RelayCounter: 5,
+      safetyRelay: true,
+    };
+    expect(BADGE_ITEMS.status_codes.value(s, tr)).toEqual({ text: "E1" });
+    expect(BADGE_ITEMS.total_hours.value(s, tr)).toEqual({
+      text: "1234",
+      unit: "h",
+    });
+    expect(BADGE_ITEMS.ph1_relay_counter.value(s, tr)).toEqual({ text: "5" });
+    expect(BADGE_ITEMS.safety_relay.value(s, tr)).toEqual({
+      text: "common.on",
+    });
+    // Empty string is treated as absent (item hides), not shown as blank.
+    expect(
+      BADGE_ITEMS.status_codes.value({ ...base, statusCodes: "" }, tr),
+    ).toBeNull();
+  });
+
   it("accepts new keys and rejects prototype props", () => {
     expect(isBadgeItemKey("auto_fan")).toBe(true);
     expect(isBadgeItemKey("eta")).toBe(true);
