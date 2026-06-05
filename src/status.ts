@@ -255,7 +255,8 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
   aroma_level: {
     icon: () => "mdi:scent",
     labelKey: "label.aroma_level",
-    value: numVal((s) => s.aromaLevel),
+    // Harvia exposes aroma level as a 0–100 percentage (number.py: PERCENTAGE).
+    value: numVal((s) => s.aromaLevel, "%"),
   },
   wifi: {
     icon: () => "mdi:wifi",
