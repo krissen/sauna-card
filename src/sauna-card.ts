@@ -498,7 +498,9 @@ export class SaunaCard extends LitElement {
   }
 
   private _renderCompact(s: SaunaState): TemplateResult {
-    const slots = this._config.compact_slots ?? DEFAULT_COMPACT_SLOTS;
+    // Merge over the defaults so a partial config (e.g. only `left`) still
+    // fills the other slots rather than leaving them blank.
+    const slots = { ...DEFAULT_COMPACT_SLOTS, ...this._config.compact_slots };
     return html`<ha-card>
       <div class="compact">
         <div class="cslot left">${this._slot(s, slots.left)}</div>

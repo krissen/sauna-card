@@ -58,7 +58,9 @@ export interface SaunaCardConfig {
   dashboard_tiles?: string[];
   /** Ordered item keys shown as tiles in the thermostat-hero layout. */
   hero_items?: string[];
-  /** Compact layout's three slots; each is an item key, "name", or "" (none). */
+  /** Compact layout's three slots; each value is an item key, "name" (the
+   * device name), or "none"/empty (nothing). Missing slots fall back to the
+   * defaults. */
   compact_slots?: { left?: string; mid?: string; right?: string };
 }
 
