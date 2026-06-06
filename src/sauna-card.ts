@@ -101,6 +101,12 @@ export class SaunaCard extends LitElement {
   @state() private _startFailed?: string;
   private _startTimer?: number;
 
+  // Observed (time, temperature) samples during the current heat-up, used to
+  // derive a live ready-ETA when the integration's temp_trend sensor is absent
+  // (it's disabled by default). Reset when heating stops or the target changes.
+  private _tempSamples: Array<{ t: number; temp: number }> = [];
+  private _trendCtx?: string;
+
   static getStubConfig(): Record<string, unknown> {
     return {};
   }
@@ -261,6 +267,62 @@ export class SaunaCard extends LitElement {
     if (this._startFailed && s && (this._powerOn(s) || s.status === "heating")) {
       this._startFailed = undefined;
     }
+    this._trackTemp(s);
+  }
+
+  // Accumulate temperature samples while heating so _localEta can estimate a
+  // countdown. Records on a temperature change (or at most once a minute) and
+  // keeps a trailing ~20-minute window; clears on a fresh heat-up / target.
+  private _trackTemp(s: SaunaState | null): void {
+    if (!s || s.status !== "heating" || s.currentTemp === undefined) {
+      this._tempSamples = [];
+      this._trendCtx = undefined;
+      return;
+    }
+    const ctx = `${s.deviceId}|${s.targetTemp ?? ""}`;
+    if (ctx !== this._trendCtx) {
+      this._trendCtx = ctx;
+      this._tempSamples = [];
+    }
+    const now = Date.now();
+    const last = this._tempSamples[this._tempSamples.length - 1];
+    if (!last || last.temp !== s.currentTemp || now - last.t >= 60000) {
+      this._tempSamples.push({ t: now, temp: s.currentTemp });
+    }
+    const cutoff = now - 20 * 60000;
+    this._tempSamples = this._tempSamples.filter((p) => p.t >= cutoff);
+  }
+
+  /** Minutes until the sauna reaches target, or undefined when unknown. */
+  private _eta(s: SaunaState): number | undefined {
+    // Prefer the integration's temp_trend-based estimate (smoother) when the
+    // sensor is enabled; otherwise fall back to our own observed trend.
+    return s.readyEtaMinutes ?? this._localEta(s);
+  }
+
+  /** Ready-ETA derived from our own observed temperature samples. */
+  private _localEta(s: SaunaState): number | undefined {
+    if (
+      s.status !== "heating" ||
+      s.currentTemp === undefined ||
+      s.targetTemp === undefined ||
+      s.currentTemp >= s.targetTemp
+    ) {
+      return undefined;
+    }
+    const pts = this._tempSamples;
+    if (pts.length < 2) return undefined;
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    const dtMin = (last.t - first.t) / 60000;
+    const dTemp = last.temp - first.temp;
+    // Need a meaningful, rising span before estimating.
+    if (dtMin < 2 || dTemp <= 0) return undefined;
+    const rate = dTemp / dtMin; // °C per minute
+    const raw = (s.targetTemp - s.currentTemp) / rate;
+    if (!isFinite(raw) || raw <= 0) return undefined;
+    // Round to the nearest 5 min — it's an estimate, and this curbs flicker.
+    return Math.max(5, Math.round(raw / 5) * 5);
   }
 
   private _clearStartTimer(): void {
@@ -395,9 +457,10 @@ export class SaunaCard extends LitElement {
   // ---- shared partials ----
 
   private _statusBadge(s: SaunaState): TemplateResult {
+    const etaMin = s.status === "heating" ? this._eta(s) : undefined;
     const eta =
-      s.status === "heating" && s.readyEtaMinutes !== undefined
-        ? ` · ${this._t("common.minutes", { count: s.readyEtaMinutes })}`
+      etaMin !== undefined
+        ? ` · ${this._t("common.minutes", { count: etaMin })}`
         : "";
     return html`<span class="badge status-${s.status}">
       <ha-icon icon=${STATUS_ICON[s.status]}></ha-icon>
@@ -485,7 +548,8 @@ export class SaunaCard extends LitElement {
   private _heatProgress(s: SaunaState, progress: number): TemplateResult {
     const heating = s.status === "heating";
     const width = heating ? (progress * 100).toFixed(0) : "0";
-    const showEta = heating && s.readyEtaMinutes !== undefined;
+    const etaMin = heating ? this._eta(s) : undefined;
+    const showEta = etaMin !== undefined;
     // A start failure / "can't start" notice takes over the reserved ETA slot,
     // so a blocked start shows here instead of silently blinking off.
     const notice = this._startNotice(s);
@@ -503,7 +567,7 @@ export class SaunaCard extends LitElement {
           ? this._t(notice.key)
           : showEta
             ? html`${this._t("state.ready")}:
-              ${this._t("common.minutes", { count: s.readyEtaMinutes! })}`
+              ${this._t("common.minutes", { count: etaMin! })}`
             : html`&nbsp;`}
       </div>`;
   }
