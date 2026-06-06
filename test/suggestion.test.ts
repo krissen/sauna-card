@@ -139,4 +139,12 @@ describe("getEntitySuggestion", () => {
     });
     expect(suggestEntity(hass, "update.harvia_sauna_update")).toBeNull();
   });
+
+  it("does not suggest for a HACS update entity with no brands icon", () => {
+    // No entity_picture → can't tie it to an integration domain → no suggestion.
+    const hass = hassWithHacsUpdate({
+      sauna: { entity_id: "climate.bastu_termostat", device_id: "dev1" },
+    });
+    expect(suggestEntity(hass, "update.harvia_sauna_update")).toBeNull();
+  });
 });
