@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-06
+
+### Added
+- **Start feedback when a session can't start.** If a start is refused — most
+  often because the door is open — the card now says so instead of the controls
+  silently blinking back to off: a notice appears the moment you press start with
+  the door open, and a short grace later if the start otherwise didn't take.
+- **The card is offered for every Harvia entity in the card picker**, not just
+  the thermostat — sensors, binary sensors, numbers, and the integration's update
+  entity. This includes the HACS update entity (the one that shows when you search
+  "harvia"), which now pre-fills the right sauna device.
+
+### Fixed
+- **Heating "ready in" estimate now counts down.** It previously showed the
+  integration's `heat_up_time` sensor, which is a static value (unchanged even
+  while the sauna is off), so it never decreased. The estimate is now derived from
+  the temperature trend — the `temp_trend` sensor when enabled, otherwise from the
+  card's own observed temperature — and shrinks as the sauna heats.
+
 ## [0.1.0] - 2026-06-05
 
 First release — the card and badge show and control Harvia sauna heaters,
