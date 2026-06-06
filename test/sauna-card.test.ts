@@ -190,87 +190,63 @@ function harviaHass(opts: { power: "on" | "off"; door: "on" | "off" }): Hass {
 }
 
 describe("sauna-card start-failure feedback", () => {
-  it("proactively flags 'can't start' when the door is open and the sauna is off", () => {
+  type StartPriv = {
+    _state(): unknown;
+    _setActive(s: unknown, active: boolean): void;
+    _startNotice(): { key: string; kind: string } | null;
+    _startFailed?: string;
+  };
+
+  it("shows nothing for an idle sauna with the door open (no start attempt)", () => {
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card" });
     card.hass = harviaHass({ power: "off", door: "on" });
-    const s = (card as unknown as { _state(): unknown })._state();
-    const notice = (
-      card as unknown as {
-        _startNotice(x: unknown): { key: string; kind: string } | null;
-      }
-    )._startNotice(s);
-    expect(notice).toEqual({ key: "warn.cannot_start_door", kind: "warn" });
+    expect((card as unknown as StartPriv)._startNotice()).toBeNull();
   });
 
-  it("does not flag 'can't start' once the sauna is running, nor when the door is closed", () => {
+  it("flags 'can't start — door open' immediately on a start attempt with the door open", () => {
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card" });
-    const startNotice = (x: unknown) =>
-      (
-        card as unknown as { _startNotice(x: unknown): unknown }
-      )._startNotice(x);
-    const state = () =>
-      (card as unknown as { _state(): unknown })._state();
-
-    card.hass = harviaHass({ power: "on", door: "on" });
-    expect(startNotice(state())).toBeNull();
-
-    card.hass = harviaHass({ power: "off", door: "off" });
-    expect(startNotice(state())).toBeNull();
+    card.hass = harviaHass({ power: "off", door: "on" });
+    const priv = card as unknown as StartPriv;
+    priv._setActive(priv._state(), true);
+    expect(priv._startFailed).toBe("warn.cannot_start_door");
+    expect(priv._startNotice()).toEqual({
+      key: "warn.cannot_start_door",
+      kind: "warn",
+    });
   });
 
-  it("surfaces a door-specific failure when a start doesn't take within the grace period", () => {
+  it("falls back to a generic failure after the grace period when the cause is unknown", () => {
     vi.useFakeTimers();
     try {
       const card = new SaunaCard();
       card.setConfig({ type: "custom:sauna-card" });
-      card.hass = harviaHass({ power: "off", door: "on" });
-      const priv = card as unknown as {
-        _state(): unknown;
-        _setActive(s: unknown, active: boolean): void;
-        _startFailed?: string;
-      };
+      // Door closed → no immediate reason; the timer decides.
+      card.hass = harviaHass({ power: "off", door: "off" });
+      const priv = card as unknown as StartPriv;
       priv._setActive(priv._state(), true);
       expect(priv._startFailed).toBeUndefined();
       vi.advanceTimersByTime(5000);
-      expect(priv._startFailed).toBe("warn.start_failed_door");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("falls back to a generic failure when no specific reason is known", () => {
-    vi.useFakeTimers();
-    try {
-      const card = new SaunaCard();
-      card.setConfig({ type: "custom:sauna-card" });
-      card.hass = harviaHass({ power: "off", door: "off" });
-      const priv = card as unknown as {
-        _state(): unknown;
-        _setActive(s: unknown, active: boolean): void;
-        _startFailed?: string;
-      };
-      priv._setActive(priv._state(), true);
-      vi.advanceTimersByTime(5000);
       expect(priv._startFailed).toBe("warn.start_failed");
+      expect(priv._startNotice()).toEqual({
+        key: "warn.start_failed",
+        kind: "error",
+      });
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("clears the pending detection when the sauna actually starts before the grace period", () => {
+  it("clears the notice when the sauna actually starts before the grace period", () => {
     vi.useFakeTimers();
     try {
       const card = new SaunaCard();
       card.setConfig({ type: "custom:sauna-card" });
       card.hass = harviaHass({ power: "off", door: "on" });
-      const priv = card as unknown as {
-        _state(): unknown;
-        _setActive(s: unknown, active: boolean): void;
-        _startFailed?: string;
-      };
+      const priv = card as unknown as StartPriv;
       priv._setActive(priv._state(), true);
+      expect(priv._startFailed).toBe("warn.cannot_start_door");
       // The device confirms the start: power is now on at fire time.
       card.hass = harviaHass({ power: "on", door: "off" });
       vi.advanceTimersByTime(5000);
@@ -286,13 +262,10 @@ describe("sauna-card start-failure feedback", () => {
       const card = new SaunaCard();
       card.setConfig({ type: "custom:sauna-card" });
       card.hass = harviaHass({ power: "off", door: "on" });
-      const priv = card as unknown as {
-        _state(): unknown;
-        _setActive(s: unknown, active: boolean): void;
-        _startFailed?: string;
-      };
+      const priv = card as unknown as StartPriv;
       priv._setActive(priv._state(), true);
       priv._setActive(priv._state(), false);
+      expect(priv._startFailed).toBeUndefined();
       vi.advanceTimersByTime(5000);
       expect(priv._startFailed).toBeUndefined();
     } finally {
@@ -300,12 +273,15 @@ describe("sauna-card start-failure feedback", () => {
     }
   });
 
-  it("renders the 'can't start' notice in the dashboard progress slot", async () => {
+  it("renders the 'can't start' notice in the dashboard progress slot on a start attempt", async () => {
+    vi.useFakeTimers();
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card" });
     card.hass = harviaHass({ power: "off", door: "on" });
     document.body.appendChild(card);
     try {
+      const priv = card as unknown as StartPriv;
+      priv._setActive(priv._state(), true);
       await card.updateComplete;
       const eta = card.shadowRoot?.querySelector(".eta");
       expect(eta?.classList.contains("warn")).toBe(true);
@@ -313,6 +289,7 @@ describe("sauna-card start-failure feedback", () => {
       expect(eta?.textContent ?? "").toContain("Can't start");
     } finally {
       card.remove();
+      vi.useRealTimers();
     }
   });
 });
@@ -334,12 +311,25 @@ describe("sauna-card ready ETA", () => {
 
   it("derives a countdown from observed temperature samples", () => {
     const card = new SaunaCard() as unknown as EtaPriv;
-    // 20° → 30° over 10 min = 1 °C/min; 50° left to 80° → 50 min.
+    // 20° → 30° over 5 min = 2 °C/min; 50° left to 80° → 25 min.
     card._tempSamples = [
       { t: 0, temp: 20 },
-      { t: 600000, temp: 30 },
+      { t: 300000, temp: 30 },
     ];
-    expect(card._localEta(heating(30, 80))).toBe(50);
+    expect(card._localEta(heating(30, 80))).toBe(25);
+  });
+
+  it("uses the recent slope, not the whole buffer (avoids optimistic bias)", () => {
+    const card = new SaunaCard() as unknown as EtaPriv;
+    // A fast early sample (10 min ago) is outside the 8-min rate window; the
+    // recent slope is 50→60 over 7 min ≈ 1.43°/min → 20° left → ~15 min.
+    // (Whole-buffer averaging would read 4°/min → a too-optimistic 5 min.)
+    card._tempSamples = [
+      { t: 0, temp: 20 },
+      { t: 180000, temp: 50 },
+      { t: 600000, temp: 60 },
+    ];
+    expect(card._localEta(heating(60, 80))).toBe(15);
   });
 
   it("withholds an estimate without a meaningful rising span", () => {
@@ -350,13 +340,13 @@ describe("sauna-card ready ETA", () => {
     // Flat (no rise) → unknown.
     card._tempSamples = [
       { t: 0, temp: 30 },
-      { t: 600000, temp: 30 },
+      { t: 300000, temp: 30 },
     ];
     expect(card._localEta(heating(30, 80))).toBeUndefined();
     // Already at target → unknown.
     card._tempSamples = [
       { t: 0, temp: 70 },
-      { t: 600000, temp: 80 },
+      { t: 300000, temp: 80 },
     ];
     expect(card._localEta(heating(80, 80))).toBeUndefined();
   });
@@ -365,9 +355,9 @@ describe("sauna-card ready ETA", () => {
     const card = new SaunaCard() as unknown as EtaPriv;
     card._tempSamples = [
       { t: 0, temp: 20 },
-      { t: 600000, temp: 30 },
+      { t: 300000, temp: 30 },
     ];
-    // s.readyEtaMinutes (from the temp_trend sensor) wins over the local 50.
+    // s.readyEtaMinutes (from the temp_trend sensor) wins over the local 25.
     expect(card._eta({ ...heating(30, 80), readyEtaMinutes: 8 })).toBe(8);
   });
 

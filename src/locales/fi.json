@@ -55,7 +55,6 @@
   "door.closed": "Kiinni",
   "warn.cannot_start_door": "Ei voi käynnistää – ovi on auki",
   "warn.start_failed": "Käynnistys epäonnistui",
-  "warn.start_failed_door": "Käynnistys epäonnistui – ovi on auki",
   "common.on": "Päällä",
   "common.off": "Pois",
   "common.yes": "Kyllä",
