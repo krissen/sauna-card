@@ -233,7 +233,7 @@ describe("sauna-card start-failure feedback", () => {
       };
       priv._setActive(priv._state(), true);
       expect(priv._startFailed).toBeUndefined();
-      vi.advanceTimersByTime(7000);
+      vi.advanceTimersByTime(5000);
       expect(priv._startFailed).toBe("warn.start_failed_door");
     } finally {
       vi.useRealTimers();
@@ -252,7 +252,7 @@ describe("sauna-card start-failure feedback", () => {
         _startFailed?: string;
       };
       priv._setActive(priv._state(), true);
-      vi.advanceTimersByTime(7000);
+      vi.advanceTimersByTime(5000);
       expect(priv._startFailed).toBe("warn.start_failed");
     } finally {
       vi.useRealTimers();
@@ -273,7 +273,7 @@ describe("sauna-card start-failure feedback", () => {
       priv._setActive(priv._state(), true);
       // The device confirms the start: power is now on at fire time.
       card.hass = harviaHass({ power: "on", door: "off" });
-      vi.advanceTimersByTime(7000);
+      vi.advanceTimersByTime(5000);
       expect(priv._startFailed).toBeUndefined();
     } finally {
       vi.useRealTimers();
@@ -293,7 +293,7 @@ describe("sauna-card start-failure feedback", () => {
       };
       priv._setActive(priv._state(), true);
       priv._setActive(priv._state(), false);
-      vi.advanceTimersByTime(7000);
+      vi.advanceTimersByTime(5000);
       expect(priv._startFailed).toBeUndefined();
     } finally {
       vi.useRealTimers();

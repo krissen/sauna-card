@@ -82,7 +82,9 @@ const CONTROLS: Array<{ key: string; icon: string; labelKey: string }> = [
 // After a start, the integration optimistically flips power on, then the device
 // reverts to off if it refuses (e.g. the door is open). We wait this long before
 // concluding a start was blocked, so the optimistic on→off "blink" has settled.
-const START_GRACE_MS = 7000;
+// Observed door/state latency is ~3 s; 5 s leaves margin against a slow but
+// genuine start being misreported as failed.
+const START_GRACE_MS = 5000;
 
 export class SaunaCard extends LitElement {
   @property({ attribute: false }) hass?: Hass;
