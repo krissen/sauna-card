@@ -133,19 +133,11 @@ describe("harvia adapter readState", () => {
     expect(s!.entities.thermostat).toBe("climate.bastu_termostat");
   });
 
-  it("prefers the native heat_up_time sensor for the ready ETA", () => {
-    // heat_up_time present (12 min) wins over the trend-derived 8 min.
+  it("ignores the static heat_up_time sensor for the ready ETA", () => {
+    // heat_up_time is not a live countdown (it reads the same value even while
+    // off), so it must not drive the ETA — the trend-derived 8 min stands.
     const s = harviaAdapter.readState(
       makeHass({ "sensor.bastu_uppvarmningstid": "12" }),
-      { type: "custom:sauna-card" },
-    );
-    expect(s!.readyEtaMinutes).toBe(12);
-  });
-
-  it("treats a zero heat_up_time as not-yet-known and uses the trend", () => {
-    // The coordinator initializes heat_up_time to 0; don't show "0 min" ETA.
-    const s = harviaAdapter.readState(
-      makeHass({ "sensor.bastu_uppvarmningstid": "0" }),
       { type: "custom:sauna-card" },
     );
     expect(s!.readyEtaMinutes).toBe(8);

@@ -53,6 +53,8 @@
   "action.turn_off": "Sammuta",
   "door.open": "Auki",
   "door.closed": "Kiinni",
+  "warn.cannot_start_door": "Ei voi käynnistää – ovi on auki",
+  "warn.start_failed": "Käynnistys epäonnistui",
   "common.on": "Päällä",
   "common.off": "Pois",
   "common.yes": "Kyllä",

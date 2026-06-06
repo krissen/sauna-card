@@ -53,6 +53,8 @@
   "action.turn_off": "Ausschalten",
   "door.open": "Offen",
   "door.closed": "Geschlossen",
+  "warn.cannot_start_door": "Kann nicht starten – die Tür ist offen",
+  "warn.start_failed": "Start fehlgeschlagen",
   "common.on": "Ein",
   "common.off": "Aus",
   "common.yes": "Ja",
