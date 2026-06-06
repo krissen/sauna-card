@@ -53,6 +53,8 @@
   "action.turn_off": "Turn off",
   "door.open": "Open",
   "door.closed": "Closed",
+  "warn.cannot_start_door": "Can't start — the door is open",
+  "warn.start_failed": "Couldn't start the session",
   "common.on": "On",
   "common.off": "Off",
   "common.yes": "Yes",
