@@ -79,6 +79,11 @@ const CONTROLS: Array<{ key: string; icon: string; labelKey: string }> = [
   { key: "steamer", icon: "mdi:pot-steam", labelKey: "control.steamer" },
 ];
 
+// After a start, the integration optimistically flips power on, then the device
+// reverts to off if it refuses (e.g. the door is open). We wait this long before
+// concluding a start was blocked, so the optimistic on→off "blink" has settled.
+const START_GRACE_MS = 7000;
+
 export class SaunaCard extends LitElement {
   @property({ attribute: false }) hass?: Hass;
 
@@ -87,6 +92,12 @@ export class SaunaCard extends LitElement {
   // Optimistic target while the device catches up (it may echo slowly, or not
   // at all in some setups), so rapid stepper clicks accumulate correctly.
   @state() private _pendingTarget?: number;
+
+  // i18n key of a "start didn't take" notice, surfaced when a start attempt
+  // hasn't put the sauna into a running state after START_GRACE_MS. Cleared on a
+  // new action or once the sauna actually runs.
+  @state() private _startFailed?: string;
+  private _startTimer?: number;
 
   static getStubConfig(): Record<string, unknown> {
     return {};
@@ -228,24 +239,79 @@ export class SaunaCard extends LitElement {
     setTargetTemperature(this.hass, s, next);
   }
 
-  // Clear the optimistic target once the device reports the value we set.
+  override disconnectedCallback(): void {
+    this._clearStartTimer();
+    super.disconnectedCallback();
+  }
+
+  // Clear the optimistic target once the device reports the value we set, and
+  // drop a stale "start failed" notice once the sauna is actually running.
   protected override updated(changed: PropertyValues): void {
-    if (changed.has("hass") && this._pendingTarget !== undefined && this.hass) {
-      const s = this._state();
-      if (s && s.targetTemp === this._pendingTarget) {
-        this._pendingTarget = undefined;
-      }
+    if (!changed.has("hass") || !this.hass) return;
+    const s = this._state();
+    if (
+      this._pendingTarget !== undefined &&
+      s &&
+      s.targetTemp === this._pendingTarget
+    ) {
+      this._pendingTarget = undefined;
+    }
+    if (this._startFailed && s && (this._powerOn(s) || s.status === "heating")) {
+      this._startFailed = undefined;
+    }
+  }
+
+  private _clearStartTimer(): void {
+    if (this._startTimer !== undefined) {
+      window.clearTimeout(this._startTimer);
+      this._startTimer = undefined;
     }
   }
 
   private _setActive(s: SaunaState, active: boolean): void {
     if (!this.hass) return;
+    // Any fresh start/stop supersedes a prior attempt's pending detection and
+    // its notice.
+    this._clearStartTimer();
+    this._startFailed = undefined;
+    if (active) {
+      // Evaluate after the grace period: if the sauna still isn't running, the
+      // device refused the start — surface why instead of a silent blink.
+      this._startTimer = window.setTimeout(() => {
+        this._startTimer = undefined;
+        const cur = this._state();
+        if (cur && !this._powerOn(cur) && cur.status !== "heating") {
+          this._startFailed = this._failureReason(cur);
+        }
+      }, START_GRACE_MS);
+    }
     // Honour an in-flight stepper adjustment when starting a session.
     setActive(
       this.hass,
       { ...s, targetTemp: this._effectiveTarget(s) },
       active,
     );
+  }
+
+  /** Best-known reason a start was refused, as an i18n key. */
+  private _failureReason(s: SaunaState): string {
+    if (s.doorOpen) return "warn.start_failed_door";
+    return "warn.start_failed";
+  }
+
+  /**
+   * The notice to show in the dashboard progress slot / hero+compact banner:
+   * a fired start failure (error), or a proactive "door open, can't start"
+   * (warn) while the sauna is off. Null when there's nothing to say.
+   */
+  private _startNotice(
+    s: SaunaState,
+  ): { key: string; kind: "error" | "warn" } | null {
+    if (this._startFailed) return { key: this._startFailed, kind: "error" };
+    if (s.doorOpen && !this._powerOn(s)) {
+      return { key: "warn.cannot_start_door", kind: "warn" };
+    }
+    return null;
   }
 
   /** Optimistic pending target if set, otherwise the device's reported target. */
@@ -418,15 +484,39 @@ export class SaunaCard extends LitElement {
     const heating = s.status === "heating";
     const width = heating ? (progress * 100).toFixed(0) : "0";
     const showEta = heating && s.readyEtaMinutes !== undefined;
+    // A start failure / "can't start" notice takes over the reserved ETA slot,
+    // so a blocked start shows here instead of silently blinking off.
+    const notice = this._startNotice(s);
+    const etaClass = notice ? `eta ${notice.kind}` : "eta";
+    const etaShown = notice || showEta;
     return html`<div class="progress" aria-hidden=${heating ? "false" : "true"}>
         <i style=${`width:${width}%`}></i>
       </div>
-      <div class="eta" aria-hidden=${showEta ? "false" : "true"}>
-        ${showEta
-          ? html`${this._t("state.ready")}:
-            ${this._t("common.minutes", { count: s.readyEtaMinutes! })}`
-          : html`&nbsp;`}
+      <div
+        class=${etaClass}
+        role=${notice ? "alert" : nothing}
+        aria-hidden=${etaShown ? "false" : "true"}
+      >
+        ${notice
+          ? this._t(notice.key)
+          : showEta
+            ? html`${this._t("state.ready")}:
+              ${this._t("common.minutes", { count: s.readyEtaMinutes! })}`
+            : html`&nbsp;`}
       </div>`;
+  }
+
+  /**
+   * Start failure / "can't start" notice as a standalone banner, for the hero
+   * and compact layouts which have no progress-slot to host it.
+   */
+  private _notices(s: SaunaState): TemplateResult | typeof nothing {
+    const notice = this._startNotice(s);
+    if (!notice) return nothing;
+    const cls = notice.kind === "warn" ? "warn caution" : "warn";
+    return html`<div class=${cls} role="alert">
+      <ha-icon icon="mdi:alert"></ha-icon>${this._t(notice.key)}
+    </div>`;
   }
 
   // ---- layout: status-dashboard (default) ----
@@ -506,7 +596,7 @@ export class SaunaCard extends LitElement {
           </div>
         </div>
       </div>
-      ${this._doorWarning(s)}
+      ${this._doorWarning(s)} ${this._notices(s)}
       ${this._controls === "power+temp" ? this._tempStepper(s) : nothing}
       ${this._tilesRow(s, this._config.hero_items ?? [])} ${this._chips(s)}
       ${this._ctaIf(s)}
@@ -558,7 +648,7 @@ export class SaunaCard extends LitElement {
               ${this._cta(s)}
             </div>
             ${this._controlChips(s)}`}
-      ${this._doorWarning(s)}
+      ${this._doorWarning(s)} ${this._notices(s)}
     </ha-card>`;
   }
 
@@ -660,6 +750,16 @@ export class SaunaCard extends LitElement {
       /* Reserve one line so the ETA appearing/disappearing never shifts layout. */
       min-height: 1.1em;
     }
+    /* A start failure / "can't start" notice borrows the ETA slot; colour the
+       text (the slot is plain text, not a filled banner) without reflowing. */
+    .eta.error {
+      color: var(--error-color, #db4437);
+      font-weight: 600;
+    }
+    .eta.warn {
+      color: var(--warning-color, #ffa600);
+      font-weight: 600;
+    }
     .warn {
       display: flex;
       align-items: center;
@@ -672,6 +772,11 @@ export class SaunaCard extends LitElement {
          (defaults to white), distinct from --primary-text-color (body text). */
       color: var(--text-primary-color, #fff);
       background: var(--error-color, #db4437);
+    }
+    /* Proactive "can't start" banner (hero/compact) reads as a caution, not a
+       hard error, so it uses the warning colour. */
+    .warn.caution {
+      background: var(--warning-color, #ffa600);
     }
     .tiles {
       display: grid;
