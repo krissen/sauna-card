@@ -29,7 +29,6 @@ export const HARVIA_ENTITIES = {
   targetTemperature: { domain: "sensor", translationKey: "target_temperature" },
   humidity: { domain: "sensor", translationKey: "humidity" },
   remainingTime: { domain: "sensor", translationKey: "remaining_time" },
-  heatUpTime: { domain: "sensor", translationKey: "heat_up_time" },
   powerSensor: { domain: "sensor", translationKey: "power" },
   energy: { domain: "sensor", translationKey: "energy" },
   sessionsToday: { domain: "sensor", translationKey: "sessions_today" },
@@ -184,16 +183,15 @@ export const harviaAdapter: SaunaAdapter = {
     const heatingActive = isOn(hass, e.heating);
     const tempTrend = num(hass, e.tempTrend);
 
-    // Ready ETA: prefer the integration's native heat_up_time sensor (enabled by
-    // default, in minutes). The coordinator initializes it to 0 until a real
-    // value arrives, so treat 0 as "not yet known" and fall through. Trend-derived
-    // estimate is the fallback for setups where only temp_trend is enabled.
-    let readyEtaMinutes = num(hass, e.heatUpTime);
-    if (readyEtaMinutes !== undefined && readyEtaMinutes <= 0) {
-      readyEtaMinutes = undefined;
-    }
+    // Ready ETA: estimate from the temperature trend (current → target at the
+    // current °C/min). We deliberately do NOT use the integration's heat_up_time
+    // sensor — despite the name it is a static heat-up estimate (it reads the
+    // same value even while the sauna is off), not a live countdown, so showing
+    // it as "ready in X" never decreases and misleads. temp_trend is disabled by
+    // default in the integration; when it's absent the card derives its own
+    // trend from observed temperatures instead.
+    let readyEtaMinutes: number | undefined;
     if (
-      readyEtaMinutes === undefined &&
       heatingActive &&
       currentTemp !== undefined &&
       targetTemp !== undefined &&

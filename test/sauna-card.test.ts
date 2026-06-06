@@ -316,3 +316,75 @@ describe("sauna-card start-failure feedback", () => {
     }
   });
 });
+
+describe("sauna-card ready ETA", () => {
+  type EtaPriv = {
+    _tempSamples: Array<{ t: number; temp: number }>;
+    _trendCtx?: string;
+    _localEta(s: unknown): number | undefined;
+    _eta(s: unknown): number | undefined;
+    _trackTemp(s: unknown): void;
+  };
+  const heating = (currentTemp: number, targetTemp: number) => ({
+    deviceId: "d1",
+    status: "heating",
+    currentTemp,
+    targetTemp,
+  });
+
+  it("derives a countdown from observed temperature samples", () => {
+    const card = new SaunaCard() as unknown as EtaPriv;
+    // 20° → 30° over 10 min = 1 °C/min; 50° left to 80° → 50 min.
+    card._tempSamples = [
+      { t: 0, temp: 20 },
+      { t: 600000, temp: 30 },
+    ];
+    expect(card._localEta(heating(30, 80))).toBe(50);
+  });
+
+  it("withholds an estimate without a meaningful rising span", () => {
+    const card = new SaunaCard() as unknown as EtaPriv;
+    // Single sample → unknown.
+    card._tempSamples = [{ t: 0, temp: 20 }];
+    expect(card._localEta(heating(20, 80))).toBeUndefined();
+    // Flat (no rise) → unknown.
+    card._tempSamples = [
+      { t: 0, temp: 30 },
+      { t: 600000, temp: 30 },
+    ];
+    expect(card._localEta(heating(30, 80))).toBeUndefined();
+    // Already at target → unknown.
+    card._tempSamples = [
+      { t: 0, temp: 70 },
+      { t: 600000, temp: 80 },
+    ];
+    expect(card._localEta(heating(80, 80))).toBeUndefined();
+  });
+
+  it("prefers the integration's trend-based ETA when present", () => {
+    const card = new SaunaCard() as unknown as EtaPriv;
+    card._tempSamples = [
+      { t: 0, temp: 20 },
+      { t: 600000, temp: 30 },
+    ];
+    // s.readyEtaMinutes (from the temp_trend sensor) wins over the local 50.
+    expect(card._eta({ ...heating(30, 80), readyEtaMinutes: 8 })).toBe(8);
+  });
+
+  it("accumulates samples while heating and resets when heating stops", () => {
+    const card = new SaunaCard() as unknown as EtaPriv;
+    card._trackTemp(heating(20, 80));
+    card._trackTemp(heating(21, 80));
+    expect(card._tempSamples.length).toBe(2);
+    card._trackTemp({ deviceId: "d1", status: "off", currentTemp: 21 });
+    expect(card._tempSamples.length).toBe(0);
+  });
+
+  it("resets samples when the target temperature changes", () => {
+    const card = new SaunaCard() as unknown as EtaPriv;
+    card._trackTemp(heating(20, 80));
+    expect(card._tempSamples.length).toBe(1);
+    card._trackTemp(heating(21, 90));
+    expect(card._tempSamples.length).toBe(1);
+  });
+});
