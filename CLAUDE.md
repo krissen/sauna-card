@@ -86,9 +86,12 @@ is plain JS, we are TypeScript + Lit 3).
 Every PR is reviewed by **both Codex and Copilot each round** — they have
 different blind spots; skipping one means trusting a single reviewer. Driven by
 `~/bin/scripts/gh_botreview` (`poll` / `resolve` / `react`). Break-point: neither
-bot posts new substantive findings. **Fallback when both bots are down:**
-`/nagelfar` (local human review, anchor `NF_PROTOCOL`). See `GUIDELINES.md` for
-the full workflow, commit format, and permissions.
+bot posts new substantive findings. **Fallback when a bot can't run:**
+`/nagelfar` (local independent review, anchor `NF_PROTOCOL`) substitutes for it.
+When one bot is out of quota it is replaced *per-bot* (review stays dual:
+surviving bot + Nagelfararna); when **both** are down, Nagelfararna alone are the
+review. Don't run Nagelfar when both bots are up. See `GUIDELINES.md` for the
+full workflow, commit format, and permissions.
 
 ## Subagents
 

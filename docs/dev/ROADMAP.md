@@ -17,8 +17,9 @@ at a time.
    then restart HA and smoke-test (HA serves the `.gz`; without gzip changes are invisible).
 4. Commit per logical change `(scope) English message`; PR against `dev` with ≥1 label.
 5. Review loop, **both bots every round** (Codex + Copilot via `gh_botreview`).
-   Break-point: no bot posts new substantive findings. Fallback if both bots are
-   down: `/nagelfar` (local human review).
+   Break-point: no bot posts new substantive findings. Fallback if a bot can't
+   run: `/nagelfar` substitutes for it — one bot out of quota → replaced per-bot
+   (review stays dual); both down → Nagelfararna alone.
 6. Merge → next increment. `dev → master` + tag only at release.
 
 Escalate to the product owner: scope changes, UX-affecting architecture,
