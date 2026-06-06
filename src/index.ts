@@ -17,8 +17,8 @@ customCards.push({
   preview: true,
   description: "Show and control Harvia sauna heaters (Xenio, Fenix).",
   documentationURL: "https://github.com/krissen/sauna-card",
-  // HA 2026.6 card-picker suggestions: offer the card when a Harvia climate
-  // entity is picked.
+  // HA 2026.6 card-picker suggestions: offer the card when any Harvia entity
+  // is picked (per-entity hook), so it surfaces across the whole device.
   getEntitySuggestion: (hass: Hass, entityId: string) =>
     suggestEntity(hass, entityId),
 });
