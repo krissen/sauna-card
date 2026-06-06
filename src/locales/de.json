@@ -55,7 +55,6 @@
   "door.closed": "Geschlossen",
   "warn.cannot_start_door": "Kann nicht starten – die Tür ist offen",
   "warn.start_failed": "Start fehlgeschlagen",
-  "warn.start_failed_door": "Start fehlgeschlagen – die Tür ist offen",
   "common.on": "Ein",
   "common.off": "Aus",
   "common.yes": "Ja",

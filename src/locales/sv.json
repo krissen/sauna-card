@@ -55,7 +55,6 @@
   "door.closed": "Stängd",
   "warn.cannot_start_door": "Kan inte starta – dörren är öppen",
   "warn.start_failed": "Starten misslyckades",
-  "warn.start_failed_door": "Starten misslyckades – dörren är öppen",
   "common.on": "På",
   "common.off": "Av",
   "common.yes": "Ja",

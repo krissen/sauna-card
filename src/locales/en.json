@@ -55,7 +55,6 @@
   "door.closed": "Closed",
   "warn.cannot_start_door": "Can't start — the door is open",
   "warn.start_failed": "Couldn't start the session",
-  "warn.start_failed_door": "Couldn't start — the door is open",
   "common.on": "On",
   "common.off": "Off",
   "common.yes": "Yes",
