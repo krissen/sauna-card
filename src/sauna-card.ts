@@ -269,7 +269,11 @@ export class SaunaCard extends LitElement {
     ) {
       this._pendingTarget = undefined;
     }
-    if (this._startFailed && s && (this._powerOn(s) || s.status === "heating")) {
+    if (
+      this._startFailed &&
+      s &&
+      (this._powerOn(s) || s.status === "heating")
+    ) {
       this._startFailed = undefined;
     }
     this._trackTemp(s);
@@ -587,7 +591,7 @@ export class SaunaCard extends LitElement {
    * Start failure / "can't start" notice as a standalone banner, for the hero
    * and compact layouts which have no progress-slot to host it.
    */
-  private _notices(s: SaunaState): TemplateResult | typeof nothing {
+  private _notices(): TemplateResult | typeof nothing {
     const notice = this._startNotice();
     if (!notice) return nothing;
     const cls = notice.kind === "warn" ? "warn caution" : "warn";
@@ -673,7 +677,7 @@ export class SaunaCard extends LitElement {
           </div>
         </div>
       </div>
-      ${this._doorWarning(s)} ${this._notices(s)}
+      ${this._doorWarning(s)} ${this._notices()}
       ${this._controls === "power+temp" ? this._tempStepper(s) : nothing}
       ${this._tilesRow(s, this._config.hero_items ?? [])} ${this._chips(s)}
       ${this._ctaIf(s)}
@@ -725,7 +729,7 @@ export class SaunaCard extends LitElement {
               ${this._cta(s)}
             </div>
             ${this._controlChips(s)}`}
-      ${this._doorWarning(s)} ${this._notices(s)}
+      ${this._doorWarning(s)} ${this._notices()}
     </ha-card>`;
   }
 
