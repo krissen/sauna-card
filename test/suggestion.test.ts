@@ -25,14 +25,40 @@ describe("getEntitySuggestion", () => {
     });
   });
 
-  it("returns null for a non-climate Harvia entity", () => {
+  it("suggests the card for any Harvia entity (sensor), pre-filling the device", () => {
     const hass = hassWith({
       "sensor.bastu_temperatur": {
         platform: "harvia_sauna",
         device_id: "dev1",
       },
     });
-    expect(suggestEntity(hass, "sensor.bastu_temperatur")).toBeNull();
+    expect(suggestEntity(hass, "sensor.bastu_temperatur")).toEqual({
+      config: { type: "custom:sauna-card", device_id: "dev1" },
+    });
+  });
+
+  it("suggests the card for a Harvia binary_sensor (door)", () => {
+    const hass = hassWith({
+      "binary_sensor.bastu_dorr": {
+        platform: "harvia_sauna",
+        device_id: "dev1",
+      },
+    });
+    expect(suggestEntity(hass, "binary_sensor.bastu_dorr")).toEqual({
+      config: { type: "custom:sauna-card", device_id: "dev1" },
+    });
+  });
+
+  it("suggests the card for a Harvia update entity", () => {
+    const hass = hassWith({
+      "update.bastu_firmware": {
+        platform: "harvia_sauna",
+        device_id: "dev1",
+      },
+    });
+    expect(suggestEntity(hass, "update.bastu_firmware")).toEqual({
+      config: { type: "custom:sauna-card", device_id: "dev1" },
+    });
   });
 
   it("returns null for a climate entity from another integration", () => {
