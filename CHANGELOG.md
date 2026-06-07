@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- **Heatup / cooldown temperature graph.** While the sauna is heating, the main
+  temperature area becomes a live curve rising toward the target; after a session
+  is switched off it becomes a falling curve cooling back toward the temperature
+  the session started from (over as long as it takes — up to a day). The graph
+  only appears during these transitions and steps aside the rest of the time, so
+  the rest of the card never moves. The heatup curve is backfilled from Home
+  Assistant's recorder, so it covers the whole session and survives a page
+  reload; the cooldown curve is live-only in this version — a reload mid-cooldown
+  won't restore it. Two independent toggles (`show_heatup_graph`,
+  `show_cooldown_graph`, both on by default) turn each curve on or off.
+
 ## [0.1.1] - 2026-06-06
 
 ### Added

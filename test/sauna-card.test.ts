@@ -5,6 +5,66 @@ import { nothing } from "lit";
 import { SaunaCard } from "../src/sauna-card";
 import type { Hass } from "../src/types";
 
+// A Harvia device (power switch, heat_on binary sensor, current/target temp
+// sensors) resolved by (domain, translation_key), for driving the graph.
+const HARVIA_ENTITIES = {
+  "switch.power": {
+    entity_id: "switch.power",
+    platform: "harvia_sauna",
+    translation_key: "power",
+    device_id: "d1",
+  },
+  "binary_sensor.heat": {
+    entity_id: "binary_sensor.heat",
+    platform: "harvia_sauna",
+    translation_key: "heat_on",
+    device_id: "d1",
+  },
+  "sensor.cur": {
+    entity_id: "sensor.cur",
+    platform: "harvia_sauna",
+    translation_key: "current_temperature",
+    device_id: "d1",
+  },
+  "sensor.tgt": {
+    entity_id: "sensor.tgt",
+    platform: "harvia_sauna",
+    translation_key: "target_temperature",
+    device_id: "d1",
+  },
+};
+
+function graphHass(
+  power: string,
+  heat: string,
+  cur: number,
+  extra: Record<string, unknown> = {},
+): Hass {
+  return {
+    states: {
+      "switch.power": {
+        entity_id: "switch.power",
+        state: power,
+        attributes: {},
+      },
+      "binary_sensor.heat": {
+        entity_id: "binary_sensor.heat",
+        state: heat,
+        attributes: {},
+      },
+      "sensor.cur": {
+        entity_id: "sensor.cur",
+        state: String(cur),
+        attributes: {},
+      },
+      "sensor.tgt": { entity_id: "sensor.tgt", state: "90", attributes: {} },
+    },
+    entities: HARVIA_ENTITIES,
+    devices: { d1: { id: "d1", name: "Bastu" } },
+    ...extra,
+  } as unknown as Hass;
+}
+
 describe("sauna-card", () => {
   it("registers the custom element", () => {
     expect(customElements.get("sauna-card")).toBe(SaunaCard);
@@ -65,6 +125,23 @@ describe("sauna-card", () => {
     expect(() =>
       card.setConfig({ type: "custom:sauna-card", controls: "power" }),
     ).not.toThrow();
+  });
+
+  it("accepts boolean graph flags and rejects non-booleans", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({
+        type: "custom:sauna-card",
+        show_heatup_graph: false,
+        show_cooldown_graph: true,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", show_heatup_graph: "yes" }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", show_cooldown_graph: 1 }),
+    ).toThrow();
   });
 
   it("accepts tile lists and rejects non-array tile config", () => {
@@ -135,6 +212,458 @@ describe("sauna-card", () => {
     } as unknown as Hass;
     expect(() => card.render()).not.toThrow();
     expect(card.render()).toBeTruthy();
+  });
+
+  it("region-swaps to a heatup sparkline once two samples are in", async () => {
+    const entities = {
+      "switch.power": {
+        entity_id: "switch.power",
+        platform: "harvia_sauna",
+        translation_key: "power",
+        device_id: "d1",
+      },
+      "binary_sensor.heat": {
+        entity_id: "binary_sensor.heat",
+        platform: "harvia_sauna",
+        translation_key: "heat_on",
+        device_id: "d1",
+      },
+      "sensor.cur": {
+        entity_id: "sensor.cur",
+        platform: "harvia_sauna",
+        translation_key: "current_temperature",
+        device_id: "d1",
+      },
+      "sensor.tgt": {
+        entity_id: "sensor.tgt",
+        platform: "harvia_sauna",
+        translation_key: "target_temperature",
+        device_id: "d1",
+      },
+    };
+    const hassAt = (cur: number): Hass =>
+      ({
+        states: {
+          "switch.power": {
+            entity_id: "switch.power",
+            state: "on",
+            attributes: {},
+          },
+          "binary_sensor.heat": {
+            entity_id: "binary_sensor.heat",
+            state: "on",
+            attributes: {},
+          },
+          "sensor.cur": {
+            entity_id: "sensor.cur",
+            state: String(cur),
+            attributes: {},
+          },
+          "sensor.tgt": {
+            entity_id: "sensor.tgt",
+            state: "90",
+            attributes: {},
+          },
+        },
+        entities,
+        devices: { d1: { id: "d1", name: "Bastu" } },
+      }) as unknown as Hass;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      card.hass = hassAt(60);
+      await card.updateComplete;
+      // One sample so far → still the normal hero block, no graph yet.
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+      expect(card.shadowRoot?.querySelector(".hero")).toBeTruthy();
+
+      vi.advanceTimersByTime(60_000);
+      card.hass = hassAt(66);
+      await card.updateComplete;
+      // Two samples → the sparkline takes over the hero region.
+      expect(card.shadowRoot?.querySelector(".graph")).toBeTruthy();
+      expect(card.shadowRoot?.querySelector(".graph polyline")).toBeTruthy();
+      expect(card.shadowRoot?.querySelector(".hero")).toBeFalsy();
+
+      // Opting out hides it again.
+      card.setConfig({ type: "custom:sauna-card", show_heatup_graph: false });
+      card.hass = hassAt(67);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens a cooldown sparkline after a session is switched off", async () => {
+    const entities = {
+      "switch.power": {
+        entity_id: "switch.power",
+        platform: "harvia_sauna",
+        translation_key: "power",
+        device_id: "d1",
+      },
+      "binary_sensor.heat": {
+        entity_id: "binary_sensor.heat",
+        platform: "harvia_sauna",
+        translation_key: "heat_on",
+        device_id: "d1",
+      },
+      "sensor.cur": {
+        entity_id: "sensor.cur",
+        platform: "harvia_sauna",
+        translation_key: "current_temperature",
+        device_id: "d1",
+      },
+      "sensor.tgt": {
+        entity_id: "sensor.tgt",
+        platform: "harvia_sauna",
+        translation_key: "target_temperature",
+        device_id: "d1",
+      },
+    };
+    const mk = (power: string, heat: string, cur: number): Hass =>
+      ({
+        states: {
+          "switch.power": {
+            entity_id: "switch.power",
+            state: power,
+            attributes: {},
+          },
+          "binary_sensor.heat": {
+            entity_id: "binary_sensor.heat",
+            state: heat,
+            attributes: {},
+          },
+          "sensor.cur": {
+            entity_id: "sensor.cur",
+            state: String(cur),
+            attributes: {},
+          },
+          "sensor.tgt": {
+            entity_id: "sensor.tgt",
+            state: "90",
+            attributes: {},
+          },
+        },
+        entities,
+        devices: { d1: { id: "d1", name: "Bastu" } },
+      }) as unknown as Hass;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      // Off (cold) → heating from 25° captures the cooldown baseline.
+      card.hass = mk("off", "off", 25);
+      await card.updateComplete;
+      card.hass = mk("on", "on", 25);
+      await card.updateComplete;
+      card.hass = mk("on", "on", 40);
+      await card.updateComplete;
+
+      // Switch off while still hot → a cooldown window opens (one sample so far).
+      card.hass = mk("off", "off", 70);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+
+      // A second sparse sample (5 min later) → the cooldown curve takes over.
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = mk("off", "off", 65);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+      expect(
+        card.shadowRoot?.querySelector(".graph-line.cooldown"),
+      ).toBeTruthy();
+
+      // Opting out of the cooldown graph hides it.
+      card.setConfig({ type: "custom:sauna-card", show_cooldown_graph: false });
+      card.hass = mk("off", "off", 64);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("backfills the heatup curve from recorder history (Stage B)", async () => {
+    const entities = {
+      "switch.power": {
+        entity_id: "switch.power",
+        platform: "harvia_sauna",
+        translation_key: "power",
+        device_id: "d1",
+      },
+      "binary_sensor.heat": {
+        entity_id: "binary_sensor.heat",
+        platform: "harvia_sauna",
+        translation_key: "heat_on",
+        device_id: "d1",
+      },
+      "sensor.cur": {
+        entity_id: "sensor.cur",
+        platform: "harvia_sauna",
+        translation_key: "current_temperature",
+        device_id: "d1",
+      },
+      "sensor.tgt": {
+        entity_id: "sensor.tgt",
+        platform: "harvia_sauna",
+        translation_key: "target_temperature",
+        device_id: "d1",
+      },
+    };
+    // Recorder returns a multi-point heatup history, so the curve is drawable
+    // from the very first update — before any second live sample exists.
+    const callWS = vi.fn().mockResolvedValue({
+      "sensor.cur": [
+        { s: "30", lu: 1_699_999_000 },
+        { s: "45", lu: 1_699_999_500 },
+        { s: "58", lu: 1_699_999_900 },
+      ],
+    });
+    const hass = {
+      states: {
+        "switch.power": {
+          entity_id: "switch.power",
+          state: "on",
+          attributes: {},
+        },
+        "binary_sensor.heat": {
+          entity_id: "binary_sensor.heat",
+          state: "on",
+          attributes: {},
+        },
+        "sensor.cur": { entity_id: "sensor.cur", state: "60", attributes: {} },
+        "sensor.tgt": { entity_id: "sensor.tgt", state: "90", attributes: {} },
+      },
+      entities,
+      devices: { d1: { id: "d1", name: "Bastu" } },
+      callWS,
+    } as unknown as Hass;
+
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card" });
+    document.body.appendChild(card);
+    card.hass = hass;
+    await card.updateComplete;
+    // Let the fire-and-forget history fetch resolve and merge.
+    await new Promise((r) => setTimeout(r, 0));
+    await card.updateComplete;
+
+    expect(callWS).toHaveBeenCalledTimes(1);
+    expect(callWS.mock.calls[0][0]).toMatchObject({
+      type: "history/history_during_period",
+      entity_ids: ["sensor.cur"],
+    });
+    expect(card.shadowRoot?.querySelector(".graph polyline")).toBeTruthy();
+
+    document.body.removeChild(card);
+  });
+
+  it("closes the cooldown when a new session starts", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      // Run a session and switch off, then build a cooldown curve.
+      card.hass = graphHass("off", "off", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 40);
+      await card.updateComplete;
+      card.hass = graphHass("off", "off", 70);
+      await card.updateComplete;
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = graphHass("off", "off", 65);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+
+      // Power back on and reach target (status "ready", still above the old
+      // baseline): the cooldown must not keep rendering during the new session.
+      card.hass = graphHass("on", "off", 88);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeFalsy();
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the room baseline through a mid-session idle dip", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      // Power on cold and run; baseline must be the ~25° session start.
+      card.hass = graphHass("off", "off", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "off", 88); // ready (at target)
+      await card.updateComplete;
+      card.hass = graphHass("on", "off", 70); // deep dip → idle
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 72); // reheats: idle → heating
+      await card.updateComplete;
+
+      // Switch off and cool to 60° — above the 25° start but below the 70° dip.
+      card.hass = graphHass("off", "off", 68);
+      await card.updateComplete;
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = graphHass("off", "off", 60);
+      await card.updateComplete;
+
+      // If the dip had overwritten the baseline (to ~72°), the cooldown would
+      // have closed immediately at 68°. It's still open at 60°, so the original
+      // room baseline survived.
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens a cooldown when switched off from an idle thermostat cycle", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      // Observed session start seeds the baseline.
+      card.hass = graphHass("off", "off", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 25);
+      await card.updateComplete;
+      // Thermostat off-cycle: powered, not heating, below target → "idle".
+      card.hass = graphHass("on", "off", 50);
+      await card.updateComplete;
+      // Switched off from idle — a real shutdown mid-session.
+      card.hass = graphHass("off", "off", 60);
+      await card.updateComplete;
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = graphHass("off", "off", 55);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("fetches recorder history per session, not once per same target", async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      "sensor.cur": [
+        { s: "30", lu: 1 },
+        { s: "40", lu: 2 },
+      ],
+    });
+    const ws = { callWS };
+    vi.useFakeTimers();
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      vi.setSystemTime(new Date(1_700_000_000_000));
+      card.hass = graphHass("off", "off", 25, ws);
+      await card.updateComplete;
+
+      const t1 = new Date(1_700_000_100_000);
+      vi.setSystemTime(t1);
+      card.hass = graphHass("on", "on", 25, ws); // session 1 begins
+      await card.updateComplete;
+
+      // End session 1 and cool fully so the cooldown window closes.
+      vi.setSystemTime(new Date(1_700_000_200_000));
+      card.hass = graphHass("off", "off", 60, ws);
+      await card.updateComplete;
+      vi.setSystemTime(new Date(1_700_000_300_000));
+      card.hass = graphHass("off", "off", 20, ws);
+      await card.updateComplete;
+
+      // Session 2, same target — must get its own backfill, not the cached one.
+      const t2 = new Date(1_700_000_400_000);
+      vi.setSystemTime(t2);
+      card.hass = graphHass("on", "on", 22, ws);
+      await card.updateComplete;
+
+      const heatupStarts = callWS.mock.calls
+        .map((c) => c[0])
+        .filter((m) => m.type === "history/history_during_period")
+        .map((m) => m.start_time);
+      expect(heatupStarts).toContain(t1.toISOString());
+      expect(heatupStarts).toContain(t2.toISOString());
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens no cooldown when the card mounted mid-session", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      // The first state the card ever sees is already heating — no off→heating
+      // transition, so no trustworthy baseline. The current temp is hot.
+      card.hass = graphHass("on", "on", 70);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 75);
+      await card.updateComplete;
+      // Switched off while hot: without a real baseline, no cooldown is shown.
+      card.hass = graphHass("off", "off", 75);
+      await card.updateComplete;
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = graphHass("off", "off", 73);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeFalsy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not fetch recorder history for a disabled graph", async () => {
+    const callWS = vi.fn().mockResolvedValue({ "sensor.cur": [] });
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card", show_heatup_graph: false });
+    document.body.appendChild(card);
+    card.hass = graphHass("on", "on", 60, { callWS });
+    await card.updateComplete;
+    await new Promise((r) => setTimeout(r, 0));
+    expect(callWS).not.toHaveBeenCalled();
+    document.body.removeChild(card);
   });
 
   it("renders nothing without hass and a card when no device is found", () => {
