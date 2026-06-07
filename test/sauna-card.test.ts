@@ -802,6 +802,8 @@ describe("sauna-card", () => {
         (el) => !el.classList.contains("cooldown"),
       ),
     ).toBe(true);
+    // A clock-time axis (start / middle / end) under the curve.
+    expect(sr?.querySelectorAll(".graph-axis span").length).toBe(3);
 
     document.body.removeChild(card);
   });
