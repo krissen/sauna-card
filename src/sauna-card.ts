@@ -9,6 +9,7 @@ import {
   type PropertyValues,
 } from "lit";
 import { property, state } from "lit/decorators.js";
+import { html as staticHtml, literal } from "lit/static-html.js";
 import type {
   Hass,
   SaunaCardConfig,
@@ -44,8 +45,17 @@ import {
   MIN_TEMP,
   MAX_TEMP,
 } from "./controls";
+import { fireMoreInfo } from "./utils/more-info";
 
 const TEMP_STEP = 5;
+
+// Tag literals for the more-info readout wrapper (static-html needs a `literal`
+// to vary the element; div for block readouts, span/b for inline ones).
+const MI_TAG = {
+  div: literal`div`,
+  span: literal`span`,
+  b: literal`b`,
+} as const;
 
 // HA states that mean "no usable value" — mirrors the adapter's handling.
 const UNAVAILABLE_STATES = new Set(["unavailable", "unknown", "none", ""]);
@@ -204,6 +214,7 @@ export class SaunaCard extends LitElement {
       "show_heatup_graph",
       "show_cooldown_graph",
       "cooldown_include_heatup",
+      "tap_more_info",
     ]) {
       if (config[key] !== undefined && typeof config[key] !== "boolean") {
         throw new Error(`sauna-card: "${key}" must be a boolean`);
@@ -256,7 +267,18 @@ export class SaunaCard extends LitElement {
   private _targetControl(s: SaunaState): TemplateResult {
     return this._controls === "power+temp"
       ? this._tempStepper(s)
-      : html`<b class="tval">${this._temp(this._effectiveTarget(s))}</b>`;
+      : this._staticTarget(s, "tval");
+  }
+
+  /** A read-only target-temperature value that opens the thermostat more-info. */
+  private _staticTarget(s: SaunaState, className: string): TemplateResult {
+    return this._readout(
+      MI_TAG.b,
+      className,
+      this._miId(s, "thermostat"),
+      "label.target_temperature",
+      html`${this._temp(this._effectiveTarget(s))}`,
+    );
   }
 
   private get _lang(): string {
@@ -285,6 +307,69 @@ export class SaunaCard extends LitElement {
     return value === undefined
       ? html`—`
       : html`${Math.round(value)}°<span>C</span>`;
+  }
+
+  /** The big current-temperature readout, opening the temperature sensor. */
+  private _curBlock(s: SaunaState): TemplateResult {
+    return this._readout(
+      MI_TAG.div,
+      "cur",
+      this._miId(s, "currentTemperature"),
+      "label.temperature",
+      this._heroTemp(s.currentTemp),
+    );
+  }
+
+  // ---- more-info readouts ----
+
+  /** Whether read-only displays open HA's more-info dialog (default on). */
+  private get _moreInfo(): boolean {
+    return this._config.tap_more_info !== false;
+  }
+
+  /**
+   * The entity id a readout should open, or undefined when more-info is off or
+   * the entity is absent — in which case the readout stays non-interactive.
+   */
+  private _miId(s: SaunaState, entityKey?: string): string | undefined {
+    if (!this._moreInfo || !entityKey) return undefined;
+    return s.entities[entityKey];
+  }
+
+  // Keyboard activation for a readout: Enter/Space mirror a click (which fires
+  // more-info). Shared so the open logic lives only on @click.
+  private _miKeydown = (ev: KeyboardEvent): void => {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    ev.preventDefault();
+    (ev.currentTarget as HTMLElement).click();
+  };
+
+  /**
+   * Wrap a readout so it opens more-info when an entity resolves; otherwise the
+   * plain element. `tag` varies the wrapper (block vs inline) without breaking
+   * layout, so existing CSS (grid tiles, inline slots) is preserved.
+   */
+  private _readout(
+    tag: (typeof MI_TAG)[keyof typeof MI_TAG],
+    className: string,
+    entityId: string | undefined,
+    labelKey: string,
+    inner: TemplateResult,
+  ): TemplateResult {
+    if (!entityId) {
+      return staticHtml`<${tag} class=${className}>${inner}</${tag}>`;
+    }
+    const name = this._t("a11y.more_info", { name: this._t(labelKey) });
+    return staticHtml`<${tag}
+      class="${className} mi"
+      role="button"
+      tabindex="0"
+      aria-haspopup="dialog"
+      aria-label=${name}
+      title=${name}
+      @click=${() => fireMoreInfo(this, entityId)}
+      @keydown=${this._miKeydown}
+    >${inner}</${tag}>`;
   }
 
   // ---- control handlers (I6) ----
@@ -796,10 +881,15 @@ export class SaunaCard extends LitElement {
       etaMin !== undefined
         ? ` · ${this._t("common.minutes", { count: etaMin })}`
         : "";
-    return html`<span class="badge status-${s.status}">
-      <ha-icon icon=${STATUS_ICON[s.status]}></ha-icon>
-      ${this._t(STATUS_KEY[s.status])}${eta}
-    </span>`;
+    const inner = html`<ha-icon icon=${STATUS_ICON[s.status]}></ha-icon>
+      ${this._t(STATUS_KEY[s.status])}${eta}`;
+    return this._readout(
+      MI_TAG.span,
+      `badge status-${s.status}`,
+      this._miId(s, "thermostat"),
+      "label.status",
+      inner,
+    );
   }
 
   private _doorWarning(s: SaunaState): TemplateResult | typeof nothing {
@@ -841,12 +931,12 @@ export class SaunaCard extends LitElement {
   private _tile(
     labelKey: string,
     value: string | typeof nothing,
+    entityId?: string,
   ): TemplateResult | typeof nothing {
     if (value === nothing) return nothing;
-    return html`<div class="tile">
-      <div class="k">${this._t(labelKey)}</div>
-      <div class="v">${value}</div>
-    </div>`;
+    const inner = html`<div class="k">${this._t(labelKey)}</div>
+      <div class="v">${value}</div>`;
+    return this._readout(MI_TAG.div, "tile", entityId, labelKey, inner);
   }
 
   /** Render one catalog item as a tile; hides when its datum is absent. */
@@ -857,7 +947,11 @@ export class SaunaCard extends LitElement {
     const def = BADGE_ITEMS[key];
     const v = def.value(s, this._t);
     if (!v) return nothing;
-    return this._tile(def.labelKey, `${v.text}${v.unit ? ` ${v.unit}` : ""}`);
+    return this._tile(
+      def.labelKey,
+      `${v.text}${v.unit ? ` ${v.unit}` : ""}`,
+      this._miId(s, def.entityKey),
+    );
   }
 
   /** A tile grid for a configured, ordered list of item keys (per layout). */
@@ -1100,7 +1194,7 @@ export class SaunaCard extends LitElement {
         ${this._heroOrGraph(
           s,
           html`<div class="hero">
-            <div class="cur">${this._heroTemp(s.currentTemp)}</div>
+            ${this._curBlock(s)}
             <div class="tgt">
               <span>${this._t("label.target_temperature")}</span>
               ${this._targetControl(s)}
@@ -1161,10 +1255,10 @@ export class SaunaCard extends LitElement {
             />
           </svg>
           <div class="center">
-            <div class="cur">${this._heroTemp(s.currentTemp)}</div>
+            ${this._curBlock(s)}
             <div class="tgt">
               ${this._t("label.target_temperature")}
-              <b>${this._temp(this._effectiveTarget(s))}</b>
+              ${this._staticTarget(s, "")}
             </div>
           </div>
         </div>`,
@@ -1192,14 +1286,19 @@ export class SaunaCard extends LitElement {
     const v = def.value(s, this._t);
     if (!v) return nothing;
     const cls = def.statusTinted ? `status-${s.status}` : "";
-    return html`<span class="citem ${cls}">
-      <ha-icon icon=${def.icon(s)}></ha-icon>
+    const inner = html`<ha-icon icon=${def.icon(s)}></ha-icon>
       <span class="cval"
         >${v.text}${v.unit
           ? html`<span class="cunit">${v.unit}</span>`
           : nothing}</span
-      >
-    </span>`;
+      >`;
+    return this._readout(
+      MI_TAG.span,
+      `citem ${cls}`,
+      this._miId(s, def.entityKey),
+      def.labelKey,
+      inner,
+    );
   }
 
   private _renderCompact(s: SaunaState): TemplateResult {
@@ -1430,6 +1529,19 @@ export class SaunaCard extends LitElement {
       font-size: 1.05rem;
       font-weight: 600;
       margin-top: 2px;
+    }
+    /* Read-only displays that open HA's more-info dialog on tap/Enter. State is
+       carried in aria-label/title, never colour alone (a11y); the affordance is
+       a subtle hover plus a keyboard focus ring. */
+    .mi {
+      cursor: pointer;
+    }
+    .mi:hover {
+      opacity: 0.85;
+    }
+    .mi:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
     }
     .chips {
       display: flex;

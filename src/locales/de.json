@@ -80,6 +80,8 @@
   "editor.show_cooldown_graph": "Abkühlkurve",
   "editor.cooldown_target_temp": "Abkühl-Zieltemperatur (°C)",
   "editor.cooldown_include_heatup": "Aufheizen in Abkühlung einbeziehen",
+  "editor.tap_more_info": "Werte für mehr Infos antippen",
+  "a11y.more_info": "Mehr Infos anzeigen: {name}",
   "editor.layout_status_dashboard": "Statusübersicht",
   "editor.layout_thermostat_hero": "Thermostat-Skala",
   "editor.layout_compact": "Kompakt",

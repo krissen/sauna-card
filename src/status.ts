@@ -141,6 +141,12 @@ export interface BadgeItemDef {
   /** Whether the icon and value should be tinted by the sauna status colour.
    * (The ring gauge always derives its colour from the status, independently.) */
   statusTinted?: boolean;
+  /**
+   * Logical key into `SaunaState.entities` for the entity this item reads, so a
+   * readout can open HA's more-info dialog for it. Omitted for derived values
+   * (e.g. `eta`) that have no backing entity; those stay non-clickable.
+   */
+  entityKey?: string;
 }
 
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
@@ -190,12 +196,23 @@ function boolVal(
   };
 }
 
-/** A fixed-icon on/off item reading an auxiliary switch by logical key. */
-function switchItem(key: string, icon: string, labelKey: string): BadgeItemDef {
+/**
+ * A fixed-icon on/off item reading an auxiliary switch by logical key. `key`
+ * indexes `s.switches`; `entityKey` indexes `s.entities` for more-info and
+ * defaults to `key` (they differ only where the entities map uses camelCase,
+ * e.g. auto_light → autoLight).
+ */
+function switchItem(
+  key: string,
+  icon: string,
+  labelKey: string,
+  entityKey: string = key,
+): BadgeItemDef {
   return {
     icon: () => icon,
     labelKey,
     value: boolVal((s) => s.switches?.[key]),
+    entityKey,
   };
 }
 
@@ -214,6 +231,7 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     value: (s, tr) => ({ text: tr(STATUS_KEY[s.status]) }),
     progress: heatProgress,
     statusTinted: true,
+    entityKey: "thermostat",
   },
   current_temp: {
     icon: () => "mdi:thermometer",
@@ -221,15 +239,18 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     value: (s) => temp(s.currentTemp),
     progress: heatProgress,
     statusTinted: true,
+    entityKey: "currentTemperature",
   },
   target_temp: {
     icon: () => "mdi:thermometer-check",
     labelKey: "label.target_temperature",
     value: (s) => temp(s.targetTemp),
+    entityKey: "thermostat",
   },
   eta: {
     icon: () => "mdi:timer-sand",
     labelKey: "label.eta",
+    // Derived from the temperature trend, no backing entity → non-clickable.
     value: minutesVal((s) => s.readyEtaMinutes),
   },
   humidity: {
@@ -238,11 +259,13 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     value: numVal((s) => s.humidity, "%"),
     progress: (s) =>
       s.humidity === undefined ? undefined : clamp01(s.humidity / 100),
+    entityKey: "humidity",
   },
   target_humidity: {
     icon: () => "mdi:water-check",
     labelKey: "label.target_humidity",
     value: numVal((s) => s.targetHumidity, "%"),
+    entityKey: "targetHumidity",
   },
   temp_trend: {
     icon: (s) =>
@@ -255,6 +278,7 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
             text: `${s.tempTrend > 0 ? "+" : ""}${s.tempTrend.toFixed(1)}`,
             unit: "°/min",
           },
+    entityKey: "tempTrend",
   },
   remaining: {
     icon: () => "mdi:timer-outline",
@@ -263,47 +287,56 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     // ("45 minutes" / "45 minuter"). "min" is the SI symbol and identical
     // across our locales (en/sv/fi/de), so this needs no separate locale key.
     value: minutesVal((s) => s.remainingMinutes),
+    entityKey: "remainingTime",
   },
   session_length: {
     icon: () => "mdi:timer-cog-outline",
     labelKey: "label.session_length",
     value: minutesVal((s) => s.sessionLength),
+    entityKey: "sessionLength",
   },
   power: {
     icon: () => "mdi:flash",
     labelKey: "label.power",
     value: numVal((s) => s.power, "W"),
+    entityKey: "powerSensor",
   },
   energy: {
     icon: () => "mdi:lightning-bolt-outline",
     labelKey: "label.energy",
     value: numVal((s) => s.energy, "kWh", 1),
+    entityKey: "energy",
   },
   sessions: {
     icon: () => "mdi:counter",
     labelKey: "label.sessions_today",
     value: numVal((s) => s.sessionsToday),
+    entityKey: "sessionsToday",
   },
   last_session_duration: {
     icon: () => "mdi:history",
     labelKey: "label.last_session",
     value: minutesVal((s) => s.lastSessionDuration),
+    entityKey: "lastSessionDuration",
   },
   last_session_max_temp: {
     icon: () => "mdi:thermometer-high",
     labelKey: "label.last_session_max_temp",
     value: (s) => temp(s.lastSessionMaxTemp),
+    entityKey: "lastSessionMaxTemp",
   },
   aroma_level: {
     icon: () => "mdi:scent",
     labelKey: "label.aroma_level",
     // Harvia exposes aroma level as a 0–100 percentage (number.py: PERCENTAGE).
     value: numVal((s) => s.aromaLevel, "%"),
+    entityKey: "aromaLevelSet",
   },
   wifi: {
     icon: () => "mdi:wifi",
     labelKey: "label.wifi",
     value: numVal((s) => s.wifiRssi, "dBm"),
+    entityKey: "wifi",
   },
   door: {
     // Neutral icon when the door state is unknown, so an absent sensor doesn't
@@ -319,16 +352,19 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
       s.doorOpen === undefined
         ? null
         : { text: tr(s.doorOpen ? "door.open" : "door.closed") },
+    entityKey: "door",
   },
   heating: {
     icon: () => "mdi:fire",
     labelKey: "label.heating",
     value: boolVal((s) => s.heatingActive),
+    entityKey: "heating",
   },
   steam: {
     icon: () => "mdi:pot-steam",
     labelKey: "label.steam",
     value: boolVal((s) => s.steamActive),
+    entityKey: "steam",
   },
   // The main power switch's on/off state (distinct from `power`, the watt draw).
   power_switch: switchItem("power", "mdi:power", "control.power"),
@@ -345,92 +381,115 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     "auto_light",
     "mdi:lightbulb-auto",
     "control.auto_light",
+    "autoLight",
   ),
-  auto_fan: switchItem("auto_fan", "mdi:fan-auto", "control.auto_fan"),
+  auto_fan: switchItem(
+    "auto_fan",
+    "mdi:fan-auto",
+    "control.auto_fan",
+    "autoFan",
+  ),
   heater_power_actual: {
     icon: () => "mdi:flash-outline",
     labelKey: "label.heater_power",
     value: numVal((s) => s.heaterPowerActual, "W"),
+    entityKey: "heaterPowerActual",
   },
   main_sensor_temp: {
     icon: () => "mdi:thermometer",
     labelKey: "label.main_sensor_temp",
     value: (s) => temp(s.mainSensorTemp),
+    entityKey: "mainSensorTemp",
   },
   ext_sensor_temp: {
     icon: () => "mdi:thermometer-lines",
     labelKey: "label.ext_sensor_temp",
     value: (s) => temp(s.extSensorTemp),
+    entityKey: "extSensorTemp",
   },
   panel_temp: {
     icon: () => "mdi:thermometer",
     labelKey: "label.panel_temp",
     value: (s) => temp(s.panelTemp),
+    entityKey: "panelTemp",
   },
   status_codes: {
     icon: () => "mdi:alert-circle-outline",
     labelKey: "label.status_codes",
     value: strVal((s) => s.statusCodes),
+    entityKey: "statusCodes",
   },
   active_profile: {
     icon: () => "mdi:account-cog-outline",
     labelKey: "label.active_profile",
     value: strVal((s) => s.activeProfile),
+    entityKey: "activeProfile",
   },
   heat_on_counter: {
     icon: () => "mdi:counter",
     labelKey: "label.heat_on_counter",
     value: numVal((s) => s.heatOnCounter),
+    entityKey: "heatOnCounter",
   },
   steam_on_counter: {
     icon: () => "mdi:counter",
     labelKey: "label.steam_on_counter",
     value: numVal((s) => s.steamOnCounter),
+    entityKey: "steamOnCounter",
   },
   ph1_relay_counter: {
     icon: () => "mdi:counter",
     labelKey: "label.ph1_relay_counter",
     value: numVal((s) => s.ph1RelayCounter),
+    entityKey: "ph1RelayCounter",
   },
   ph2_relay_counter: {
     icon: () => "mdi:counter",
     labelKey: "label.ph2_relay_counter",
     value: numVal((s) => s.ph2RelayCounter),
+    entityKey: "ph2RelayCounter",
   },
   ph3_relay_counter: {
     icon: () => "mdi:counter",
     labelKey: "label.ph3_relay_counter",
     value: numVal((s) => s.ph3RelayCounter),
+    entityKey: "ph3RelayCounter",
   },
   total_hours: {
     icon: () => "mdi:clock-outline",
     labelKey: "label.total_hours",
     value: numVal((s) => s.totalHours, "h"),
+    entityKey: "totalHours",
   },
   total_bathing_hours: {
     icon: () => "mdi:clock-check-outline",
     labelKey: "label.total_bathing_hours",
     value: numVal((s) => s.totalBathingHours, "h"),
+    entityKey: "totalBathingHours",
   },
   total_sessions: {
     icon: () => "mdi:counter",
     labelKey: "label.total_sessions",
     value: numVal((s) => s.totalSessions),
+    entityKey: "totalSessions",
   },
   remote_allowed: {
     icon: () => "mdi:remote",
     labelKey: "label.remote_allowed",
     value: boolVal((s) => s.remoteAllowed),
+    entityKey: "remoteAllowed",
   },
   safety_relay: {
     icon: () => "mdi:shield-check-outline",
     labelKey: "label.safety_relay",
     value: boolVal((s) => s.safetyRelay),
+    entityKey: "safetyRelay",
   },
   screen_lock: {
     icon: () => "mdi:lock-outline",
     labelKey: "label.screen_lock",
     value: boolVal((s) => s.screenLock),
+    entityKey: "screenLock",
   },
 };
 

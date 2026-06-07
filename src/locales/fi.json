@@ -80,6 +80,8 @@
   "editor.show_cooldown_graph": "Jäähtymiskäyrä",
   "editor.cooldown_target_temp": "Jäähtymistavoite (°C)",
   "editor.cooldown_include_heatup": "Sisällytä lämmitys jäähtymiseen",
+  "editor.tap_more_info": "Näytä lisätiedot napauttamalla arvoja",
+  "a11y.more_info": "Näytä lisätiedot: {name}",
   "editor.layout_status_dashboard": "Tilapaneeli",
   "editor.layout_thermostat_hero": "Termostaattikiekko",
   "editor.layout_compact": "Tiivis",
