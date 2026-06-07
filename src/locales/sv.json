@@ -80,6 +80,8 @@
   "editor.show_cooldown_graph": "Avsvalningskurva",
   "editor.cooldown_target_temp": "Avsvalningsmål (°C)",
   "editor.cooldown_include_heatup": "Inkludera uppvärmning i avsvalning",
+  "editor.tap_more_info": "Tryck på värden för mer info",
+  "a11y.more_info": "Visa mer info: {name}",
   "editor.layout_status_dashboard": "Statuspanel",
   "editor.layout_thermostat_hero": "Termostatratt",
   "editor.layout_compact": "Kompakt",
