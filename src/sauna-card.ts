@@ -146,9 +146,11 @@ export class SaunaCard extends LitElement {
   private _historyFetched = new Set<string>();
   // Previous status, for edge detection in _trackGraph.
   private _prevStatus?: SaunaStatus;
-  // Event-subscription teardown handles.
+  // Event-subscription teardown handles, and a synchronous in-flight guard so
+  // back-to-back updates can't fire a second subscribe before the first resolves.
   private _unsubStart?: HassUnsubscribe;
   private _unsubEnd?: HassUnsubscribe;
+  private _subscribing = false;
 
   static getStubConfig(): Record<string, unknown> {
     return {};
@@ -316,26 +318,34 @@ export class SaunaCard extends LitElement {
   // the cooldown baseline; phase transitions are still derived from status so
   // the graph works even if an event is missed.
   private _ensureSubscribed(): void {
-    if (this._unsubStart || !this.hass?.connection) return;
+    if (this._unsubStart || this._subscribing || !this.hass?.connection) return;
     const conn = this.hass.connection;
-    conn
-      .subscribeEvents<{ data?: Record<string, unknown> }>(
+    this._subscribing = true;
+    Promise.all([
+      conn.subscribeEvents<{ data?: Record<string, unknown> }>(
         () => this._onSessionStart(),
         "harvia_sauna_session_start",
-      )
-      .then((unsub) => {
-        this._unsubStart = unsub;
-      })
-      .catch(() => undefined);
-    conn
-      .subscribeEvents<{ data?: Record<string, unknown> }>(
+      ),
+      conn.subscribeEvents<{ data?: Record<string, unknown> }>(
         () => this._onSessionEnd(),
         "harvia_sauna_session_end",
-      )
-      .then((unsub) => {
-        this._unsubEnd = unsub;
+      ),
+    ])
+      .then(([unsubStart, unsubEnd]) => {
+        // Detached while the subscribe was in flight → tear down at once rather
+        // than leak a live subscription on an unmounted element.
+        if (!this.isConnected) {
+          unsubStart().catch(() => undefined);
+          unsubEnd().catch(() => undefined);
+          return;
+        }
+        this._unsubStart = unsubStart;
+        this._unsubEnd = unsubEnd;
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        this._subscribing = false;
+      });
   }
 
   private _onSessionStart(): void {
@@ -389,8 +399,12 @@ export class SaunaCard extends LitElement {
 
     // Capture the pre-heat (≈ room) temperature at the moment heating begins —
     // the cooldown baseline. The session-start event refines this when it fires.
+    // Requires an *observed* off/idle → heating transition: `prev === undefined`
+    // means the card just mounted mid-session, where the current temperature is
+    // already hot and would be a wrong baseline, so we don't seed it.
     if (
       status === "heating" &&
+      prev !== undefined &&
       prev !== "heating" &&
       prev !== "ready" &&
       s?.currentTemp !== undefined
@@ -399,16 +413,20 @@ export class SaunaCard extends LitElement {
       this._sessionStartAt = now;
     }
 
-    // Open a cooldown window when a running sauna is switched off.
+    // Open a cooldown window when a running sauna is switched off — but only when
+    // we actually observed the session start, so the baseline is the true
+    // pre-heat temperature. Without it (mounted mid-session) we can't know how
+    // far the sauna has to cool, so we show no cooldown rather than a wrong one.
     if (
       (prev === "heating" || prev === "ready") &&
-      (status === "off" || status === "idle")
+      (status === "off" || status === "idle") &&
+      this._sessionStartTemp !== undefined
     ) {
-      const baseline = this._sessionStartTemp ?? s?.currentTemp;
-      if (baseline !== undefined) {
-        this._cooldownAnchor = { startedAt: now, baselineTemp: baseline };
-        this._cooldownSamples = [];
-      }
+      this._cooldownAnchor = {
+        startedAt: now,
+        baselineTemp: this._sessionStartTemp,
+      };
+      this._cooldownSamples = [];
     }
 
     // Close an expired cooldown window. A momentary unavailability (!s) only
@@ -458,7 +476,11 @@ export class SaunaCard extends LitElement {
     s: SaunaState,
     phase: "heatup" | "cooldown",
   ): string | null {
-    if (phase === "heatup") return `heatup|${s.deviceId}|${s.targetTemp ?? ""}`;
+    if (phase === "heatup") {
+      // Include the session start so a later same-target session is a distinct
+      // window and gets its own recorder backfill (the cache never shrinks).
+      return `heatup|${s.deviceId}|${s.targetTemp ?? ""}|${this._sessionStartAt ?? ""}`;
+    }
     if (this._cooldownAnchor) {
       return `cooldown|${s.deviceId}|${this._cooldownAnchor.startedAt}`;
     }
