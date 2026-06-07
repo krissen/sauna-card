@@ -83,6 +83,9 @@ export interface SaunaCardConfig {
    * set it is the cooldown baseline (more reliable than the captured session
    * start) and enables showing a cooldown after a page reload. */
   cooldown_target_temp?: number;
+  /** Extend the cooldown curve back over the heatup so it shows the whole session
+   * arc — a two-tone curve (orange rising, blue falling). Default off. */
+  cooldown_include_heatup?: boolean;
 }
 
 /** Badge content selection: the headline, one chosen value, or several. */

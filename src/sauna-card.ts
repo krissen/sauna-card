@@ -1,9 +1,11 @@
 import {
   LitElement,
   html,
+  svg,
   css,
   nothing,
   type TemplateResult,
+  type SVGTemplateResult,
   type PropertyValues,
 } from "lit";
 import { property, state } from "lit/decorators.js";
@@ -25,7 +27,7 @@ import {
   type TempSample,
   type CooldownAnchor,
 } from "./graph-phase";
-import { fetchHistory, fetchLastOffTime } from "./utils/history";
+import { fetchHistory, fetchLastSession } from "./utils/history";
 import { pickIntegration } from "./adapter-registry";
 import {
   STATUS_ICON,
@@ -198,7 +200,11 @@ export class SaunaCard extends LitElement {
         `sauna-card: invalid controls "${String(config.controls)}"`,
       );
     }
-    for (const key of ["show_heatup_graph", "show_cooldown_graph"]) {
+    for (const key of [
+      "show_heatup_graph",
+      "show_cooldown_graph",
+      "cooldown_include_heatup",
+    ]) {
       if (config[key] !== undefined && typeof config[key] !== "boolean") {
         throw new Error(`sauna-card: "${key}" must be a boolean`);
       }
@@ -462,9 +468,9 @@ export class SaunaCard extends LitElement {
     this._cooldownReconstructAttempted = true;
 
     const since = new Date(now - COOLDOWN_MAX_MS);
-    fetchLastOffTime(this.hass, switchId, since, new Date(now))
-      .then((offTime) => {
-        if (offTime === null) return;
+    fetchLastSession(this.hass, switchId, since, new Date(now))
+      .then((session) => {
+        if (session === null) return;
         // Re-validate against the latest state — nothing flipped under us.
         const cur = this._state();
         if (
@@ -476,14 +482,23 @@ export class SaunaCard extends LitElement {
         ) {
           return;
         }
-        this._cooldownAnchor = { startedAt: offTime, baselineTemp: target };
+        // Anchor at the shutoff (24h cap counts from there); with include-heatup
+        // the curve extends back to the session's power-on.
+        this._cooldownAnchor = {
+          startedAt: session.offTime,
+          baselineTemp: target,
+        };
         this._cooldownSamples = [];
         // Mark this window fetched so _maybeFetchHistory won't fetch it again.
         const key = this._phaseKey(cur, "cooldown");
         if (key) this._historyFetched.add(key);
-        // Backfill the falling curve from the recorder, then render.
+        // Backfill the curve from the recorder, then render.
+        const fetchFrom =
+          this._config.cooldown_include_heatup === true
+            ? session.onTime
+            : session.offTime;
         if (tempId && this.hass?.callWS) {
-          fetchHistory(this.hass, tempId, new Date(offTime), new Date(now))
+          fetchHistory(this.hass, tempId, new Date(fetchFrom), new Date(now))
             .then((remote) => {
               if (remote.length) {
                 this._cooldownSamples = mergeHistory(
@@ -535,10 +550,16 @@ export class SaunaCard extends LitElement {
     if (!key || this._historyFetched.has(key)) return;
     this._historyFetched.add(key);
 
+    // Cooldown normally backfills from the shutoff; with include-heatup it
+    // extends back to the session's power-on so the curve shows the full arc.
+    const cooldownStart =
+      this._config.cooldown_include_heatup === true
+        ? (this._sessionStartAt ?? this._cooldownAnchor?.startedAt ?? now)
+        : (this._cooldownAnchor?.startedAt ?? now);
     const startMs =
       phase === "heatup"
         ? (this._sessionStartAt ?? now - HEATUP_WINDOW_MS)
-        : (this._cooldownAnchor?.startedAt ?? now);
+        : cooldownStart;
 
     fetchHistory(this.hass, entityId, new Date(startMs), new Date(now))
       .then((remote) => {
@@ -954,15 +975,64 @@ export class SaunaCard extends LitElement {
     const x = (t: number): number => PAD.l + ((t - tMin) / dt) * iW;
     const y = (temp: number): number => PAD.t + (1 - (temp - yMin) / dy) * iH;
 
-    const pts = samples
-      .map((p) => `${x(p.t).toFixed(1)},${y(p.temp).toFixed(1)}`)
-      .join(" ");
     const baseY = (H - PAD.b).toFixed(1);
-    const area = `${PAD.l},${baseY} ${pts} ${PAD.l + iW},${baseY}`;
+    const ptsOf = (arr: TempSample[]): string =>
+      arr.map((p) => `${x(p.t).toFixed(1)},${y(p.temp).toFixed(1)}`).join(" ");
+    const areaOf = (arr: TempSample[]): string =>
+      `${x(arr[0].t).toFixed(1)},${baseY} ${ptsOf(arr)} ` +
+      `${x(arr[arr.length - 1].t).toFixed(1)},${baseY}`;
     const refY = y(ref).toFixed(1);
     const last = samples[samples.length - 1];
     const cur = s.currentTemp ?? last.temp;
     const cd = phase === "cooldown" ? "cooldown" : "";
+
+    // Two-tone "session" arc: when the cooldown includes the heatup, split the
+    // curve at its peak — the rising part in the heat colour, the falling part in
+    // the cooldown colour.
+    let peakIdx = 0;
+    for (let i = 1; i < samples.length; i++) {
+      if (samples[i].temp > samples[peakIdx].temp) peakIdx = i;
+    }
+    const twoTone =
+      phase === "cooldown" &&
+      this._config.cooldown_include_heatup === true &&
+      peakIdx > 0 &&
+      peakIdx < samples.length - 1;
+
+    const dot = svg`<circle
+      class="graph-dot ${cd}"
+      cx=${x(last.t).toFixed(1)}
+      cy=${y(last.temp).toFixed(1)}
+      r="2.5"
+      vector-effect="non-scaling-stroke"
+    ></circle>`;
+    const refLine = svg`<line
+      class="graph-ref ${cd}"
+      x1=${PAD.l}
+      y1=${refY}
+      x2=${PAD.l + iW}
+      y2=${refY}
+      vector-effect="non-scaling-stroke"
+    ></line>`;
+
+    let body: SVGTemplateResult;
+    if (twoTone) {
+      const rising = samples.slice(0, peakIdx + 1);
+      const falling = samples.slice(peakIdx);
+      body = svg`
+        <polygon class="graph-area" points=${areaOf(rising)}></polygon>
+        <polygon class="graph-area cooldown" points=${areaOf(falling)}></polygon>
+        ${refLine}
+        <polyline class="graph-line" points=${ptsOf(rising)} vector-effect="non-scaling-stroke"></polyline>
+        <polyline class="graph-line cooldown" points=${ptsOf(falling)} vector-effect="non-scaling-stroke"></polyline>
+        ${dot}`;
+    } else {
+      body = svg`
+        <polygon class="graph-area ${cd}" points=${areaOf(samples)}></polygon>
+        ${refLine}
+        <polyline class="graph-line ${cd}" points=${ptsOf(samples)} vector-effect="non-scaling-stroke"></polyline>
+        ${dot}`;
+    }
 
     const aria =
       phase === "heatup"
@@ -974,35 +1044,17 @@ export class SaunaCard extends LitElement {
             cur: Math.round(cur),
             base: Math.round(ref),
           });
+    const captionKey = twoTone
+      ? "graph.session"
+      : phase === "heatup"
+        ? "graph.heatup"
+        : "graph.cooldown";
 
     return html`<figure class="graph ${cd}" role="img" aria-label=${aria}>
       <figcaption>
-        ${this._t(phase === "heatup" ? "graph.heatup" : "graph.cooldown")} ·
-        ${this._temp(cur)} → ${this._temp(ref)}
+        ${this._t(captionKey)} · ${this._temp(cur)} → ${this._temp(ref)}
       </figcaption>
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-        <polygon class="graph-area ${cd}" points=${area}></polygon>
-        <line
-          class="graph-ref ${cd}"
-          x1=${PAD.l}
-          y1=${refY}
-          x2=${PAD.l + iW}
-          y2=${refY}
-          vector-effect="non-scaling-stroke"
-        ></line>
-        <polyline
-          class="graph-line ${cd}"
-          points=${pts}
-          vector-effect="non-scaling-stroke"
-        ></polyline>
-        <circle
-          class="graph-dot ${cd}"
-          cx=${x(last.t).toFixed(1)}
-          cy=${y(last.temp).toFixed(1)}
-          r="2.5"
-          vector-effect="non-scaling-stroke"
-        ></circle>
-      </svg>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${body}</svg>
     </figure>`;
   }
 
