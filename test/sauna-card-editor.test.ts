@@ -24,6 +24,20 @@ describe("sauna-card-editor", () => {
     expect(editor._config).toEqual(cfg);
   });
 
+  it("exposes both graph toggles as boolean form fields", () => {
+    const editor = new SaunaCardEditor();
+    editor.setConfig({ type: "custom:sauna-card" });
+    const schema = (
+      editor as unknown as {
+        _schema(): Array<{ name: string; selector: Record<string, unknown> }>;
+      }
+    )._schema();
+    const heatup = schema.find((f) => f.name === "show_heatup_graph");
+    const cooldown = schema.find((f) => f.name === "show_cooldown_graph");
+    expect(heatup?.selector).toHaveProperty("boolean");
+    expect(cooldown?.selector).toHaveProperty("boolean");
+  });
+
   it("merges ha-form changes over the config, preserving non-schema keys", () => {
     const editor = new SaunaCardEditor();
     // integration is not in the form schema and must survive an edit.

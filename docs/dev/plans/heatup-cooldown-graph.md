@@ -1,8 +1,15 @@
 # Design: Heatup / cooldown temperature graph
 
-> **Status: roadmap / future design — not committed, not scheduled.** This is a
-> wishlist item with a plan, captured so the idea isn't lost. No product code
-> exists for it yet. Referenced from [`../ROADMAP.md`](../ROADMAP.md) (Phase 2+).
+> **Status: implemented** on `feature/heatup-cooldown-graph` (increments I-G1–I-G6).
+> Shipped as Option A (conditional region-swap) with both Stage A (live samples)
+> and Stage B (recorder backfill). The two curves are independently toggleable
+> (`show_heatup_graph` / `show_cooldown_graph`, both default on). This document is
+> kept as the design record; the sections below describe the design as built.
+> Referenced from [`../ROADMAP.md`](../ROADMAP.md).
+>
+> Known v1 limitation: the cooldown window is held in memory, so a page reload
+> mid-cooldown does not restore it (heatup does restore from the recorder). The
+> live cooldown curve and its recorder backfill within a session work fully.
 
 ## 1. Goal & scope
 

@@ -115,10 +115,11 @@ releases/version bumps, new npm dependencies.
 - More languages on demand.
 - More badge and theme variants; UX polish.
 - Documentation screenshots (reuse the screenshot workflow from pollenprognos-card).
-- **Heatup/cooldown graph.** A temperature-over-time curve that takes over the
+- [x] **Heatup/cooldown graph.** A temperature-over-time curve that takes over the
   "main region" in `status-dashboard`/`thermostat-hero` **only in the in-between
   state** — a rising curve while `status === "heating"`, a falling curve during a
-  derived cooldown phase after shutdown. Live `_tempSamples` for the heatup
-  session, the HA recorder/history API as the target for the full curve plus
-  cooldown over hours/a day. Design and stages:
-  [`plans/heatup-cooldown-graph.md`](plans/heatup-cooldown-graph.md).
+  derived cooldown phase after shutdown. **Shipped** (branch
+  `feature/heatup-cooldown-graph`, increments I-G1–I-G6) as Option A region-swap
+  with Stage A live samples + Stage B recorder backfill, and two independent
+  toggles (`show_heatup_graph` / `show_cooldown_graph`, both default on). Design
+  record: [`plans/heatup-cooldown-graph.md`](plans/heatup-cooldown-graph.md).

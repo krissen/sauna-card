@@ -24,6 +24,12 @@ export interface HassDevice {
   manufacturer?: string | null;
 }
 
+/** A websocket command message; `type` plus arbitrary command-specific fields. */
+export interface HassWsMessage {
+  type: string;
+  [key: string]: unknown;
+}
+
 export interface Hass {
   states: Record<string, HassEntityState>;
   entities?: Record<string, HassRegistryEntry>;
@@ -35,6 +41,8 @@ export interface Hass {
     service: string,
     data?: Record<string, unknown>,
   ) => Promise<unknown>;
+  /** One-shot websocket command (e.g. recorder history). Present on real hass. */
+  callWS?: <T>(msg: HassWsMessage) => Promise<T>;
 }
 
 /** Logical, model-agnostic sauna status. */
@@ -67,6 +75,10 @@ export interface SaunaCardConfig {
   compact_slots?: { left?: string; mid?: string; right?: string };
   /** Interactive controls shown across layouts (default "power+temp"). */
   controls?: ControlsMode;
+  /** Show the rising temperature curve while heating (default on). */
+  show_heatup_graph?: boolean;
+  /** Show the falling temperature curve while cooling down (default on). */
+  show_cooldown_graph?: boolean;
 }
 
 /** Badge content selection: the headline, one chosen value, or several. */
