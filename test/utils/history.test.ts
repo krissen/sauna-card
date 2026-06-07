@@ -36,7 +36,12 @@ describe("fetchHistory", () => {
       ],
     });
     const hass = { states: {}, callWS } as unknown as Hass;
-    const out = await fetchHistory(hass, "sensor.t", new Date(0), new Date(1));
+    const out = await fetchHistory(
+      hass,
+      "sensor.t",
+      new Date(0),
+      new Date(5_000_000),
+    );
     expect(out).toEqual([
       { t: 1_000_000, temp: 40.5 },
       { t: 1_180_000, temp: 55 },
@@ -52,8 +57,31 @@ describe("fetchHistory", () => {
       ],
     });
     const hass = { states: {}, callWS } as unknown as Hass;
-    const out = await fetchHistory(hass, "sensor.t", new Date(0), new Date(1));
+    const out = await fetchHistory(
+      hass,
+      "sensor.t",
+      new Date(0),
+      new Date(5_000_000),
+    );
     expect(out).toEqual([{ t: 1_200_000, temp: 60 }]);
+  });
+
+  it("clamps a pre-window start-state row to start and drops post-end rows", async () => {
+    const start = new Date(1_000_000);
+    const end = new Date(2_000_000);
+    const callWS = vi.fn().mockResolvedValue({
+      "sensor.t": [
+        { s: "20", lu: 100 }, // 100_000 ms — well before start → clamp to start
+        { s: "50", lu: 1500 }, // 1_500_000 ms — inside the window
+        { s: "99", lu: 3000 }, // 3_000_000 ms — after end → dropped
+      ],
+    });
+    const hass = { states: {}, callWS } as unknown as Hass;
+    const out = await fetchHistory(hass, "sensor.t", start, end);
+    expect(out).toEqual([
+      { t: 1_000_000, temp: 20 },
+      { t: 1_500_000, temp: 50 },
+    ]);
   });
 
   it("returns [] when the entity is absent from the response", async () => {

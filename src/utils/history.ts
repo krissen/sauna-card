@@ -51,13 +51,23 @@ export async function fetchHistory(
   }
 
   const rows = res?.[entityId] ?? [];
+  const startMs = start.getTime();
+  const endMs = end.getTime();
   const out: TempSample[] = [];
   for (const r of rows) {
     const temp = Number.parseFloat(r.s);
     if (!Number.isFinite(temp)) continue; // skips unavailable / unknown
     const secs = r.lc ?? r.lu;
     if (!Number.isFinite(secs)) continue;
-    out.push({ t: Math.round(secs * 1000), temp });
+    let t = Math.round(secs * 1000);
+    // With include_start_time_state, HA returns the value already active at
+    // start_time stamped with its original (possibly much older) timestamp.
+    // Clamp it to the window start so it anchors the curve there instead of
+    // becoming a far-left tMin that compresses the real curve; drop anything
+    // past the requested end.
+    if (t > endMs) continue;
+    if (t < startMs) t = startMs;
+    out.push({ t, temp });
   }
   return out;
 }
