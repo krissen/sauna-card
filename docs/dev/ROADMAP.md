@@ -93,8 +93,11 @@ releases/version bumps, new npm dependencies.
   on the Node 24 runtime). All passed the dual-bot loop and were live-verified in
   `hass-test` (Xenio device).
 - **Next:** gather feedback, then HACS default-repo submission.
-- **Deferred:** Fenix live verification (only a Xenio in `hass-test`); perf —
-  cache entity-id resolution in `_state()`; dev-toolchain advisories (own PR).
+- **Deferred:** Fenix live verification (only a Xenio in `hass-test`);
+  dev-toolchain advisories (own PR). **Done:** perf — entity-id resolution and
+  device detection are cached per entity-registry change (WeakMap on
+  `hass.entities`) in `src/utils/autodetect.ts`, branch
+  `perf/cache-entity-resolution`.
 - **Release note:** a plain stable `0.1.0` (not a `-beta` prerelease) — the HACS
   validator ignores prereleases and our `dist/` is gitignored, so a prerelease
   had no resolvable asset.

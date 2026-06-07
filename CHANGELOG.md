@@ -27,6 +27,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Time axis** under the graph — start / middle / end clock times — so a
   multi-hour cooldown is easy to read.
 
+### Changed
+- **Faster rendering on large installs.** Device detection and entity-id
+  resolution are now scanned once per entity-registry change instead of on every
+  render, so dashboards with many entities update with noticeably less work each
+  state tick. No behaviour change — device renames still show immediately.
+
 ## [0.1.1] - 2026-06-06
 
 ### Added
