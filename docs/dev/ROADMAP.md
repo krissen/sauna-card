@@ -99,7 +99,7 @@ releases/version bumps, new npm dependencies.
   validator ignores prereleases and our `dist/` is gitignored, so a prerelease
   had no resolvable asset.
 
-## Phase 2+ — Growth (`0.2.x+`)
+## Next release (`0.1.x`)
 
 - **Tap sensor displays → more-info.** Sensor/value readouts on the card become
   clickable and open the standard HA more-info dialog for the underlying entity
@@ -108,6 +108,9 @@ releases/version bumps, new npm dependencies.
   carry their own interaction** (power toggle, temperature control, and other
   controls) keep that behaviour unchanged; only the read-only displays gain the
   more-info tap.
+
+## Phase 2+ — Growth (`0.2.x+`)
+
 - More sauna models / integrations (same adapter pattern).
 - More languages on demand.
 - More badge and theme variants; UX polish.
