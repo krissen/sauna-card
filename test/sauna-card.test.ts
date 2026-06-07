@@ -67,6 +67,23 @@ describe("sauna-card", () => {
     ).not.toThrow();
   });
 
+  it("accepts boolean graph flags and rejects non-booleans", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({
+        type: "custom:sauna-card",
+        show_heatup_graph: false,
+        show_cooldown_graph: true,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", show_heatup_graph: "yes" }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", show_cooldown_graph: 1 }),
+    ).toThrow();
+  });
+
   it("accepts tile lists and rejects non-array tile config", () => {
     const card = new SaunaCard();
     expect(() =>
