@@ -72,20 +72,29 @@ export async function fetchHistory(
   return out;
 }
 
+/** The most recent completed on-period (power on → off) of a switch. */
+export interface SwitchSession {
+  /** When the switch turned on (epoch ms; clamped to the window start). */
+  onTime: number;
+  /** When it turned off — the cooldown shutoff (epoch ms). */
+  offTime: number;
+}
+
 /**
- * The epoch-ms time of the most recent on→off transition for a switch over
- * [start, end], or null when the switch had no such transition in the window
- * (never on, still on, or history unavailable). Used to reconstruct a cooldown
- * window after a page reload: when the sauna is off but still warm, this tells
- * us whether — and when — it was last switched off, so the cooldown can be shown
- * and anchored even though the in-memory anchor didn't survive the reload.
+ * The most recent completed on→off session of a switch over [start, end], or
+ * null when there is none (never on, still on at the end, or history
+ * unavailable). Used to reconstruct a cooldown window after a page reload: when
+ * the sauna is off but still warm, this tells us whether — and when — it ran, so
+ * the cooldown can be shown and anchored even though the in-memory anchor didn't
+ * survive the reload. `onTime` additionally lets the curve extend back over the
+ * heatup (the include-heatup option).
  */
-export async function fetchLastOffTime(
+export async function fetchLastSession(
   hass: Hass,
   entityId: string,
   start: Date,
   end: Date,
-): Promise<number | null> {
+): Promise<SwitchSession | null> {
   if (!hass.callWS) return null;
   let res: Record<string, HistoryRow[]>;
   try {
@@ -105,22 +114,29 @@ export async function fetchLastOffTime(
 
   const rows = res?.[entityId] ?? [];
   const startMs = start.getTime();
+  const tOf = (r: HistoryRow): number | null => {
+    const secs = r.lc ?? r.lu;
+    return Number.isFinite(secs)
+      ? Math.max(startMs, Math.round(secs * 1000))
+      : null;
+  };
   let prevOn = false;
-  let lastOff: number | null = null;
+  let onAt: number | null = null;
+  let last: SwitchSession | null = null;
   for (const r of rows) {
     if (r.s === "on") {
+      // The start of an on-period (a real off→on edge or a start-state "on").
+      if (!prevOn) onAt = tOf(r) ?? startMs;
       prevOn = true;
     } else if (r.s === "off") {
-      if (prevOn) {
-        const secs = r.lc ?? r.lu;
-        if (Number.isFinite(secs)) {
-          lastOff = Math.max(startMs, Math.round(secs * 1000));
-        }
+      if (prevOn && onAt !== null) {
+        const offTime = tOf(r);
+        if (offTime !== null) last = { onTime: onAt, offTime };
       }
       prevOn = false;
     }
     // Any other state (unavailable/unknown) leaves prevOn unchanged.
   }
-  // Still on at the end of the window → no completed off transition to report.
-  return prevOn ? null : lastOff;
+  // Still on at the end of the window → no completed session to report.
+  return prevOn ? null : last;
 }
