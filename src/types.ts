@@ -30,17 +30,6 @@ export interface HassWsMessage {
   [key: string]: unknown;
 }
 
-/** Returned by a subscription; call to unsubscribe. */
-export type HassUnsubscribe = () => Promise<void>;
-
-/** The slice of `hass.connection` the card uses (event subscriptions). */
-export interface HassConnection {
-  subscribeEvents<EventType>(
-    callback: (ev: EventType) => void,
-    eventType?: string,
-  ): Promise<HassUnsubscribe>;
-}
-
 export interface Hass {
   states: Record<string, HassEntityState>;
   entities?: Record<string, HassRegistryEntry>;
@@ -54,8 +43,6 @@ export interface Hass {
   ) => Promise<unknown>;
   /** One-shot websocket command (e.g. recorder history). Present on real hass. */
   callWS?: <T>(msg: HassWsMessage) => Promise<T>;
-  /** Live connection, for event subscriptions. Present on real hass. */
-  connection?: HassConnection;
 }
 
 /** Logical, model-agnostic sauna status. */
