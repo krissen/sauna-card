@@ -154,6 +154,94 @@ describe("sauna-card", () => {
     expect(card.render()).toBeTruthy();
   });
 
+  it("region-swaps to a heatup sparkline once two samples are in", async () => {
+    const entities = {
+      "switch.power": {
+        entity_id: "switch.power",
+        platform: "harvia_sauna",
+        translation_key: "power",
+        device_id: "d1",
+      },
+      "binary_sensor.heat": {
+        entity_id: "binary_sensor.heat",
+        platform: "harvia_sauna",
+        translation_key: "heat_on",
+        device_id: "d1",
+      },
+      "sensor.cur": {
+        entity_id: "sensor.cur",
+        platform: "harvia_sauna",
+        translation_key: "current_temperature",
+        device_id: "d1",
+      },
+      "sensor.tgt": {
+        entity_id: "sensor.tgt",
+        platform: "harvia_sauna",
+        translation_key: "target_temperature",
+        device_id: "d1",
+      },
+    };
+    const hassAt = (cur: number): Hass =>
+      ({
+        states: {
+          "switch.power": {
+            entity_id: "switch.power",
+            state: "on",
+            attributes: {},
+          },
+          "binary_sensor.heat": {
+            entity_id: "binary_sensor.heat",
+            state: "on",
+            attributes: {},
+          },
+          "sensor.cur": {
+            entity_id: "sensor.cur",
+            state: String(cur),
+            attributes: {},
+          },
+          "sensor.tgt": {
+            entity_id: "sensor.tgt",
+            state: "90",
+            attributes: {},
+          },
+        },
+        entities,
+        devices: { d1: { id: "d1", name: "Bastu" } },
+      }) as unknown as Hass;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      card.hass = hassAt(60);
+      await card.updateComplete;
+      // One sample so far → still the normal hero block, no graph yet.
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+      expect(card.shadowRoot?.querySelector(".hero")).toBeTruthy();
+
+      vi.advanceTimersByTime(60_000);
+      card.hass = hassAt(66);
+      await card.updateComplete;
+      // Two samples → the sparkline takes over the hero region.
+      expect(card.shadowRoot?.querySelector(".graph")).toBeTruthy();
+      expect(card.shadowRoot?.querySelector(".graph polyline")).toBeTruthy();
+      expect(card.shadowRoot?.querySelector(".hero")).toBeFalsy();
+
+      // Opting out hides it again.
+      card.setConfig({ type: "custom:sauna-card", show_heatup_graph: false });
+      card.hass = hassAt(67);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders nothing without hass and a card when no device is found", () => {
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card" });
