@@ -137,8 +137,8 @@ export class SaunaCard extends LitElement {
   // Temperature the current/last session started from (≈ room temp), captured at
   // the off/idle → heating transition and reused as the cooldown baseline.
   private _sessionStartTemp?: number;
-  // When the current session's heating began (epoch ms) — the start of the
-  // recorder window used to backfill the heatup curve (Stage B).
+  // When the current session powered on (epoch ms) — the start of the recorder
+  // window used to backfill the heatup curve (Stage B).
   private _sessionStartAt?: number;
   // Phase keys whose history has already been fetched, so Stage B runs once per
   // window instead of on every update.
@@ -333,16 +333,15 @@ export class SaunaCard extends LitElement {
     const status = s?.status;
     const prev = this._prevStatus;
 
-    // Capture the pre-heat (≈ room) temperature at the moment heating begins —
-    // the cooldown baseline. Requires an *observed* transition into heating:
-    // `prev === undefined`
-    // means the card just mounted mid-session, where the current temperature is
-    // already hot and would be a wrong baseline, so we don't seed it.
+    // Capture the pre-heat (≈ room) temperature once, at the true session start —
+    // the off → powered transition. Keying on `prev === "off"` means mid-session
+    // thermostat cycling (ready → idle → heating, as the relay clicks back on)
+    // never overwrites the baseline with a hot value, and a fresh mount
+    // mid-session (`prev === undefined`) doesn't seed a wrong (hot) baseline.
+    // Each new session re-seeds at its own power-on.
     if (
-      status === "heating" &&
-      prev !== undefined &&
-      prev !== "heating" &&
-      prev !== "ready" &&
+      prev === "off" &&
+      (status === "heating" || status === "ready" || status === "idle") &&
       s?.currentTemp !== undefined
     ) {
       this._sessionStartTemp = s.currentTemp;
