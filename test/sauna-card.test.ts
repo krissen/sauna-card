@@ -473,6 +473,41 @@ describe("sauna-card", () => {
     document.body.removeChild(card);
   });
 
+  it("closes the cooldown when a new session starts", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      // Run a session and switch off, then build a cooldown curve.
+      card.hass = graphHass("off", "off", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 40);
+      await card.updateComplete;
+      card.hass = graphHass("off", "off", 70);
+      await card.updateComplete;
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = graphHass("off", "off", 65);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+
+      // Power back on and reach target (status "ready", still above the old
+      // baseline): the cooldown must not keep rendering during the new session.
+      card.hass = graphHass("on", "off", 88);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeFalsy();
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("fetches recorder history per session, not once per same target", async () => {
     const callWS = vi.fn().mockResolvedValue({
       "sensor.cur": [

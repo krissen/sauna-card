@@ -22,10 +22,18 @@ describe("graphPhase", () => {
     expect(graphPhase("off", 40, 90, undefined)).toBeNull();
   });
 
-  it("is cooldown when an anchor is open and still above baseline", () => {
+  it("is cooldown when off with an anchor open and still above baseline", () => {
     const anchor: CooldownAnchor = { startedAt: 0, baselineTemp: 25 };
     expect(graphPhase("off", 70, undefined, anchor)).toBe("cooldown");
-    expect(graphPhase("idle", 70, undefined, anchor)).toBe("cooldown");
+  });
+
+  it("hides cooldown once the sauna is powered back on", () => {
+    // A lingering anchor must not show a cooldown during an active session —
+    // heating/ready/idle are powered states, not cooling.
+    const anchor: CooldownAnchor = { startedAt: 0, baselineTemp: 25 };
+    expect(graphPhase("idle", 70, 90, anchor)).toBeNull();
+    expect(graphPhase("ready", 92, 90, anchor)).toBeNull();
+    expect(graphPhase("heating", 92, 90, anchor)).toBeNull();
   });
 
   it("is null once cooled back to baseline (anchor still set)", () => {
