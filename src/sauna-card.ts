@@ -349,13 +349,14 @@ export class SaunaCard extends LitElement {
       this._sessionStartAt = now;
     }
 
-    // Open a cooldown window when a running sauna is switched off (power off →
-    // "off"; "idle" stays powered, so it is not a shutdown) — but only when we
-    // actually observed the session start, so the baseline is the true pre-heat
-    // temperature. Without it (mounted mid-session) we can't know how far the
-    // sauna has to cool, so we show no cooldown rather than a wrong one.
+    // Open a cooldown window when a running sauna is switched off. The previous
+    // state can be any powered one — heating, ready, or idle (a thermostat
+    // off-cycle between heats is still a running session) — transitioning to
+    // "off" (power off). We require a captured _sessionStartTemp, so this only
+    // fires after a real heating session (the true pre-heat baseline) and never
+    // on a mid-session mount, where we can't know how far the sauna has to cool.
     if (
-      (prev === "heating" || prev === "ready") &&
+      (prev === "heating" || prev === "ready" || prev === "idle") &&
       status === "off" &&
       this._sessionStartTemp !== undefined
     ) {
