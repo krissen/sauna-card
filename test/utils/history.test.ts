@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fetchHistory, fetchLastOffTime } from "../../src/utils/history";
+import { fetchHistory, fetchLastSession } from "../../src/utils/history";
 import type { Hass } from "../../src/types";
 
 describe("fetchHistory", () => {
@@ -101,42 +101,44 @@ describe("fetchHistory", () => {
   });
 });
 
-describe("fetchLastOffTime", () => {
+describe("fetchLastSession", () => {
   const start = new Date(1_000_000);
   const end = new Date(10_000_000);
 
   it("returns null without callWS", async () => {
     const hass = { states: {} } as unknown as Hass;
-    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
+    expect(await fetchLastSession(hass, "switch.p", start, end)).toBeNull();
   });
 
-  it("returns the time of the last on→off transition (ms)", async () => {
+  it("returns the on and off times of the last session (ms)", async () => {
     const callWS = vi.fn().mockResolvedValue({
       "switch.p": [
         { s: "off", lu: 1000 },
-        { s: "on", lu: 2000 },
-        { s: "off", lu: 4000 }, // 4_000_000 ms — the on→off edge
+        { s: "on", lu: 2000 }, // session start
+        { s: "off", lu: 4000 }, // shutoff
       ],
     });
     const hass = { states: {}, callWS } as unknown as Hass;
-    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBe(
-      4_000_000,
-    );
+    expect(await fetchLastSession(hass, "switch.p", start, end)).toEqual({
+      onTime: 2_000_000,
+      offTime: 4_000_000,
+    });
   });
 
-  it("returns the most recent edge when there are several", async () => {
+  it("returns the most recent completed session when there are several", async () => {
     const callWS = vi.fn().mockResolvedValue({
       "switch.p": [
         { s: "on", lu: 1500 },
         { s: "off", lu: 2000 },
-        { s: "on", lu: 5000 },
-        { s: "off", lu: 6000 }, // last edge → 6_000_000 ms
+        { s: "on", lu: 5000 }, // last session start
+        { s: "off", lu: 6000 }, // last shutoff
       ],
     });
     const hass = { states: {}, callWS } as unknown as Hass;
-    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBe(
-      6_000_000,
-    );
+    expect(await fetchLastSession(hass, "switch.p", start, end)).toEqual({
+      onTime: 5_000_000,
+      offTime: 6_000_000,
+    });
   });
 
   it("returns null when the switch was never on in the window", async () => {
@@ -144,7 +146,7 @@ describe("fetchLastOffTime", () => {
       "switch.p": [{ s: "off", lu: 2000 }],
     });
     const hass = { states: {}, callWS } as unknown as Hass;
-    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
+    expect(await fetchLastSession(hass, "switch.p", start, end)).toBeNull();
   });
 
   it("returns null when the switch is still on at the end", async () => {
@@ -155,12 +157,12 @@ describe("fetchLastOffTime", () => {
       ],
     });
     const hass = { states: {}, callWS } as unknown as Hass;
-    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
+    expect(await fetchLastSession(hass, "switch.p", start, end)).toBeNull();
   });
 
   it("returns null when the switch is on again at the end (still running)", async () => {
     // [on, off, on] — an earlier off then on again means it's running, not in a
-    // completed cooldown, so there's no off-time to anchor.
+    // completed cooldown, so there's no completed session to anchor.
     const callWS = vi.fn().mockResolvedValue({
       "switch.p": [
         { s: "on", lu: 1500 },
@@ -169,27 +171,28 @@ describe("fetchLastOffTime", () => {
       ],
     });
     const hass = { states: {}, callWS } as unknown as Hass;
-    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
+    expect(await fetchLastSession(hass, "switch.p", start, end)).toBeNull();
   });
 
-  it("treats a start-state 'on' row as the prior on for an edge", async () => {
+  it("treats a start-state 'on' row as the session start", async () => {
     // include_start_time_state can inject the value active at start (here "on")
-    // stamped at the window start; a following "off" is a real on→off edge.
+    // stamped at the window start; a following "off" completes the session.
     const callWS = vi.fn().mockResolvedValue({
       "switch.p": [
         { s: "on", lu: 1000 }, // start-state: already on at window start
-        { s: "off", lu: 3000 }, // → edge at 3_000_000 ms
+        { s: "off", lu: 3000 }, // shutoff
       ],
     });
     const hass = { states: {}, callWS } as unknown as Hass;
-    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBe(
-      3_000_000,
-    );
+    expect(await fetchLastSession(hass, "switch.p", start, end)).toEqual({
+      onTime: 1_000_000,
+      offTime: 3_000_000,
+    });
   });
 
   it("returns null on a websocket failure", async () => {
     const callWS = vi.fn().mockRejectedValue(new Error("boom"));
     const hass = { states: {}, callWS } as unknown as Hass;
-    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
+    expect(await fetchLastSession(hass, "switch.p", start, end)).toBeNull();
   });
 });

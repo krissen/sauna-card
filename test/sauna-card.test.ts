@@ -142,6 +142,15 @@ describe("sauna-card", () => {
     expect(() =>
       card.setConfig({ type: "custom:sauna-card", show_cooldown_graph: 1 }),
     ).toThrow();
+    expect(() =>
+      card.setConfig({
+        type: "custom:sauna-card",
+        cooldown_include_heatup: true,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", cooldown_include_heatup: 1 }),
+    ).toThrow();
   });
 
   it("accepts a numeric cooldown_target_temp and rejects non-numbers", () => {
@@ -737,6 +746,111 @@ describe("sauna-card", () => {
 
     expect(callWS).toHaveBeenCalled();
     expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+
+    document.body.removeChild(card);
+  });
+
+  it("renders a two-tone session arc with cooldown_include_heatup", async () => {
+    const T = Date.now();
+    const onAt = T - 7_200_000; // session started 2h ago
+    const offAt = T - 3_600_000; // switched off 1h ago
+    const callWS = vi.fn().mockImplementation((msg) => {
+      const id = (msg.entity_ids as string[])[0];
+      if (id === "switch.power") {
+        return Promise.resolve({
+          "switch.power": [
+            { s: "on", lu: onAt / 1000 },
+            { s: "off", lu: offAt / 1000 },
+          ],
+        });
+      }
+      if (id === "sensor.cur") {
+        // A full arc: rising to a 90° peak, then falling.
+        return Promise.resolve({
+          "sensor.cur": [
+            { s: "30", lu: (T - 7_000_000) / 1000 },
+            { s: "60", lu: (T - 5_500_000) / 1000 },
+            { s: "90", lu: (T - 3_700_000) / 1000 }, // peak
+            { s: "50", lu: (T - 1_800_000) / 1000 },
+            { s: "30", lu: (T - 600_000) / 1000 },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const card = new SaunaCard();
+    card.setConfig({
+      type: "custom:sauna-card",
+      cooldown_target_temp: 18,
+      cooldown_include_heatup: true,
+    });
+    document.body.appendChild(card);
+    card.hass = graphHass("off", "off", 24, { callWS });
+    await card.updateComplete;
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    await card.updateComplete;
+
+    const sr = card.shadowRoot;
+    // Two polylines: a rising (heat-coloured, no .cooldown) and a falling
+    // (.cooldown) segment split at the peak.
+    expect(sr?.querySelectorAll(".graph-line").length).toBe(2);
+    expect(sr?.querySelector(".graph-line.cooldown")).toBeTruthy();
+    expect(
+      Array.from(sr?.querySelectorAll(".graph-line") ?? []).some(
+        (el) => !el.classList.contains("cooldown"),
+      ),
+    ).toBe(true);
+    // A clock-time axis (start / middle / end) under the curve.
+    expect(sr?.querySelectorAll(".graph-axis span").length).toBe(3);
+
+    document.body.removeChild(card);
+  });
+
+  it("stays single-tone when the session has no rising part", async () => {
+    // include_heatup is on, but the recorder history only has the falling part
+    // (peak at the very start) → no split, just the cooldown curve.
+    const T = Date.now();
+    const callWS = vi.fn().mockImplementation((msg) => {
+      const id = (msg.entity_ids as string[])[0];
+      if (id === "switch.power") {
+        return Promise.resolve({
+          "switch.power": [
+            { s: "on", lu: (T - 7_200_000) / 1000 },
+            { s: "off", lu: (T - 3_600_000) / 1000 },
+          ],
+        });
+      }
+      if (id === "sensor.cur") {
+        return Promise.resolve({
+          "sensor.cur": [
+            { s: "90", lu: (T - 3_500_000) / 1000 }, // peak first, then falls
+            { s: "60", lu: (T - 1_800_000) / 1000 },
+            { s: "30", lu: (T - 600_000) / 1000 },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const card = new SaunaCard();
+    card.setConfig({
+      type: "custom:sauna-card",
+      cooldown_target_temp: 18,
+      cooldown_include_heatup: true,
+    });
+    document.body.appendChild(card);
+    card.hass = graphHass("off", "off", 24, { callWS });
+    await card.updateComplete;
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    await card.updateComplete;
+
+    const sr = card.shadowRoot;
+    const lines = sr?.querySelectorAll(".graph-line") ?? [];
+    expect(lines.length).toBe(1);
+    expect(lines[0].classList.contains("cooldown")).toBe(true);
 
     document.body.removeChild(card);
   });
