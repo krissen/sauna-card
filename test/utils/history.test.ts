@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fetchHistory } from "../../src/utils/history";
+import { fetchHistory, fetchLastOffTime } from "../../src/utils/history";
 import type { Hass } from "../../src/types";
 
 describe("fetchHistory", () => {
@@ -98,5 +98,69 @@ describe("fetchHistory", () => {
     expect(
       await fetchHistory(hass, "sensor.t", new Date(0), new Date(1)),
     ).toEqual([]);
+  });
+});
+
+describe("fetchLastOffTime", () => {
+  const start = new Date(1_000_000);
+  const end = new Date(10_000_000);
+
+  it("returns null without callWS", async () => {
+    const hass = { states: {} } as unknown as Hass;
+    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
+  });
+
+  it("returns the time of the last on→off transition (ms)", async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      "switch.p": [
+        { s: "off", lu: 1000 },
+        { s: "on", lu: 2000 },
+        { s: "off", lu: 4000 }, // 4_000_000 ms — the on→off edge
+      ],
+    });
+    const hass = { states: {}, callWS } as unknown as Hass;
+    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBe(
+      4_000_000,
+    );
+  });
+
+  it("returns the most recent edge when there are several", async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      "switch.p": [
+        { s: "on", lu: 1500 },
+        { s: "off", lu: 2000 },
+        { s: "on", lu: 5000 },
+        { s: "off", lu: 6000 }, // last edge → 6_000_000 ms
+      ],
+    });
+    const hass = { states: {}, callWS } as unknown as Hass;
+    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBe(
+      6_000_000,
+    );
+  });
+
+  it("returns null when the switch was never on in the window", async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      "switch.p": [{ s: "off", lu: 2000 }],
+    });
+    const hass = { states: {}, callWS } as unknown as Hass;
+    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
+  });
+
+  it("returns null when the switch is still on at the end", async () => {
+    const callWS = vi.fn().mockResolvedValue({
+      "switch.p": [
+        { s: "off", lu: 1500 },
+        { s: "on", lu: 3000 },
+      ],
+    });
+    const hass = { states: {}, callWS } as unknown as Hass;
+    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
+  });
+
+  it("returns null on a websocket failure", async () => {
+    const callWS = vi.fn().mockRejectedValue(new Error("boom"));
+    const hass = { states: {}, callWS } as unknown as Hass;
+    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
   });
 });

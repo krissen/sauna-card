@@ -25,7 +25,7 @@ import {
   type TempSample,
   type CooldownAnchor,
 } from "./graph-phase";
-import { fetchHistory } from "./utils/history";
+import { fetchHistory, fetchLastOffTime } from "./utils/history";
 import { pickIntegration } from "./adapter-registry";
 import {
   STATUS_ICON,
@@ -145,6 +145,10 @@ export class SaunaCard extends LitElement {
   private _historyFetched = new Set<string>();
   // Previous status, for edge detection in _trackGraph.
   private _prevStatus?: SaunaStatus;
+  // Whether we've already tried to reconstruct a cooldown for the current
+  // off-episode from the recorder (so we attempt it once, not every update).
+  // Reset when the sauna is powered on again.
+  private _cooldownReconstructAttempted = false;
 
   static getStubConfig(): Record<string, unknown> {
     return {};
@@ -392,6 +396,14 @@ export class SaunaCard extends LitElement {
       }
     }
 
+    // A new session (powered on) lets the next off-episode reconstruct afresh.
+    if (status === "heating" || status === "ready" || status === "idle") {
+      this._cooldownReconstructAttempted = false;
+    }
+    // No live anchor but possibly still cooling after a reload — rebuild it from
+    // the recorder (the in-memory anchor doesn't survive a reload).
+    if (s && !this._cooldownAnchor) this._maybeReconstructCooldown(s, now);
+
     const phase = s
       ? graphPhase(s.status, s.currentTemp, s.targetTemp, this._cooldownAnchor)
       : null;
@@ -426,6 +438,67 @@ export class SaunaCard extends LitElement {
     if (s && shownPhase) this._maybeFetchHistory(s, shownPhase, now);
 
     this._prevStatus = status;
+  }
+
+  /**
+   * Reconstruct a cooldown window after a page reload: when the sauna is off but
+   * still above the configured target, ask the recorder for the switch's last
+   * on→off time within 24h. If found, open an anchor at that time (baseline = the
+   * configured target) and backfill the falling curve. Runs at most once per
+   * off-episode. Requires cooldown_target_temp — without it we can't know the
+   * baseline, so reload reconstruction is opt-in via that config.
+   */
+  private _maybeReconstructCooldown(s: SaunaState, now: number): void {
+    if (this._cooldownAnchor || this._cooldownReconstructAttempted) return;
+    if (this._config.show_cooldown_graph === false) return;
+    const target = this._config.cooldown_target_temp;
+    if (target === undefined) return;
+    if (s.status !== "off") return;
+    if (s.currentTemp === undefined || s.currentTemp <= target) return;
+    if (!this.hass?.callWS) return;
+    const switchId = s.entities.power;
+    const tempId = s.entities.currentTemperature;
+    if (!switchId) return;
+    this._cooldownReconstructAttempted = true;
+
+    const since = new Date(now - COOLDOWN_MAX_MS);
+    fetchLastOffTime(this.hass, switchId, since, new Date(now))
+      .then((offTime) => {
+        if (offTime === null) return;
+        // Re-validate against the latest state — nothing flipped under us.
+        const cur = this._state();
+        if (
+          !cur ||
+          this._cooldownAnchor ||
+          cur.status !== "off" ||
+          cur.currentTemp === undefined ||
+          cur.currentTemp <= target
+        ) {
+          return;
+        }
+        this._cooldownAnchor = { startedAt: offTime, baselineTemp: target };
+        this._cooldownSamples = [];
+        // Mark this window fetched so _maybeFetchHistory won't fetch it again.
+        const key = this._phaseKey(cur, "cooldown");
+        if (key) this._historyFetched.add(key);
+        // Backfill the falling curve from the recorder, then render.
+        if (tempId && this.hass?.callWS) {
+          fetchHistory(this.hass, tempId, new Date(offTime), new Date(now))
+            .then((remote) => {
+              if (remote.length) {
+                this._cooldownSamples = mergeHistory(
+                  this._cooldownSamples,
+                  remote,
+                );
+              }
+              this.requestUpdate();
+            })
+            .catch(() => undefined);
+        } else {
+          this.requestUpdate();
+        }
+      })
+      .catch(() => undefined);
   }
 
   /** A stable id for the open window, so history is fetched once per window. */
