@@ -508,6 +508,36 @@ describe("sauna-card", () => {
     }
   });
 
+  it("opens a cooldown when switched off from an idle thermostat cycle", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      // Observed session start seeds the baseline.
+      card.hass = graphHass("off", "off", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 25);
+      await card.updateComplete;
+      // Thermostat off-cycle: powered, not heating, below target → "idle".
+      card.hass = graphHass("on", "off", 50);
+      await card.updateComplete;
+      // Switched off from idle — a real shutdown mid-session.
+      card.hass = graphHass("off", "off", 60);
+      await card.updateComplete;
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = graphHass("off", "off", 55);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("fetches recorder history per session, not once per same target", async () => {
     const callWS = vi.fn().mockResolvedValue({
       "sensor.cur": [
