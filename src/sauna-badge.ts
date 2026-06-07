@@ -18,6 +18,7 @@ import {
   type TFn,
 } from "./status";
 import { detectLang, t } from "./i18n";
+import { fireMoreInfo } from "./utils/more-info";
 
 const CONTENTS: BadgeContent[] = ["primary", "single", "row"];
 const VISUALS: BadgeVisual[] = [
@@ -315,13 +316,7 @@ export class SaunaBadge extends LitElement {
     const id =
       s.entities.thermostat ?? s.entities.power ?? Object.values(s.entities)[0];
     if (!id) return;
-    this.dispatchEvent(
-      new CustomEvent("hass-more-info", {
-        detail: { entityId: id },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    fireMoreInfo(this, id);
   }
 
   private _renderHost(

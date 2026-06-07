@@ -80,6 +80,8 @@
   "editor.show_cooldown_graph": "Cooldown graph",
   "editor.cooldown_target_temp": "Cooldown target temp (°C)",
   "editor.cooldown_include_heatup": "Include heatup in cooldown",
+  "editor.tap_more_info": "Tap values for more info",
+  "a11y.more_info": "Show more info: {name}",
   "editor.layout_status_dashboard": "Status dashboard",
   "editor.layout_thermostat_hero": "Thermostat dial",
   "editor.layout_compact": "Compact",

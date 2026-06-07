@@ -38,6 +38,18 @@ describe("sauna-card-editor", () => {
     expect(cooldown?.selector).toHaveProperty("boolean");
   });
 
+  it("exposes tap_more_info as a boolean form field", () => {
+    const editor = new SaunaCardEditor();
+    editor.setConfig({ type: "custom:sauna-card" });
+    const schema = (
+      editor as unknown as {
+        _schema(): Array<{ name: string; selector: Record<string, unknown> }>;
+      }
+    )._schema();
+    const tap = schema.find((f) => f.name === "tap_more_info");
+    expect(tap?.selector).toHaveProperty("boolean");
+  });
+
   it("merges ha-form changes over the config, preserving non-schema keys", () => {
     const editor = new SaunaCardEditor();
     // integration is not in the form schema and must survive an edit.

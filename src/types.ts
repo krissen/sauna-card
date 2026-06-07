@@ -86,6 +86,9 @@ export interface SaunaCardConfig {
   /** Extend the cooldown curve back over the heatup so it shows the whole session
    * arc — a two-tone curve (orange rising, blue falling). Default off. */
   cooldown_include_heatup?: boolean;
+  /** Make read-only value displays tap-to-open HA's more-info dialog for the
+   * underlying entity. Default on. */
+  tap_more_info?: boolean;
 }
 
 /** Badge content selection: the headline, one chosen value, or several. */
