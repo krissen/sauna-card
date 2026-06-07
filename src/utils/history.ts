@@ -71,3 +71,55 @@ export async function fetchHistory(
   }
   return out;
 }
+
+/**
+ * The epoch-ms time of the most recent on→off transition for a switch over
+ * [start, end], or null when the switch had no such transition in the window
+ * (never on, still on, or history unavailable). Used to reconstruct a cooldown
+ * window after a page reload: when the sauna is off but still warm, this tells
+ * us whether — and when — it was last switched off, so the cooldown can be shown
+ * and anchored even though the in-memory anchor didn't survive the reload.
+ */
+export async function fetchLastOffTime(
+  hass: Hass,
+  entityId: string,
+  start: Date,
+  end: Date,
+): Promise<number | null> {
+  if (!hass.callWS) return null;
+  let res: Record<string, HistoryRow[]>;
+  try {
+    res = await hass.callWS<Record<string, HistoryRow[]>>({
+      type: "history/history_during_period",
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      entity_ids: [entityId],
+      include_start_time_state: true,
+      significant_changes_only: false,
+      minimal_response: true,
+      no_attributes: true,
+    });
+  } catch {
+    return null;
+  }
+
+  const rows = res?.[entityId] ?? [];
+  const startMs = start.getTime();
+  let prevOn = false;
+  let lastOff: number | null = null;
+  for (const r of rows) {
+    if (r.s === "on") {
+      prevOn = true;
+    } else if (r.s === "off") {
+      if (prevOn) {
+        const secs = r.lc ?? r.lu;
+        if (Number.isFinite(secs)) {
+          lastOff = Math.max(startMs, Math.round(secs * 1000));
+        }
+      }
+      prevOn = false;
+    }
+    // Any other state (unavailable/unknown) leaves prevOn unchanged.
+  }
+  return lastOff;
+}
