@@ -508,6 +508,44 @@ describe("sauna-card", () => {
     }
   });
 
+  it("keeps the room baseline through a mid-session idle dip", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      // Power on cold and run; baseline must be the ~25° session start.
+      card.hass = graphHass("off", "off", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "off", 88); // ready (at target)
+      await card.updateComplete;
+      card.hass = graphHass("on", "off", 70); // deep dip → idle
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 72); // reheats: idle → heating
+      await card.updateComplete;
+
+      // Switch off and cool to 60° — above the 25° start but below the 70° dip.
+      card.hass = graphHass("off", "off", 68);
+      await card.updateComplete;
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = graphHass("off", "off", 60);
+      await card.updateComplete;
+
+      // If the dip had overwritten the baseline (to ~72°), the cooldown would
+      // have closed immediately at 68°. It's still open at 60°, so the original
+      // room baseline survived.
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("opens a cooldown when switched off from an idle thermostat cycle", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(1_700_000_000_000));
