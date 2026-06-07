@@ -586,6 +586,18 @@ describe("sauna-card", () => {
     }
   });
 
+  it("does not fetch recorder history for a disabled graph", async () => {
+    const callWS = vi.fn().mockResolvedValue({ "sensor.cur": [] });
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card", show_heatup_graph: false });
+    document.body.appendChild(card);
+    card.hass = graphHass("on", "on", 60, { callWS });
+    await card.updateComplete;
+    await new Promise((r) => setTimeout(r, 0));
+    expect(callWS).not.toHaveBeenCalled();
+    document.body.removeChild(card);
+  });
+
   it("renders nothing without hass and a card when no device is found", () => {
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card" });

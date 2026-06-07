@@ -14,7 +14,6 @@ import type {
   SaunaStatus,
   SaunaLayout,
   ControlsMode,
-  HassUnsubscribe,
 } from "./types";
 import {
   graphPhase,
@@ -146,11 +145,6 @@ export class SaunaCard extends LitElement {
   private _historyFetched = new Set<string>();
   // Previous status, for edge detection in _trackGraph.
   private _prevStatus?: SaunaStatus;
-  // Event-subscription teardown handles, and a synchronous in-flight guard so
-  // back-to-back updates can't fire a second subscribe before the first resolves.
-  private _unsubStart?: HassUnsubscribe;
-  private _unsubEnd?: HassUnsubscribe;
-  private _subscribing = false;
 
   static getStubConfig(): Record<string, unknown> {
     return {};
@@ -297,66 +291,9 @@ export class SaunaCard extends LitElement {
     setTargetTemperature(this.hass, s, next);
   }
 
-  override connectedCallback(): void {
-    super.connectedCallback();
-    // hass may not be set yet at connect time; updated() also calls this once it
-    // is. Subscribing here covers a re-attach where hass is already present.
-    this._ensureSubscribed();
-  }
-
   override disconnectedCallback(): void {
     this._clearStartTimer();
-    this._unsubStart?.().catch(() => undefined);
-    this._unsubEnd?.().catch(() => undefined);
-    this._unsubStart = undefined;
-    this._unsubEnd = undefined;
     super.disconnectedCallback();
-  }
-
-  // Subscribe to the integration's session events once hass is available. The
-  // session-start event gives the most precise pre-heat (≈ room) temperature for
-  // the cooldown baseline; phase transitions are still derived from status so
-  // the graph works even if an event is missed.
-  private _ensureSubscribed(): void {
-    if (this._unsubStart || this._subscribing || !this.hass?.connection) return;
-    const conn = this.hass.connection;
-    this._subscribing = true;
-    Promise.all([
-      conn.subscribeEvents<{ data?: Record<string, unknown> }>(
-        () => this._onSessionStart(),
-        "harvia_sauna_session_start",
-      ),
-      conn.subscribeEvents<{ data?: Record<string, unknown> }>(
-        () => this._onSessionEnd(),
-        "harvia_sauna_session_end",
-      ),
-    ])
-      .then(([unsubStart, unsubEnd]) => {
-        // Detached while the subscribe was in flight → tear down at once rather
-        // than leak a live subscription on an unmounted element.
-        if (!this.isConnected) {
-          unsubStart().catch(() => undefined);
-          unsubEnd().catch(() => undefined);
-          return;
-        }
-        this._unsubStart = unsubStart;
-        this._unsubEnd = unsubEnd;
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        this._subscribing = false;
-      });
-  }
-
-  private _onSessionStart(): void {
-    const s = this._state();
-    if (s?.currentTemp !== undefined) this._sessionStartTemp = s.currentTemp;
-  }
-
-  private _onSessionEnd(): void {
-    // The heating|ready → off|idle transition in _trackGraph opens the cooldown
-    // window; nudge a re-evaluation so it happens promptly on the event too.
-    this.requestUpdate();
   }
 
   // Clear the optimistic target once the device reports the value we set, and
@@ -379,7 +316,6 @@ export class SaunaCard extends LitElement {
       this._startFailed = undefined;
     }
     this._trackTemp(s);
-    this._ensureSubscribed();
   }
 
   // Drive the graph buffers BEFORE render (not in updated()), so a sample added
@@ -398,8 +334,8 @@ export class SaunaCard extends LitElement {
     const prev = this._prevStatus;
 
     // Capture the pre-heat (≈ room) temperature at the moment heating begins —
-    // the cooldown baseline. The session-start event refines this when it fires.
-    // Requires an *observed* off/idle → heating transition: `prev === undefined`
+    // the cooldown baseline. Requires an *observed* transition into heating:
+    // `prev === undefined`
     // means the card just mounted mid-session, where the current temperature is
     // already hot and would be a wrong baseline, so we don't seed it.
     if (
@@ -474,7 +410,10 @@ export class SaunaCard extends LitElement {
       });
     }
 
-    if (s && phase) this._maybeFetchHistory(s, phase, now);
+    // Only backfill from the recorder for a graph that will actually be shown —
+    // a disabled curve (show_*_graph: false) must not trigger history fetches.
+    const shownPhase = s ? this._graphPhaseFor(s) : null;
+    if (s && shownPhase) this._maybeFetchHistory(s, shownPhase, now);
 
     this._prevStatus = status;
   }
