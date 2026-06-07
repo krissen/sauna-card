@@ -1231,42 +1231,44 @@ export class SaunaCard extends LitElement {
         <span class="title">${this._configName(s)}</span>
         ${this._statusBadge(s)}
       </div>
-      ${this._heroOrGraph(
-        s,
-        html`<div class="dial">
-          <svg viewBox="0 0 240 240">
-            <circle
-              class="track"
-              cx="120"
-              cy="120"
-              r="100"
-              stroke-dasharray="${ARC.toFixed(1)} ${CIRC.toFixed(1)}"
-              transform="rotate(135 120 120)"
-            />
-            <circle
-              cx="120"
-              cy="120"
-              r="100"
-              stroke=${arcColor}
-              stroke-dasharray="${(ARC * progress).toFixed(1)} ${CIRC.toFixed(
-                1,
-              )}"
-              transform="rotate(135 120 120)"
-            />
-          </svg>
-          <div class="center">
-            ${this._curBlock(s)}
-            <div class="tgt">
-              ${this._t("label.target_temperature")}
-              ${this._staticTarget(s, "")}
+      <div class="body">
+        ${this._heroOrGraph(
+          s,
+          html`<div class="dial">
+            <svg viewBox="0 0 240 240">
+              <circle
+                class="track"
+                cx="120"
+                cy="120"
+                r="100"
+                stroke-dasharray="${ARC.toFixed(1)} ${CIRC.toFixed(1)}"
+                transform="rotate(135 120 120)"
+              />
+              <circle
+                cx="120"
+                cy="120"
+                r="100"
+                stroke=${arcColor}
+                stroke-dasharray="${(ARC * progress).toFixed(1)} ${CIRC.toFixed(
+                  1,
+                )}"
+                transform="rotate(135 120 120)"
+              />
+            </svg>
+            <div class="center">
+              ${this._curBlock(s)}
+              <div class="tgt">
+                ${this._t("label.target_temperature")}
+                ${this._staticTarget(s, "")}
+              </div>
             </div>
-          </div>
-        </div>`,
-      )}
-      ${this._doorWarning(s)} ${this._notices()}
-      ${this._controls === "power+temp" ? this._tempStepper(s) : nothing}
-      ${this._tilesRow(s, this._config.hero_items ?? [])} ${this._chips(s)}
-      ${this._ctaIf(s)}
+          </div>`,
+        )}
+        ${this._doorWarning(s)} ${this._notices()}
+        ${this._controls === "power+temp" ? this._tempStepper(s) : nothing}
+        ${this._tilesRow(s, this._config.hero_items ?? [])} ${this._chips(s)}
+        ${this._ctaIf(s)}
+      </div>
     </ha-card>`;
   }
 
@@ -1640,7 +1642,8 @@ export class SaunaCard extends LitElement {
       position: relative;
       width: 220px;
       height: 220px;
-      margin: 4px auto 12px;
+      /* Centred horizontally; vertical rhythm comes from the .body flex gap. */
+      margin: 0 auto;
     }
     .dial svg {
       width: 100%;
@@ -1732,6 +1735,10 @@ export class SaunaCard extends LitElement {
     .ccontrols .cta {
       flex: 1;
       margin-top: 0;
+    }
+    /* Breathing room between the stepper/CTA row and the control chips below. */
+    .ccontrols + .chips {
+      margin-top: 8px;
     }
     @media (prefers-reduced-motion: reduce) {
       .progress > i {
