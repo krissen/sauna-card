@@ -1050,11 +1050,28 @@ export class SaunaCard extends LitElement {
         ? "graph.heatup"
         : "graph.cooldown";
 
+    // A clock-time axis under the curve: start, middle and end, so the span is
+    // readable (especially a multi-hour cooldown). Wall-clock in the card locale.
+    const fmtTime = (t: number): string =>
+      new Date(t).toLocaleTimeString(this._lang, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    const axis =
+      tMax > tMin
+        ? html`<div class="graph-axis" aria-hidden="true">
+            <span>${fmtTime(tMin)}</span>
+            <span>${fmtTime((tMin + tMax) / 2)}</span>
+            <span>${fmtTime(tMax)}</span>
+          </div>`
+        : nothing;
+
     return html`<figure class="graph ${cd}" role="img" aria-label=${aria}>
       <figcaption>
         ${this._t(captionKey)} · ${this._temp(cur)} → ${this._temp(ref)}
       </figcaption>
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${body}</svg>
+      ${axis}
     </figure>`;
   }
 
@@ -1322,7 +1339,7 @@ export class SaunaCard extends LitElement {
       margin: 0;
       padding: 0;
       width: 100%;
-      min-height: 100px;
+      min-height: 116px;
     }
     .graph figcaption {
       font-size: 0.8rem;
@@ -1334,6 +1351,13 @@ export class SaunaCard extends LitElement {
       width: 100%;
       height: 80px;
       overflow: visible;
+    }
+    .graph-axis {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 3px;
+      font-size: 0.68rem;
+      color: var(--secondary-text-color);
     }
     .graph-area {
       fill: var(--sauna-heat-color);
