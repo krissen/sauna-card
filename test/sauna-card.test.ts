@@ -1123,3 +1123,154 @@ describe("sauna-card ready ETA", () => {
     expect(card._tempSamples.length).toBe(1);
   });
 });
+
+// ---- tap → more-info ----
+
+// A device whose readouts cover the breadth of clickable surfaces: a climate
+// thermostat (status badge, static target), current-temp sensor (hero number),
+// plus humidity/power sensors and a light switch (tiles + a control chip).
+const MI_ENTITIES = {
+  "climate.thermostat": {
+    entity_id: "climate.thermostat",
+    platform: "harvia_sauna",
+    translation_key: "thermostat",
+    device_id: "d1",
+  },
+  "switch.power": {
+    entity_id: "switch.power",
+    platform: "harvia_sauna",
+    translation_key: "power",
+    device_id: "d1",
+  },
+  "switch.light": {
+    entity_id: "switch.light",
+    platform: "harvia_sauna",
+    translation_key: "light",
+    device_id: "d1",
+  },
+  "sensor.cur": {
+    entity_id: "sensor.cur",
+    platform: "harvia_sauna",
+    translation_key: "current_temperature",
+    device_id: "d1",
+  },
+  "sensor.hum": {
+    entity_id: "sensor.hum",
+    platform: "harvia_sauna",
+    translation_key: "humidity",
+    device_id: "d1",
+  },
+  "sensor.pwr": {
+    entity_id: "sensor.pwr",
+    platform: "harvia_sauna",
+    translation_key: "power",
+    device_id: "d1",
+  },
+};
+
+function miHass(): Hass {
+  return {
+    states: {
+      "climate.thermostat": {
+        entity_id: "climate.thermostat",
+        state: "heat",
+        attributes: { temperature: 90, current_temperature: 60 },
+      },
+      "switch.power": {
+        entity_id: "switch.power",
+        state: "on",
+        attributes: {},
+      },
+      "switch.light": {
+        entity_id: "switch.light",
+        state: "off",
+        attributes: {},
+      },
+      "sensor.cur": { entity_id: "sensor.cur", state: "60", attributes: {} },
+      "sensor.hum": { entity_id: "sensor.hum", state: "30", attributes: {} },
+      "sensor.pwr": { entity_id: "sensor.pwr", state: "2000", attributes: {} },
+    },
+    entities: MI_ENTITIES,
+    devices: { d1: { id: "d1", name: "Bastu" } },
+  } as unknown as Hass;
+}
+
+async function miCard(
+  config: Record<string, unknown> = {},
+): Promise<{ card: SaunaCard; events: string[] }> {
+  const card = new SaunaCard();
+  card.setConfig({ type: "custom:sauna-card", ...config });
+  document.body.appendChild(card);
+  card.hass = miHass();
+  await card.updateComplete;
+  const events: string[] = [];
+  card.addEventListener("hass-more-info", (e) =>
+    events.push((e as CustomEvent).detail.entityId),
+  );
+  return { card, events };
+}
+
+describe("sauna-card tap → more-info", () => {
+  it("opens more-info for the underlying entity when a tile is tapped", async () => {
+    const { card, events } = await miCard({
+      dashboard_tiles: ["humidity", "power"],
+    });
+    const tiles = card.shadowRoot!.querySelectorAll<HTMLElement>(".tile.mi");
+    expect(tiles.length).toBe(2);
+    tiles[0].click(); // humidity → sensor.hum
+    tiles[1].click(); // power → sensor.pwr
+    expect(events).toEqual(["sensor.hum", "sensor.pwr"]);
+    document.body.removeChild(card);
+  });
+
+  it("opens more-info via keyboard (Enter)", async () => {
+    const { card, events } = await miCard({ dashboard_tiles: ["humidity"] });
+    const tile = card.shadowRoot!.querySelector<HTMLElement>(".tile.mi")!;
+    tile.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    expect(events).toEqual(["sensor.hum"]);
+    document.body.removeChild(card);
+  });
+
+  it("makes the status badge and hero number clickable", async () => {
+    const { card, events } = await miCard({ controls: "none" });
+    const badge = card.shadowRoot!.querySelector<HTMLElement>(".badge.mi")!;
+    const cur = card.shadowRoot!.querySelector<HTMLElement>(".cur.mi")!;
+    expect(badge).toBeTruthy();
+    expect(cur).toBeTruthy();
+    badge.click();
+    cur.click();
+    expect(events).toEqual(["climate.thermostat", "sensor.cur"]);
+    document.body.removeChild(card);
+  });
+
+  it("disables the affordance entirely when tap_more_info is false", async () => {
+    const { card, events } = await miCard({
+      dashboard_tiles: ["humidity"],
+      tap_more_info: false,
+    });
+    expect(card.shadowRoot!.querySelectorAll(".mi").length).toBe(0);
+    const tile = card.shadowRoot!.querySelector<HTMLElement>(".tile")!;
+    tile.click();
+    expect(events).toEqual([]);
+    document.body.removeChild(card);
+  });
+
+  it("leaves interactive controls unchanged (a chip never opens more-info)", async () => {
+    const { card, events } = await miCard();
+    const calls: unknown[][] = [];
+    (
+      card.hass as unknown as { callService: (...a: unknown[]) => unknown }
+    ).callService = (...a: unknown[]) => {
+      calls.push(a);
+      return Promise.resolve();
+    };
+    const chip = card.shadowRoot!.querySelector<HTMLElement>(".chip")!;
+    expect(chip.classList.contains("mi")).toBe(false);
+    chip.click();
+    expect(events).toEqual([]); // no more-info from a control
+    expect(calls.length).toBe(1); // it toggled the switch instead
+    document.body.removeChild(card);
+  });
+});

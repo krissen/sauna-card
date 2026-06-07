@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { BADGE_ITEMS, BADGE_ITEM_KEYS, isBadgeItemKey } from "../src/status";
+import { HARVIA_ENTITIES } from "../src/adapters/harvia";
 import type { SaunaState } from "../src/types";
 
 // Identity translate: returns the key, so on/off assertions read "common.on".
@@ -102,5 +103,22 @@ describe("status item catalog", () => {
     expect(isBadgeItemKey("eta")).toBe(true);
     expect(isBadgeItemKey("toString")).toBe(false);
     expect(isBadgeItemKey(undefined)).toBe(false);
+  });
+
+  // The card opens more-info via def.entityKey → s.entities[key]. Every item
+  // that maps to a real entity must point at a key the adapter actually
+  // resolves (HARVIA_ENTITIES); a typo would silently make a readout dead.
+  it("maps every non-derived item to a resolvable entity key", () => {
+    const valid = new Set(Object.keys(HARVIA_ENTITIES));
+    for (const k of BADGE_ITEM_KEYS) {
+      const ek = BADGE_ITEMS[k].entityKey;
+      if (k === "eta") continue; // derived value, no backing entity
+      expect(ek, `${k} should have an entityKey`).toBeTruthy();
+      expect(valid.has(ek as string), `${k} → ${ek} unknown`).toBe(true);
+    }
+  });
+
+  it("leaves derived items (eta) without an entityKey", () => {
+    expect(BADGE_ITEMS.eta.entityKey).toBeUndefined();
   });
 });
