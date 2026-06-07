@@ -158,6 +158,35 @@ describe("fetchLastOffTime", () => {
     expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
   });
 
+  it("returns null when the switch is on again at the end (still running)", async () => {
+    // [on, off, on] — an earlier off then on again means it's running, not in a
+    // completed cooldown, so there's no off-time to anchor.
+    const callWS = vi.fn().mockResolvedValue({
+      "switch.p": [
+        { s: "on", lu: 1500 },
+        { s: "off", lu: 2000 },
+        { s: "on", lu: 5000 },
+      ],
+    });
+    const hass = { states: {}, callWS } as unknown as Hass;
+    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBeNull();
+  });
+
+  it("treats a start-state 'on' row as the prior on for an edge", async () => {
+    // include_start_time_state can inject the value active at start (here "on")
+    // stamped at the window start; a following "off" is a real on→off edge.
+    const callWS = vi.fn().mockResolvedValue({
+      "switch.p": [
+        { s: "on", lu: 1000 }, // start-state: already on at window start
+        { s: "off", lu: 3000 }, // → edge at 3_000_000 ms
+      ],
+    });
+    const hass = { states: {}, callWS } as unknown as Hass;
+    expect(await fetchLastOffTime(hass, "switch.p", start, end)).toBe(
+      3_000_000,
+    );
+  });
+
   it("returns null on a websocket failure", async () => {
     const callWS = vi.fn().mockRejectedValue(new Error("boom"));
     const hass = { states: {}, callWS } as unknown as Hass;

@@ -121,5 +121,6 @@ export async function fetchLastOffTime(
     }
     // Any other state (unavailable/unknown) leaves prevOn unchanged.
   }
-  return lastOff;
+  // Still on at the end of the window → no completed off transition to report.
+  return prevOn ? null : lastOff;
 }
