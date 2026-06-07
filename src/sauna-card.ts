@@ -11,9 +11,20 @@ import type {
   Hass,
   SaunaCardConfig,
   SaunaState,
+  SaunaStatus,
   SaunaLayout,
   ControlsMode,
+  HassUnsubscribe,
 } from "./types";
+import {
+  graphPhase,
+  isCooldownExpired,
+  HEATUP_WINDOW_MS,
+  COOLDOWN_SAMPLE_INTERVAL_MS,
+  COOLDOWN_MAX_MS,
+  type TempSample,
+  type CooldownAnchor,
+} from "./graph-phase";
 import { pickIntegration } from "./adapter-registry";
 import {
   STATUS_ICON,
@@ -112,6 +123,25 @@ export class SaunaCard extends LitElement {
   private _tempSamples: Array<{ t: number; temp: number }> = [];
   private _trendCtx?: string;
 
+  // ---- temperature graph (heatup / cooldown) ----
+  // Separate from _tempSamples above: that buffer is coupled to _localEta's
+  // reset semantics and capped at ~20 min. The graph needs its own, longer
+  // buffers with phase-specific sampling and lifetimes.
+  private _heatupSamples: TempSample[] = [];
+  private _cooldownSamples: TempSample[] = [];
+  // Context key (device|target) the heatup buffer belongs to; a change clears it.
+  private _graphCtx?: string;
+  // Open cooldown window, if any (set on shutdown after a session).
+  private _cooldownAnchor?: CooldownAnchor;
+  // Temperature the current/last session started from (≈ room temp), captured at
+  // the off/idle → heating transition and reused as the cooldown baseline.
+  private _sessionStartTemp?: number;
+  // Previous status, for edge detection in _trackGraph.
+  private _prevStatus?: SaunaStatus;
+  // Event-subscription teardown handles.
+  private _unsubStart?: HassUnsubscribe;
+  private _unsubEnd?: HassUnsubscribe;
+
   static getStubConfig(): Record<string, unknown> {
     return {};
   }
@@ -159,6 +189,11 @@ export class SaunaCard extends LitElement {
       throw new Error(
         `sauna-card: invalid controls "${String(config.controls)}"`,
       );
+    }
+    for (const key of ["show_heatup_graph", "show_cooldown_graph"]) {
+      if (config[key] !== undefined && typeof config[key] !== "boolean") {
+        throw new Error(`sauna-card: "${key}" must be a boolean`);
+      }
     }
     this._config = config as unknown as SaunaCardConfig;
   }
@@ -252,9 +287,58 @@ export class SaunaCard extends LitElement {
     setTargetTemperature(this.hass, s, next);
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    // hass may not be set yet at connect time; updated() also calls this once it
+    // is. Subscribing here covers a re-attach where hass is already present.
+    this._ensureSubscribed();
+  }
+
   override disconnectedCallback(): void {
     this._clearStartTimer();
+    this._unsubStart?.().catch(() => undefined);
+    this._unsubEnd?.().catch(() => undefined);
+    this._unsubStart = undefined;
+    this._unsubEnd = undefined;
     super.disconnectedCallback();
+  }
+
+  // Subscribe to the integration's session events once hass is available. The
+  // session-start event gives the most precise pre-heat (≈ room) temperature for
+  // the cooldown baseline; phase transitions are still derived from status so
+  // the graph works even if an event is missed.
+  private _ensureSubscribed(): void {
+    if (this._unsubStart || !this.hass?.connection) return;
+    const conn = this.hass.connection;
+    conn
+      .subscribeEvents<{ data?: Record<string, unknown> }>(
+        () => this._onSessionStart(),
+        "harvia_sauna_session_start",
+      )
+      .then((unsub) => {
+        this._unsubStart = unsub;
+      })
+      .catch(() => undefined);
+    conn
+      .subscribeEvents<{ data?: Record<string, unknown> }>(
+        () => this._onSessionEnd(),
+        "harvia_sauna_session_end",
+      )
+      .then((unsub) => {
+        this._unsubEnd = unsub;
+      })
+      .catch(() => undefined);
+  }
+
+  private _onSessionStart(): void {
+    const s = this._state();
+    if (s?.currentTemp !== undefined) this._sessionStartTemp = s.currentTemp;
+  }
+
+  private _onSessionEnd(): void {
+    // The heating|ready → off|idle transition in _trackGraph opens the cooldown
+    // window; nudge a re-evaluation so it happens promptly on the event too.
+    this.requestUpdate();
   }
 
   // Clear the optimistic target once the device reports the value we set, and
@@ -277,6 +361,98 @@ export class SaunaCard extends LitElement {
       this._startFailed = undefined;
     }
     this._trackTemp(s);
+    this._ensureSubscribed();
+    this._trackGraph(s);
+  }
+
+  // Drive the graph phase model and per-phase sample buffers. Kept independent of
+  // _trackTemp/_tempSamples above (those serve _localEta and reset on a ~20-min
+  // window); the graph needs longer, phase-specific buffers.
+  private _trackGraph(s: SaunaState | null): void {
+    const now = Date.now();
+    const status = s?.status;
+    const prev = this._prevStatus;
+
+    // Capture the pre-heat (≈ room) temperature at the moment heating begins —
+    // the cooldown baseline. The session-start event refines this when it fires.
+    if (
+      status === "heating" &&
+      prev !== "heating" &&
+      prev !== "ready" &&
+      s?.currentTemp !== undefined
+    ) {
+      this._sessionStartTemp = s.currentTemp;
+    }
+
+    // Open a cooldown window when a running sauna is switched off.
+    if (
+      (prev === "heating" || prev === "ready") &&
+      (status === "off" || status === "idle")
+    ) {
+      const baseline = this._sessionStartTemp ?? s?.currentTemp;
+      if (baseline !== undefined) {
+        this._cooldownAnchor = { startedAt: now, baselineTemp: baseline };
+        this._cooldownSamples = [];
+      }
+    }
+
+    // Close an expired cooldown window. A momentary unavailability (!s) only
+    // skips sampling — it must not discard an in-progress cooldown.
+    if (this._cooldownAnchor && s) {
+      if (isCooldownExpired(this._cooldownAnchor, s.currentTemp, now)) {
+        this._cooldownAnchor = undefined;
+        this._cooldownSamples = [];
+      }
+    }
+
+    const phase = s
+      ? graphPhase(s.status, s.currentTemp, s.targetTemp, this._cooldownAnchor)
+      : null;
+
+    if (phase === "heatup" && s?.currentTemp !== undefined) {
+      const ctx = `${s.deviceId}|${s.targetTemp ?? ""}`;
+      if (ctx !== this._graphCtx) {
+        this._graphCtx = ctx;
+        this._heatupSamples = [];
+      }
+      this._pushSample(this._heatupSamples, now, s.currentTemp, {
+        onChange: true,
+        minGapMs: 60000,
+        windowMs: HEATUP_WINDOW_MS,
+      });
+    } else {
+      // Left the heatup window — a later session starts a fresh curve.
+      this._graphCtx = undefined;
+    }
+
+    if (phase === "cooldown" && s?.currentTemp !== undefined) {
+      this._pushSample(this._cooldownSamples, now, s.currentTemp, {
+        onChange: false,
+        minGapMs: COOLDOWN_SAMPLE_INTERVAL_MS,
+        windowMs: COOLDOWN_MAX_MS,
+      });
+    }
+
+    this._prevStatus = status;
+  }
+
+  // Append a sample to a buffer when due, and trim to a trailing time window.
+  // `onChange` records on every temperature change (heatup, fast); otherwise the
+  // sample is purely time-gated by `minGapMs` (cooldown, slow and sparse).
+  private _pushSample(
+    buf: TempSample[],
+    now: number,
+    temp: number,
+    opts: { onChange: boolean; minGapMs: number; windowMs: number },
+  ): void {
+    const last = buf[buf.length - 1];
+    const due =
+      !last ||
+      (opts.onChange && last.temp !== temp) ||
+      now - last.t >= opts.minGapMs;
+    if (due) buf.push({ t: now, temp });
+    const cutoff = now - opts.windowMs;
+    while (buf.length && buf[0].t < cutoff) buf.shift();
   }
 
   // Accumulate temperature samples while heating so _localEta can estimate a
