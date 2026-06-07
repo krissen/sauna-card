@@ -101,13 +101,16 @@ releases/version bumps, new npm dependencies.
 
 ## Next release (`0.1.x`)
 
-- **Tap sensor displays → more-info.** Sensor/value readouts on the card become
-  clickable and open the standard HA more-info dialog for the underlying entity
-  (e.g. tapping the power readout opens more-info for the power sensor) — same
-  `tap→more-info` affordance the badge already has. Tiles/slots that **already
-  carry their own interaction** (power toggle, temperature control, and other
-  controls) keep that behaviour unchanged; only the read-only displays gain the
-  more-info tap.
+- [x] **Tap sensor displays → more-info.** Sensor/value readouts on the card
+  become clickable and open the standard HA more-info dialog for the underlying
+  entity (e.g. tapping the power readout opens more-info for the power sensor) —
+  same `tap→more-info` affordance the badge already has. Tiles/slots that
+  **already carry their own interaction** (power toggle, temperature control, and
+  other controls) keep that behaviour unchanged; only the read-only displays gain
+  the more-info tap. **Shipped** (branch `feature/tap-more-info`): a shared
+  `fireMoreInfo` helper (card + badge), per-item `entityKey` in the catalog, a
+  `_readout` wrapper across tiles/slots/hero number/status badge/static target,
+  and a `tap_more_info` toggle (on by default).
 
 ## Phase 2+ — Growth (`0.2.x+`)
 
