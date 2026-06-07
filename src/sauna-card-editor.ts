@@ -22,6 +22,8 @@ const LABEL_KEY: Record<string, string> = {
   device_id: "editor.device",
   layout: "editor.layout",
   controls: "editor.controls",
+  show_heatup_graph: "editor.show_heatup_graph",
+  show_cooldown_graph: "editor.show_cooldown_graph",
   language: "editor.language",
 };
 
@@ -132,6 +134,8 @@ export class SaunaCardEditor extends LitElement {
           },
         },
       },
+      { name: "show_heatup_graph", selector: { boolean: {} } },
+      { name: "show_cooldown_graph", selector: { boolean: {} } },
       {
         name: "language",
         selector: {
