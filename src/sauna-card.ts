@@ -199,6 +199,13 @@ export class SaunaCard extends LitElement {
         throw new Error(`sauna-card: "${key}" must be a boolean`);
       }
     }
+    if (
+      config.cooldown_target_temp !== undefined &&
+      (typeof config.cooldown_target_temp !== "number" ||
+        !Number.isFinite(config.cooldown_target_temp))
+    ) {
+      throw new Error('sauna-card: "cooldown_target_temp" must be a number');
+    }
     this._config = config as unknown as SaunaCardConfig;
   }
 
@@ -359,9 +366,12 @@ export class SaunaCard extends LitElement {
       status === "off" &&
       this._sessionStartTemp !== undefined
     ) {
+      // A configured cooldown target is the baseline when present (it's the
+      // temperature the room settles at); otherwise the captured session start.
       this._cooldownAnchor = {
         startedAt: now,
-        baselineTemp: this._sessionStartTemp,
+        baselineTemp:
+          this._config.cooldown_target_temp ?? this._sessionStartTemp,
       };
       this._cooldownSamples = [];
     }

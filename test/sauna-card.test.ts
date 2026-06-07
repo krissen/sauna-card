@@ -144,6 +144,19 @@ describe("sauna-card", () => {
     ).toThrow();
   });
 
+  it("accepts a numeric cooldown_target_temp and rejects non-numbers", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", cooldown_target_temp: 18 }),
+    ).not.toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", cooldown_target_temp: "18" }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", cooldown_target_temp: NaN }),
+    ).toThrow();
+  });
+
   it("accepts tile lists and rejects non-array tile config", () => {
     const card = new SaunaCard();
     expect(() =>
@@ -538,6 +551,36 @@ describe("sauna-card", () => {
       // If the dip had overwritten the baseline (to ~72°), the cooldown would
       // have closed immediately at 68°. It's still open at 60°, so the original
       // room baseline survived.
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses cooldown_target_temp as the cooldown baseline", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      // Target 15° — below the 25° session start. The cooldown should track down
+      // to 15°, so it stays open at 20° (which is below the start but above it).
+      card.setConfig({ type: "custom:sauna-card", cooldown_target_temp: 15 });
+      document.body.appendChild(card);
+
+      card.hass = graphHass("off", "off", 25);
+      await card.updateComplete;
+      card.hass = graphHass("on", "on", 25);
+      await card.updateComplete;
+      card.hass = graphHass("off", "off", 70);
+      await card.updateComplete;
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = graphHass("off", "off", 20);
+      await card.updateComplete;
+
+      // At 20° the cooldown is still open because the target (15°) is the
+      // baseline, not the 25° session start (which would have closed it).
       expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
 
       document.body.removeChild(card);
