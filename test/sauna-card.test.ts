@@ -242,6 +242,102 @@ describe("sauna-card", () => {
     }
   });
 
+  it("opens a cooldown sparkline after a session is switched off", async () => {
+    const entities = {
+      "switch.power": {
+        entity_id: "switch.power",
+        platform: "harvia_sauna",
+        translation_key: "power",
+        device_id: "d1",
+      },
+      "binary_sensor.heat": {
+        entity_id: "binary_sensor.heat",
+        platform: "harvia_sauna",
+        translation_key: "heat_on",
+        device_id: "d1",
+      },
+      "sensor.cur": {
+        entity_id: "sensor.cur",
+        platform: "harvia_sauna",
+        translation_key: "current_temperature",
+        device_id: "d1",
+      },
+      "sensor.tgt": {
+        entity_id: "sensor.tgt",
+        platform: "harvia_sauna",
+        translation_key: "target_temperature",
+        device_id: "d1",
+      },
+    };
+    const mk = (power: string, heat: string, cur: number): Hass =>
+      ({
+        states: {
+          "switch.power": {
+            entity_id: "switch.power",
+            state: power,
+            attributes: {},
+          },
+          "binary_sensor.heat": {
+            entity_id: "binary_sensor.heat",
+            state: heat,
+            attributes: {},
+          },
+          "sensor.cur": {
+            entity_id: "sensor.cur",
+            state: String(cur),
+            attributes: {},
+          },
+          "sensor.tgt": {
+            entity_id: "sensor.tgt",
+            state: "90",
+            attributes: {},
+          },
+        },
+        entities,
+        devices: { d1: { id: "d1", name: "Bastu" } },
+      }) as unknown as Hass;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const card = new SaunaCard();
+      card.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(card);
+
+      // Off (cold) → heating from 25° captures the cooldown baseline.
+      card.hass = mk("off", "off", 25);
+      await card.updateComplete;
+      card.hass = mk("on", "on", 25);
+      await card.updateComplete;
+      card.hass = mk("on", "on", 40);
+      await card.updateComplete;
+
+      // Switch off while still hot → a cooldown window opens (one sample so far).
+      card.hass = mk("off", "off", 70);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+
+      // A second sparse sample (5 min later) → the cooldown curve takes over.
+      vi.advanceTimersByTime(5 * 60_000 + 1);
+      card.hass = mk("off", "off", 65);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+      expect(
+        card.shadowRoot?.querySelector(".graph-line.cooldown"),
+      ).toBeTruthy();
+
+      // Opting out of the cooldown graph hides it.
+      card.setConfig({ type: "custom:sauna-card", show_cooldown_graph: false });
+      card.hass = mk("off", "off", 64);
+      await card.updateComplete;
+      expect(card.shadowRoot?.querySelector(".graph")).toBeFalsy();
+
+      document.body.removeChild(card);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders nothing without hass and a card when no device is found", () => {
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card" });
