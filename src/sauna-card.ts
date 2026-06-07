@@ -413,13 +413,14 @@ export class SaunaCard extends LitElement {
       this._sessionStartAt = now;
     }
 
-    // Open a cooldown window when a running sauna is switched off — but only when
-    // we actually observed the session start, so the baseline is the true
-    // pre-heat temperature. Without it (mounted mid-session) we can't know how
-    // far the sauna has to cool, so we show no cooldown rather than a wrong one.
+    // Open a cooldown window when a running sauna is switched off (power off →
+    // "off"; "idle" stays powered, so it is not a shutdown) — but only when we
+    // actually observed the session start, so the baseline is the true pre-heat
+    // temperature. Without it (mounted mid-session) we can't know how far the
+    // sauna has to cool, so we show no cooldown rather than a wrong one.
     if (
       (prev === "heating" || prev === "ready") &&
-      (status === "off" || status === "idle") &&
+      status === "off" &&
       this._sessionStartTemp !== undefined
     ) {
       this._cooldownAnchor = {
@@ -429,10 +430,17 @@ export class SaunaCard extends LitElement {
       this._cooldownSamples = [];
     }
 
-    // Close an expired cooldown window. A momentary unavailability (!s) only
-    // skips sampling — it must not discard an in-progress cooldown.
+    // Close the cooldown window once the sauna is powered back on (an active
+    // session owns the view again) or it has run its course (back to baseline /
+    // 24h cap). A momentary unavailability (!s) only skips sampling — it must
+    // not discard an in-progress cooldown.
     if (this._cooldownAnchor && s) {
-      if (isCooldownExpired(this._cooldownAnchor, s.currentTemp, now)) {
+      const poweredOn =
+        s.status === "heating" || s.status === "ready" || s.status === "idle";
+      if (
+        poweredOn ||
+        isCooldownExpired(this._cooldownAnchor, s.currentTemp, now)
+      ) {
         this._cooldownAnchor = undefined;
         this._cooldownSamples = [];
       }

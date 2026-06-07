@@ -47,7 +47,10 @@ export function graphPhase(
   ) {
     return "heatup";
   }
-  if (anchor) {
+  // Cooldown is only meaningful while the sauna is off (or briefly unavailable).
+  // Once it's powered back on — heating, ready or idle — an active session, not a
+  // cooldown, owns the view, even if the anchor hasn't been cleared yet.
+  if (anchor && (status === "off" || status === "unknown")) {
     // Back to baseline → done. Unknown temp (brief unavailability) keeps the
     // window open rather than dropping it.
     if (currentTemp !== undefined && currentTemp <= anchor.baselineTemp) {
