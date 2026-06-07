@@ -362,7 +362,13 @@ export class SaunaCard extends LitElement {
     }
     this._trackTemp(s);
     this._ensureSubscribed();
-    this._trackGraph(s);
+  }
+
+  // Drive the graph buffers BEFORE render (not in updated()), so a sample added
+  // this beat is on screen the same beat — no one-frame lag and no extra render.
+  protected override willUpdate(changed: PropertyValues): void {
+    if (!changed.has("hass") || !this.hass) return;
+    this._trackGraph(this._state());
   }
 
   // Drive the graph phase model and per-phase sample buffers. Kept independent of
@@ -776,6 +782,123 @@ export class SaunaCard extends LitElement {
     </div>`;
   }
 
+  // ---- temperature graph (heatup / cooldown) ----
+
+  /** The open graph phase, gated by the per-phase config flags. */
+  private _graphPhaseFor(s: SaunaState): "heatup" | "cooldown" | null {
+    const phase = graphPhase(
+      s.status,
+      s.currentTemp,
+      s.targetTemp,
+      this._cooldownAnchor,
+    );
+    if (phase === "heatup" && this._config.show_heatup_graph === false) {
+      return null;
+    }
+    if (phase === "cooldown" && this._config.show_cooldown_graph === false) {
+      return null;
+    }
+    return phase;
+  }
+
+  /**
+   * A hand-rolled SVG sparkline of the temperature over the open window — rising
+   * toward the target (heatup) or falling toward the baseline (cooldown). Returns
+   * `nothing` when no window is open or there aren't yet enough samples, so the
+   * caller falls back to the normal temperature display (region-swap, no graph
+   * = no change). Colours come entirely from theme variables.
+   */
+  private _tempGraph(s: SaunaState): TemplateResult | typeof nothing {
+    const phase = this._graphPhaseFor(s);
+    if (!phase) return nothing;
+    const samples =
+      phase === "heatup" ? this._heatupSamples : this._cooldownSamples;
+    if (samples.length < 2) return nothing;
+    const ref =
+      phase === "heatup" ? s.targetTemp : this._cooldownAnchor?.baselineTemp;
+    if (ref === undefined) return nothing;
+
+    const W = 300;
+    const H = 80;
+    const PAD = { t: 10, r: 10, b: 8, l: 10 };
+    const iW = W - PAD.l - PAD.r;
+    const iH = H - PAD.t - PAD.b;
+
+    const temps = samples.map((p) => p.temp);
+    const lo = Math.min(ref, ...temps);
+    const hi = Math.max(ref, ...temps);
+    const padY = Math.max(2, (hi - lo) * 0.12);
+    const yMin = lo - padY;
+    const yMax = hi + padY;
+
+    const tMin = samples[0].t;
+    const tMax = samples[samples.length - 1].t;
+    const dt = tMax - tMin || 1;
+    const dy = yMax - yMin || 1;
+    const x = (t: number): number => PAD.l + ((t - tMin) / dt) * iW;
+    const y = (temp: number): number => PAD.t + (1 - (temp - yMin) / dy) * iH;
+
+    const pts = samples
+      .map((p) => `${x(p.t).toFixed(1)},${y(p.temp).toFixed(1)}`)
+      .join(" ");
+    const baseY = (H - PAD.b).toFixed(1);
+    const area = `${PAD.l},${baseY} ${pts} ${PAD.l + iW},${baseY}`;
+    const refY = y(ref).toFixed(1);
+    const last = samples[samples.length - 1];
+    const cur = s.currentTemp ?? last.temp;
+    const cd = phase === "cooldown" ? "cooldown" : "";
+
+    const aria =
+      phase === "heatup"
+        ? this._t("graph.aria_heatup", {
+            cur: Math.round(cur),
+            tgt: Math.round(ref),
+          })
+        : this._t("graph.aria_cooldown", {
+            cur: Math.round(cur),
+            base: Math.round(ref),
+          });
+
+    return html`<figure class="graph ${cd}" role="img" aria-label=${aria}>
+      <figcaption>
+        ${this._t(phase === "heatup" ? "graph.heatup" : "graph.cooldown")} ·
+        ${this._temp(cur)} → ${this._temp(ref)}
+      </figcaption>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <polygon class="graph-area ${cd}" points=${area}></polygon>
+        <line
+          class="graph-ref ${cd}"
+          x1=${PAD.l}
+          y1=${refY}
+          x2=${PAD.l + iW}
+          y2=${refY}
+          vector-effect="non-scaling-stroke"
+        ></line>
+        <polyline
+          class="graph-line ${cd}"
+          points=${pts}
+          vector-effect="non-scaling-stroke"
+        ></polyline>
+        <circle
+          class="graph-dot ${cd}"
+          cx=${x(last.t).toFixed(1)}
+          cy=${y(last.temp).toFixed(1)}
+          r="2.5"
+          vector-effect="non-scaling-stroke"
+        ></circle>
+      </svg>
+    </figure>`;
+  }
+
+  /** The graph when a window is open, else the layout's normal temp display. */
+  private _heroOrGraph(
+    s: SaunaState,
+    fallback: TemplateResult,
+  ): TemplateResult {
+    const g = this._tempGraph(s);
+    return g === nothing ? fallback : (g as TemplateResult);
+  }
+
   // ---- layout: status-dashboard (default) ----
 
   private _renderDashboard(s: SaunaState): TemplateResult {
@@ -789,13 +912,16 @@ export class SaunaCard extends LitElement {
         ${this._statusBadge(s)}
       </div>
       <div class="body">
-        <div class="hero">
-          <div class="cur">${this._heroTemp(s.currentTemp)}</div>
-          <div class="tgt">
-            <span>${this._t("label.target_temperature")}</span>
-            ${this._targetControl(s)}
-          </div>
-        </div>
+        ${this._heroOrGraph(
+          s,
+          html`<div class="hero">
+            <div class="cur">${this._heroTemp(s.currentTemp)}</div>
+            <div class="tgt">
+              <span>${this._t("label.target_temperature")}</span>
+              ${this._targetControl(s)}
+            </div>
+          </div>`,
+        )}
         ${this._heatProgress(s, progress)} ${this._doorWarning(s)}
         ${this._tilesRow(
           s,
@@ -826,33 +952,38 @@ export class SaunaCard extends LitElement {
         <span class="title">${this._configName(s)}</span>
         ${this._statusBadge(s)}
       </div>
-      <div class="dial">
-        <svg viewBox="0 0 240 240">
-          <circle
-            class="track"
-            cx="120"
-            cy="120"
-            r="100"
-            stroke-dasharray="${ARC.toFixed(1)} ${CIRC.toFixed(1)}"
-            transform="rotate(135 120 120)"
-          />
-          <circle
-            cx="120"
-            cy="120"
-            r="100"
-            stroke=${arcColor}
-            stroke-dasharray="${(ARC * progress).toFixed(1)} ${CIRC.toFixed(1)}"
-            transform="rotate(135 120 120)"
-          />
-        </svg>
-        <div class="center">
-          <div class="cur">${this._heroTemp(s.currentTemp)}</div>
-          <div class="tgt">
-            ${this._t("label.target_temperature")}
-            <b>${this._temp(this._effectiveTarget(s))}</b>
+      ${this._heroOrGraph(
+        s,
+        html`<div class="dial">
+          <svg viewBox="0 0 240 240">
+            <circle
+              class="track"
+              cx="120"
+              cy="120"
+              r="100"
+              stroke-dasharray="${ARC.toFixed(1)} ${CIRC.toFixed(1)}"
+              transform="rotate(135 120 120)"
+            />
+            <circle
+              cx="120"
+              cy="120"
+              r="100"
+              stroke=${arcColor}
+              stroke-dasharray="${(ARC * progress).toFixed(1)} ${CIRC.toFixed(
+                1,
+              )}"
+              transform="rotate(135 120 120)"
+            />
+          </svg>
+          <div class="center">
+            <div class="cur">${this._heroTemp(s.currentTemp)}</div>
+            <div class="tgt">
+              ${this._t("label.target_temperature")}
+              <b>${this._temp(this._effectiveTarget(s))}</b>
+            </div>
           </div>
-        </div>
-      </div>
+        </div>`,
+      )}
       ${this._doorWarning(s)} ${this._notices()}
       ${this._controls === "power+temp" ? this._tempStepper(s) : nothing}
       ${this._tilesRow(s, this._config.hero_items ?? [])} ${this._chips(s)}
@@ -1016,6 +1147,60 @@ export class SaunaCard extends LitElement {
     .eta.warn {
       color: var(--warning-color, #ffa600);
       font-weight: 600;
+    }
+    /* Heatup / cooldown temperature sparkline. Colours are theme variables only;
+       a min-height keeps the region-swap from jumping when the graph appears. */
+    .graph {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100px;
+    }
+    .graph figcaption {
+      font-size: 0.8rem;
+      color: var(--secondary-text-color);
+      margin-bottom: 2px;
+    }
+    .graph svg {
+      display: block;
+      width: 100%;
+      height: 80px;
+      overflow: visible;
+    }
+    .graph-area {
+      fill: var(--sauna-heat-color);
+      opacity: 0.12;
+      stroke: none;
+    }
+    .graph-area.cooldown {
+      fill: var(--info-color, #039be5);
+    }
+    .graph-line {
+      fill: none;
+      stroke: var(--sauna-heat-color);
+      stroke-width: 2;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+    .graph-line.cooldown {
+      stroke: var(--info-color, #039be5);
+    }
+    .graph-ref {
+      stroke: var(--sauna-heat-color);
+      stroke-width: 1;
+      stroke-dasharray: 4 3;
+      opacity: 0.45;
+    }
+    .graph-ref.cooldown {
+      stroke: var(--secondary-text-color);
+    }
+    .graph-dot {
+      fill: var(--sauna-heat-color);
+      stroke: var(--card-background-color, #fff);
+      stroke-width: 1;
+    }
+    .graph-dot.cooldown {
+      fill: var(--info-color, #039be5);
     }
     .warn {
       display: flex;
