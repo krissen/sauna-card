@@ -338,6 +338,81 @@ describe("sauna-card", () => {
     }
   });
 
+  it("backfills the heatup curve from recorder history (Stage B)", async () => {
+    const entities = {
+      "switch.power": {
+        entity_id: "switch.power",
+        platform: "harvia_sauna",
+        translation_key: "power",
+        device_id: "d1",
+      },
+      "binary_sensor.heat": {
+        entity_id: "binary_sensor.heat",
+        platform: "harvia_sauna",
+        translation_key: "heat_on",
+        device_id: "d1",
+      },
+      "sensor.cur": {
+        entity_id: "sensor.cur",
+        platform: "harvia_sauna",
+        translation_key: "current_temperature",
+        device_id: "d1",
+      },
+      "sensor.tgt": {
+        entity_id: "sensor.tgt",
+        platform: "harvia_sauna",
+        translation_key: "target_temperature",
+        device_id: "d1",
+      },
+    };
+    // Recorder returns a multi-point heatup history, so the curve is drawable
+    // from the very first update — before any second live sample exists.
+    const callWS = vi.fn().mockResolvedValue({
+      "sensor.cur": [
+        { s: "30", lu: 1_699_999_000 },
+        { s: "45", lu: 1_699_999_500 },
+        { s: "58", lu: 1_699_999_900 },
+      ],
+    });
+    const hass = {
+      states: {
+        "switch.power": {
+          entity_id: "switch.power",
+          state: "on",
+          attributes: {},
+        },
+        "binary_sensor.heat": {
+          entity_id: "binary_sensor.heat",
+          state: "on",
+          attributes: {},
+        },
+        "sensor.cur": { entity_id: "sensor.cur", state: "60", attributes: {} },
+        "sensor.tgt": { entity_id: "sensor.tgt", state: "90", attributes: {} },
+      },
+      entities,
+      devices: { d1: { id: "d1", name: "Bastu" } },
+      callWS,
+    } as unknown as Hass;
+
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card" });
+    document.body.appendChild(card);
+    card.hass = hass;
+    await card.updateComplete;
+    // Let the fire-and-forget history fetch resolve and merge.
+    await new Promise((r) => setTimeout(r, 0));
+    await card.updateComplete;
+
+    expect(callWS).toHaveBeenCalledTimes(1);
+    expect(callWS.mock.calls[0][0]).toMatchObject({
+      type: "history/history_during_period",
+      entity_ids: ["sensor.cur"],
+    });
+    expect(card.shadowRoot?.querySelector(".graph polyline")).toBeTruthy();
+
+    document.body.removeChild(card);
+  });
+
   it("renders nothing without hass and a card when no device is found", () => {
     const card = new SaunaCard();
     card.setConfig({ type: "custom:sauna-card" });

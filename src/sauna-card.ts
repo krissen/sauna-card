@@ -19,12 +19,14 @@ import type {
 import {
   graphPhase,
   isCooldownExpired,
+  mergeHistory,
   HEATUP_WINDOW_MS,
   COOLDOWN_SAMPLE_INTERVAL_MS,
   COOLDOWN_MAX_MS,
   type TempSample,
   type CooldownAnchor,
 } from "./graph-phase";
+import { fetchHistory } from "./utils/history";
 import { pickIntegration } from "./adapter-registry";
 import {
   STATUS_ICON,
@@ -136,6 +138,12 @@ export class SaunaCard extends LitElement {
   // Temperature the current/last session started from (≈ room temp), captured at
   // the off/idle → heating transition and reused as the cooldown baseline.
   private _sessionStartTemp?: number;
+  // When the current session's heating began (epoch ms) — the start of the
+  // recorder window used to backfill the heatup curve (Stage B).
+  private _sessionStartAt?: number;
+  // Phase keys whose history has already been fetched, so Stage B runs once per
+  // window instead of on every update.
+  private _historyFetched = new Set<string>();
   // Previous status, for edge detection in _trackGraph.
   private _prevStatus?: SaunaStatus;
   // Event-subscription teardown handles.
@@ -388,6 +396,7 @@ export class SaunaCard extends LitElement {
       s?.currentTemp !== undefined
     ) {
       this._sessionStartTemp = s.currentTemp;
+      this._sessionStartAt = now;
     }
 
     // Open a cooldown window when a running sauna is switched off.
@@ -439,7 +448,62 @@ export class SaunaCard extends LitElement {
       });
     }
 
+    if (s && phase) this._maybeFetchHistory(s, phase, now);
+
     this._prevStatus = status;
+  }
+
+  /** A stable id for the open window, so history is fetched once per window. */
+  private _phaseKey(
+    s: SaunaState,
+    phase: "heatup" | "cooldown",
+  ): string | null {
+    if (phase === "heatup") return `heatup|${s.deviceId}|${s.targetTemp ?? ""}`;
+    if (this._cooldownAnchor) {
+      return `cooldown|${s.deviceId}|${this._cooldownAnchor.startedAt}`;
+    }
+    return null;
+  }
+
+  /**
+   * Stage B: once per window, backfill the curve from the HA recorder so it
+   * covers the whole session and survives a reload. Fire-and-forget; merges the
+   * fetched samples into the live buffer (additive, never clobbering live data)
+   * and re-renders. Skipped without recorder access (e.g. in tests).
+   */
+  private _maybeFetchHistory(
+    s: SaunaState,
+    phase: "heatup" | "cooldown",
+    now: number,
+  ): void {
+    if (!this.hass?.callWS) return;
+    const entityId = s.entities.currentTemperature;
+    if (!entityId) return;
+    const key = this._phaseKey(s, phase);
+    if (!key || this._historyFetched.has(key)) return;
+    this._historyFetched.add(key);
+
+    const startMs =
+      phase === "heatup"
+        ? (this._sessionStartAt ?? now - HEATUP_WINDOW_MS)
+        : (this._cooldownAnchor?.startedAt ?? now);
+
+    fetchHistory(this.hass, entityId, new Date(startMs), new Date(now))
+      .then((remote) => {
+        if (!remote.length) return;
+        // The window may have changed while the fetch was in flight; only merge
+        // if the same window is still open.
+        const cur = this._state();
+        const curPhase = cur ? this._graphPhaseFor(cur) : null;
+        if (!cur || !curPhase || this._phaseKey(cur, curPhase) !== key) return;
+        if (curPhase === "heatup") {
+          this._heatupSamples = mergeHistory(this._heatupSamples, remote);
+        } else {
+          this._cooldownSamples = mergeHistory(this._cooldownSamples, remote);
+        }
+        this.requestUpdate();
+      })
+      .catch(() => undefined);
   }
 
   // Append a sample to a buffer when due, and trim to a trailing time window.
