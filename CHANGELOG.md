@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- **Tap a value to open more-info.** Read-only displays on the card — the metric
+  tiles, the compact slots, the big current-temperature number, the status badge,
+  and the static target temperature — are now tappable (and keyboard-operable)
+  and open Home Assistant's standard more-info dialog for the underlying entity.
+  Interactive controls (power toggle, temperature stepper, switch chips) keep
+  their behaviour. Turn it off with `tap_more_info` (on by default).
 - **Heatup / cooldown temperature graph.** While the sauna is heating, the main
   temperature area becomes a live curve rising toward the target; after a session
   is switched off it becomes a falling curve cooling back toward room temperature
