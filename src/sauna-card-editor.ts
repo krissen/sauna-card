@@ -25,6 +25,7 @@ const LABEL_KEY: Record<string, string> = {
   show_heatup_graph: "editor.show_heatup_graph",
   show_cooldown_graph: "editor.show_cooldown_graph",
   cooldown_target_temp: "editor.cooldown_target_temp",
+  cooldown_include_heatup: "editor.cooldown_include_heatup",
   language: "editor.language",
 };
 
@@ -143,6 +144,7 @@ export class SaunaCardEditor extends LitElement {
           number: { mode: "box", step: 1, unit_of_measurement: "°C" },
         },
       },
+      { name: "cooldown_include_heatup", selector: { boolean: {} } },
       {
         name: "language",
         selector: {
