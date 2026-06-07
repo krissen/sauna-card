@@ -77,6 +77,7 @@
   "editor.controls_power_temp": "Virta + lämpötila",
   "editor.show_heatup_graph": "Lämpenemiskäyrä",
   "editor.show_cooldown_graph": "Jäähtymiskäyrä",
+  "editor.cooldown_target_temp": "Jäähtymistavoite (°C)",
   "editor.layout_status_dashboard": "Tilapaneeli",
   "editor.layout_thermostat_hero": "Termostaattikiekko",
   "editor.layout_compact": "Tiivis",
