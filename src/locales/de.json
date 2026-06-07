@@ -77,6 +77,7 @@
   "editor.controls_power_temp": "Ein/Aus + Temperatur",
   "editor.show_heatup_graph": "Aufheizkurve",
   "editor.show_cooldown_graph": "Abkühlkurve",
+  "editor.cooldown_target_temp": "Abkühl-Zieltemperatur (°C)",
   "editor.layout_status_dashboard": "Statusübersicht",
   "editor.layout_thermostat_hero": "Thermostat-Skala",
   "editor.layout_compact": "Kompakt",
