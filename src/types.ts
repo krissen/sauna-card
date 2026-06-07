@@ -79,6 +79,10 @@ export interface SaunaCardConfig {
   show_heatup_graph?: boolean;
   /** Show the falling temperature curve while cooling down (default on). */
   show_cooldown_graph?: boolean;
+  /** Temperature (°C) the cooldown tracks toward — roughly room temperature. When
+   * set it is the cooldown baseline (more reliable than the captured session
+   * start) and enables showing a cooldown after a page reload. */
+  cooldown_target_temp?: number;
 }
 
 /** Badge content selection: the headline, one chosen value, or several. */
