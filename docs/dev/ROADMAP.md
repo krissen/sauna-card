@@ -101,6 +101,13 @@ releases/version bumps, new npm dependencies.
 
 ## Phase 2+ — Growth (`0.2.x+`)
 
+- **Tap sensor displays → more-info.** Sensor/value readouts on the card become
+  clickable and open the standard HA more-info dialog for the underlying entity
+  (e.g. tapping the power readout opens more-info for the power sensor) — same
+  `tap→more-info` affordance the badge already has. Tiles/slots that **already
+  carry their own interaction** (power toggle, temperature control, and other
+  controls) keep that behaviour unchanged; only the read-only displays gain the
+  more-info tap.
 - More sauna models / integrations (same adapter pattern).
 - More languages on demand.
 - More badge and theme variants; UX polish.
