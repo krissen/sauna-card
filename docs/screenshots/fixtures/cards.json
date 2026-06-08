@@ -1,14 +1,19 @@
 [
   {
     "name": "hero-dashboard",
-    "config": { "type": "custom:sauna-card", "name": "Sauna" }
+    "config": { "type": "custom:sauna-card", "name": "Sauna", "language": "en" }
+  },
+  {
+    "name": "hero-dashboard-de",
+    "config": { "type": "custom:sauna-card", "name": "Sauna", "language": "de" }
   },
   {
     "name": "hero-thermostat",
     "config": {
       "type": "custom:sauna-card",
       "name": "Sauna",
-      "layout": "thermostat-hero"
+      "layout": "thermostat-hero",
+      "language": "sv"
     }
   },
   {
@@ -16,7 +21,8 @@
     "config": {
       "type": "custom:sauna-card",
       "name": "Sauna",
-      "layout": "compact"
+      "layout": "compact",
+      "language": "fi"
     }
   },
   {

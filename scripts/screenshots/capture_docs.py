@@ -98,8 +98,11 @@ def shoot():
         b = p.chromium.launch(headless=True)
         for dark in (False, True):
             suffix = "-dark" if dark else ""
+            # A narrow viewport forces the masonry view into a single column, so
+            # the rendered card order matches cards.json order (a wider viewport
+            # splits cards into height-balanced columns and scrambles nth(i)).
             ctx = b.new_context(
-                viewport={"width": 900, "height": 1400}, device_scale_factor=2
+                viewport={"width": 520, "height": 1600}, device_scale_factor=2
             )
             ctx.add_init_script(tokens_init(dark))
             pg = ctx.new_page()

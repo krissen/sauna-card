@@ -43,7 +43,7 @@ DARK = {
 
 def page_html(tag, config, theme):
     vars_css = ";".join(f"{k}:{v}" for k, v in theme.items() if k.startswith("--"))
-    return f"""<!doctype html><html lang="sv"><head><meta charset="utf-8"/>
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"/>
 <style>
  body{{background:{theme['bg']};margin:0;font-family:-apple-system,Roboto,sans-serif;{vars_css};color:var(--primary-text-color)}}
  #host{{max-width:520px;padding:16px}}
@@ -60,7 +60,7 @@ def page_html(tag, config, theme):
  }});
  customElements.whenDefined('{tag}').then(()=>{{
    const ed=document.createElement('{tag}');
-   ed.hass={{states:{{}},entities:{{}},devices:{{}},language:'sv',locale:{{language:'sv'}}}};
+   ed.hass={{states:{{}},entities:{{}},devices:{{}},language:'en',locale:{{language:'en'}}}};
    ed.setConfig({json.dumps(config)});
    document.getElementById('host').appendChild(ed);
  }});
