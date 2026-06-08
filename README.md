@@ -13,7 +13,7 @@ slot.
 
 | Light | Dark |
 |:---:|:---:|
-| ![Status dashboard (light)](docs/screenshots/hero-dashboard.png) | ![Status dashboard (dark)](docs/screenshots/hero-dashboard-dark.png) |
+| ![Status dashboard, English (light)](docs/screenshots/hero-dashboard.png) | ![Status dashboard, German (dark)](docs/screenshots/hero-dashboard-de-dark.png) |
 
 | Status dashboard | Thermostat dial | Compact |
 |:---:|:---:|:---:|
@@ -22,6 +22,10 @@ slot.
 The companion **badge**, in several appearances:
 
 ![badge variants](docs/screenshots/badge-row.png)
+
+> Screenshots are shown across the supported languages — English, German, Swedish
+> and Finnish; the card follows your Home Assistant locale (with a per-card
+> override).
 
 ## Features
 
