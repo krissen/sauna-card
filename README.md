@@ -11,10 +11,9 @@ more sauna models and integrations can be added over time. Theme-first,
 multilingual (sv/fi/en/de), and configurable down to which value sits in which
 slot.
 
-<p align="center">
-  <img src="docs/screenshots/hero-dashboard.png" width="380" alt="Status dashboard (light)">
-  <img src="docs/screenshots/hero-dashboard-dark.png" width="380" alt="Status dashboard (dark)">
-</p>
+| Light | Dark |
+|:---:|:---:|
+| ![Status dashboard (light)](docs/screenshots/hero-dashboard.png) | ![Status dashboard (dark)](docs/screenshots/hero-dashboard-dark.png) |
 
 | Status dashboard | Thermostat dial | Compact |
 |:---:|:---:|:---:|
