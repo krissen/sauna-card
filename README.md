@@ -73,20 +73,54 @@ and add a dashboard resource (Settings → Dashboards → ⋮ → Resources):
 
 ## Basic usage
 
-The card and badge auto-detect the device, so the minimal config is just:
+The card and badge **auto-detect** your Harvia device — there are no entity IDs to
+type. Adding the card is enough to get a working dashboard.
+
+### In the UI (recommended)
+
+1. Open a dashboard → **Edit dashboard** → **Add card**, and search for **Sauna**.
+   On Home Assistant 2026.6+, picking a Harvia climate entity in the card picker
+   also suggests sauna-card directly, pre-configured for that device.
+2. The card detects your heater automatically. Choose a **layout** — status
+   dashboard, thermostat dial, or compact.
+3. Tailor what each layout shows in the **visual editor**: reorder tiles by drag
+   or ▲▼, add or remove values from the full catalog, or set the compact
+   left/middle/right slots. Each layout keeps its own selection, and **Reset**
+   restores the defaults.
+
+<p align="center">
+  <img src="docs/screenshots/editor-card.png" width="420" alt="The card's visual editor">
+</p>
+
+Add the companion **badge** the same way from a view's badge row
+(**Add badge** → search **Sauna**).
+
+### In YAML
+
+The minimal card and badge are just:
 
 ```yaml
 type: custom:sauna-card
 ```
 
-A badge (in a view's `badges:` list):
-
 ```yaml
 type: custom:sauna-badge
 ```
 
-Pick a layout and tailor its content in the visual editor, or in YAML — see the
-[configuration reference](docs/configuration.md).
+Everything the editor sets is plain YAML too. For example, a thermostat dial with
+two extra values below it, controls limited to power, and tap-to-more-info turned
+off:
+
+```yaml
+type: custom:sauna-card
+layout: thermostat-hero
+hero_items: [humidity, remaining]
+controls: power
+tap_more_info: false
+```
+
+See the [configuration reference](docs/configuration.md) for every option and the
+full value catalog, or the [quick start](docs/quick-start.md) for a guided walk-through.
 
 ## Documentation
 
