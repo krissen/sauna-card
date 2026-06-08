@@ -85,13 +85,14 @@ releases/version bumps, new npm dependencies.
 - [x] **Controls option** (PR #15) — `controls: none | power | power+temp`
       (default `power+temp`); makes the compact layout interactive.
 
-## Current status (2026-06-05)
+## Current status (2026-06-08)
 
-- **Shipped:** F0–F1, I1–I10, plus the configurability arc (PRs #10–#15) and
-  docs (PR #16). **First GitHub release `0.1.0` is out** on `master`
-  (`release.yml` green: build + `sauna-card.js` asset + HACS validation; actions
-  on the Node 24 runtime). All passed the dual-bot loop and were live-verified in
-  `hass-test` (Xenio device).
+- **Shipped:** F0–F1, I1–I10, the configurability arc (PRs #10–#15), and the
+  `0.1.x` releases. **`0.2.0` released** on `master`: the heatup/cooldown
+  temperature graph, tap-to-more-info on read-only displays, the entity-resolution
+  cache, and the control-row spacing fix — plus refreshed multilingual docs.
+  All passed the review loop (Codex + Nagelfararna while Copilot was out) and were
+  live-verified in `hass-test` (Xenio device).
 - **Next:** gather feedback, then HACS default-repo submission.
 - **Deferred:** Fenix live verification (only a Xenio in `hass-test`);
   dev-toolchain advisories (own PR). **Done:** perf — entity-id resolution and

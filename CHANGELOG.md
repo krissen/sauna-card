@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-08
+
 ### Added
 - **Tap a value to open more-info.** Read-only displays on the card — the metric
   tiles, the compact slots, the big current-temperature number, the status badge,
@@ -38,6 +40,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   resolution are now scanned once per entity-registry change instead of on every
   render, so dashboards with many entities update with noticeably less work each
   state tick. No behaviour change — device renames still show immediately.
+
+### Fixed
+- **Even spacing around the controls.** In the thermostat-dial and compact
+  layouts the temperature stepper and the control chips sat flush against each
+  other; they now get the same breathing room as the status dashboard.
 
 ## [0.1.1] - 2026-06-06
 
