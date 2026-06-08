@@ -49,6 +49,20 @@ The companion **badge**, in several appearances:
   request), following Home Assistant's locale, with a per-card override.
 - **Visual editor** and **card-picker suggestion** on Home Assistant 2026.6+.
 
+## In action
+
+While the sauna runs, the main area turns into a live **temperature graph** — a
+rising heat-up curve toward the target, a falling cool-down afterwards, or the
+whole session as one two-tone arc. The tiles track the session as it goes.
+
+| Heating up | Whole session |
+|:---:|:---:|
+| ![Heating-up graph (light)](docs/screenshots/graph-heatup-dashboard.png) | ![Two-tone session graph (light)](docs/screenshots/graph-session-dashboard.png) |
+| ![Heating-up graph (dark)](docs/screenshots/graph-heatup-dashboard-dark.png) | ![Two-tone session graph (dark)](docs/screenshots/graph-session-dashboard-dark.png) |
+
+See [Configuration → Temperature graph](docs/configuration.md#temperature-graph)
+for the heat-up, cool-down and whole-session options.
+
 ## Requirements
 
 The [`ha-harvia-sauna`](https://github.com/WiesiDeluxe/ha-harvia-sauna)

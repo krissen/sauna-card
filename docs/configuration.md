@@ -34,6 +34,26 @@ Each content option is **saved per layout** — switching layouts never clears
 another layout's selection. Leaving an option unset uses its default; setting an
 empty list (`[]`) shows nothing.
 
+## Temperature graph
+
+While the sauna runs, the card's main area shows a live temperature graph in place
+of the static current/target display. It has three phases, each controlled by the
+options above:
+
+- **Heat-up** (`show_heatup_graph`) — a rising curve toward the target while the
+  heater is on.
+- **Cool-down** (`show_cooldown_graph`, `cooldown_target_temp`) — a falling curve
+  toward room temperature after the session ends.
+- **Whole session** (`cooldown_include_heatup`) — one two-tone arc: the orange
+  heat-up rising to the peak, then the blue cool-down falling.
+
+| Heat-up | Cool-down | Whole session |
+|:---:|:---:|:---:|
+| ![Heat-up temperature graph](screenshots/graph-heatup-dashboard.png) | ![Cool-down temperature graph](screenshots/graph-cooldown-dashboard.png) | ![Two-tone whole-session graph](screenshots/graph-session-dashboard.png) |
+
+Set `cooldown_target_temp` (≈ your room temperature) so the cool-down curve can be
+reconstructed from the recorder after a page reload.
+
 ## Layouts
 
 - **`status-dashboard`** (default) — big current temperature, a target stepper, a
