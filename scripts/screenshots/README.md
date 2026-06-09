@@ -33,6 +33,12 @@ Configs live under `docs/screenshots/fixtures/` so the image set is reproducible
 - `badges.json` — the badge-variant row.
 - `editors.json` — the card editor config. (The badge editor is plain `ha-form`,
   which needs real Home Assistant, so it isn't shot from the standalone page.)
+- `diy_sauna.yaml` — a self-contained Home Assistant package of helper entities
+  (input_number / input_boolean, template switches/sensors/binary_sensors and a
+  `generic_thermostat`) that simulates a DIY / non-Harvia sauna. Drop it into
+  `hass-test/config/packages/` (enable `homeassistant: packages: !include_dir_named packages`)
+  so the **manual adapter** has real entities to map. Doubles as an example
+  manual-mapping setup.
 
 ## Capture
 
@@ -50,6 +56,14 @@ sections render, while the standard `ha-form` fields appear above them in real H
 
 ```bash
 tmp/.venv/bin/python scripts/screenshots/capture_editors.py
+```
+
+`capture_manual.py` shoots the **manual adapter** cards from the `Manual / DIY`
+view (`/sauna-test/manual`), which maps the `diy_sauna.yaml` helper entities:
+
+```bash
+tmp/.venv/bin/python scripts/screenshots/capture_manual.py            # shoot only
+tmp/.venv/bin/python scripts/screenshots/capture_manual.py --restart  # restart HA first
 ```
 
 Both write `<name>.png` (light) and `<name>-dark.png` (dark). The card images
