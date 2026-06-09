@@ -263,8 +263,9 @@ export class SaunaBadgeEditor extends LitElement {
     if (!this._manual) return nothing;
     const lang = this._lang;
     const map = this._entityMap;
-    return html`<div class="section">
-      <div class="title">${t("editor.entity_map", lang)}</div>
+    // Foldable, open by default. Native <details> keeps its own open state.
+    return html`<details class="section mapfold" open>
+      <summary class="mapsummary">${t("editor.entity_map", lang)}</summary>
       <div class="hint">${t("editor.entity_map_hint", lang)}</div>
       <div class="maprows">
         ${MANUAL_ENTITY_CATALOG.map((spec) => {
@@ -299,7 +300,7 @@ export class SaunaBadgeEditor extends LitElement {
           </div>`;
         })}
       </div>
-    </div>`;
+    </details>`;
   }
 
   override render(): TemplateResult | typeof nothing {
@@ -308,14 +309,27 @@ export class SaunaBadgeEditor extends LitElement {
       ...this._config,
       integration: this._config.integration || "harvia_sauna",
     };
+    // Split the form at the source picker so the manual entity-map section can
+    // sit directly under it (ha-form renders its schema as one contiguous block).
+    const schema = this._schema();
+    const cut = schema.findIndex((s) => s.name === "integration") + 1;
+    const top = schema.slice(0, cut);
+    const rest = schema.slice(cut);
     return html`<ha-form
         .hass=${this.hass}
         .data=${data}
-        .schema=${this._schema()}
+        .schema=${top}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
-      ${this._manualSection()}`;
+      ${this._manualSection()}
+      <ha-form
+        .hass=${this.hass}
+        .data=${data}
+        .schema=${rest}
+        .computeLabel=${this._computeLabel}
+        @value-changed=${this._valueChanged}
+      ></ha-form>`;
   }
 
   static override styles = css`
@@ -324,6 +338,14 @@ export class SaunaBadgeEditor extends LitElement {
     }
     .section .title {
       font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .mapfold > summary {
+      font-weight: 600;
+      cursor: pointer;
+      list-style-position: inside;
+      user-select: none;
+      padding: 2px 0;
       margin-bottom: 4px;
     }
     .hint {

@@ -123,7 +123,7 @@ export class SaunaCardEditor extends LitElement {
         },
       },
       // The device picker is Harvia-specific; manual mapping uses its own
-      // entity-map section instead (rendered below the form).
+      // entity-map section instead (rendered between the two form halves).
       ...(this._manual
         ? []
         : [
@@ -283,10 +283,10 @@ export class SaunaCardEditor extends LitElement {
     if (!this._manual) return nothing;
     const lang = this._lang;
     const map = this._entityMap;
-    return html`<div class="section">
-      <div class="sec-head">
-        <span class="title">${t("editor.entity_map", lang)}</span>
-      </div>
+    // Foldable, open by default. Native <details> keeps its own open state, so a
+    // collapse survives re-renders without tracking it in component state.
+    return html`<details class="section mapfold" open>
+      <summary class="mapsummary">${t("editor.entity_map", lang)}</summary>
       <div class="hint">${t("editor.entity_map_hint", lang)}</div>
       <div class="maprows">
         ${MANUAL_ENTITY_CATALOG.map((spec) => {
@@ -321,7 +321,7 @@ export class SaunaCardEditor extends LitElement {
           </div>`;
         })}
       </div>
-    </div>`;
+    </details>`;
   }
 
   // ---- tile list section ----
@@ -531,14 +531,28 @@ export class SaunaCardEditor extends LitElement {
       ...this._config,
       integration: this._config.integration || "harvia_sauna",
     };
+    // Split the form at the source picker so the manual entity-map section can
+    // sit directly under it (ha-form renders its schema as one contiguous block).
+    const schema = this._schema();
+    const cut = schema.findIndex((s) => s.name === "integration") + 1;
+    const top = schema.slice(0, cut);
+    const rest = schema.slice(cut);
     return html`<ha-form
         .hass=${this.hass}
         .data=${data}
-        .schema=${this._schema()}
+        .schema=${top}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
-      ${this._manualSection()}${this._tilesSection()}${this._slotsSection()}
+      ${this._manualSection()}
+      <ha-form
+        .hass=${this.hass}
+        .data=${data}
+        .schema=${rest}
+        .computeLabel=${this._computeLabel}
+        @value-changed=${this._valueChanged}
+      ></ha-form>
+      ${this._tilesSection()}${this._slotsSection()}
       <div class="foot">
         <button type="button" class="reset-all" @click=${this._resetAll}>
           ${t("editor.reset_all", this._lang)}
@@ -648,6 +662,13 @@ export class SaunaCardEditor extends LitElement {
       padding: 9px 11px;
       color: var(--secondary-text-color);
       font: inherit;
+    }
+    .mapfold > summary {
+      font-weight: 600;
+      cursor: pointer;
+      list-style-position: inside;
+      user-select: none;
+      padding: 2px 0;
     }
     .maprows {
       display: flex;
