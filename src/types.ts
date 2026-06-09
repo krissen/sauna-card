@@ -92,6 +92,12 @@ export interface SaunaCardConfig {
   /** Manual entity mapping for the "manual" adapter: logical key → entity_id.
    * Only the keys the user maps are present; the card hides everything else. */
   entity_map?: Record<string, string>;
+  /** Log a version banner to the console once on load. Absent ⇒ on, so existing
+   * configs keep logging; set false to silence. */
+  show_version?: boolean;
+  /** Emit verbose console.debug logging across detection, controls and graphs.
+   * Default off. */
+  debug?: boolean;
 }
 
 /** Badge content selection: the headline, one chosen value, or several. */
@@ -135,6 +141,11 @@ export interface SaunaBadgeConfig {
   scale?: number;
   /** Manual entity mapping for the "manual" adapter: logical key → entity_id. */
   entity_map?: Record<string, string>;
+  /** Log a version banner to the console once on load. Absent ⇒ on, so existing
+   * configs keep logging; set false to silence. */
+  show_version?: boolean;
+  /** Emit verbose console.debug logging. Default off. */
+  debug?: boolean;
 }
 
 /**
