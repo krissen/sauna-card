@@ -48,8 +48,9 @@ input_boolean:
     icon: mdi:fire
 
 template:
-  # Template switches wrap the input_booleans so the card's switch.toggle calls
-  # work (the manual adapter maps "power"/"light" etc. to the switch domain).
+  # Template switches expose the input_booleans in the switch domain. (The manual
+  # adapter toggles via the domain-agnostic homeassistant.toggle, so a
+  # light/fan/input_boolean works too; switches just keep this fixture explicit.)
   - switch:
       - name: DIY Sauna Power
         unique_id: diy_sauna_power
