@@ -8,6 +8,7 @@ The card and badge auto-detect the Harvia device, so most options are optional.
 - [Choosing what to show](#choosing-what-to-show) — tiles, slots, the value catalog
 - [Controls](#controls)
 - [Badge options](#badge-options)
+- [Advanced](#advanced) — version banner, debug logging
 - [Examples](#examples)
 
 ## Card options
@@ -30,6 +31,8 @@ The card and badge auto-detect the Harvia device, so most options are optional.
 | `dashboard_tiles` | `array<string>` | *(see below)* | Ordered item keys shown as tiles in `status-dashboard`. |
 | `hero_items` | `array<string>` | `[]` | Ordered item keys shown as tiles in `thermostat-hero`. |
 | `compact_slots` | `object` | `{left: status, mid: name, right: current_temp}` | The compact layout's three slots. |
+| `show_version` | `boolean` | `true` | Log a version banner to the browser console once on load. See [Advanced](#advanced). |
+| `debug` | `boolean` | `false` | Emit verbose `console.debug` logging for diagnostics. See [Advanced](#advanced). |
 
 Each content option is **saved per layout** — switching layouts never clears
 another layout's selection. Leaving an option unset uses its default; setting an
@@ -148,6 +151,28 @@ layout becomes interactive).
 | `show_label` | `boolean` | `false` | Show each value's label. |
 | `label_position` | `string` | `right` | `right` or `below` (when `show_label`). |
 | `scale` | `number` | `1` | Overall size multiplier (any positive number; the editor slider offers 0.5–3). |
+| `show_version` | `boolean` | `true` | Log a version banner to the browser console once on load. See [Advanced](#advanced). |
+| `debug` | `boolean` | `false` | Emit verbose `console.debug` logging for diagnostics. See [Advanced](#advanced). |
+
+## Advanced
+
+Both the card and the badge expose two diagnostic options, grouped in a folded
+**Advanced** section at the bottom of the visual editor. They are safe to leave
+at their defaults.
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `show_version` | `boolean` | `true` | On first load, print a styled version banner (`♨️ Sauna Card: version X.Y.Z`) to the browser console. Useful when reporting an issue. Set `false` to silence it. Omitting the option keeps it on, so existing cards keep logging. |
+| `debug` | `boolean` | `false` | When on, the card/badge writes verbose `console.debug` lines (prefixed `[sauna-card]`) covering integration detection, service calls, and graph/session computation. Leave off for normal use. |
+
+```yaml
+type: custom:sauna-card
+show_version: false   # don't log the version banner
+debug: true           # verbose console.debug diagnostics
+```
+
+The editor also shows the running build version in the Advanced section, so you
+can confirm which version is loaded without opening the console.
 
 ## Examples
 

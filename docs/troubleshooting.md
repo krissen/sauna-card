@@ -29,6 +29,18 @@ A hard refresh clears a stale cached bundle.
 The visual editor uses Home Assistant's `ha-form`. If it appears blank, reload
 the browser; an outdated cached bundle is the usual cause.
 
+## Reporting a bug — version and debug logging
+
+When opening an issue, include the card version. By default the card and badge
+print it to the browser console on load (`♨️ Sauna Card: version X.Y.Z`); the
+visual editor's **Advanced** section also shows it. You can silence the banner
+with `show_version: false`.
+
+For a deeper trace, enable `debug: true` (also under **Advanced**). The card and
+badge then write verbose `console.debug` lines, prefixed `[sauna-card]`, covering
+integration detection, service calls and graph/session computation — handy to
+attach to a bug report. See [Configuration → Advanced](configuration.md#advanced).
+
 ## Developing locally
 
 When testing a local build against a `www/`-served copy, Home Assistant serves
