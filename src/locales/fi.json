@@ -124,5 +124,11 @@
   "editor.reset_all": "Palauta kaikki sisältö",
   "editor.tiles_add": "+ Lisää arvo…",
   "editor.tiles_empty": "Ei ruutuja",
-  "editor.tiles_hint": "Järjestä vetämällä tai ▲▼-painikkeilla. Tyhjä = ei ruutuja. Jokaisella asettelulla on oma lista."
+  "editor.tiles_hint": "Järjestä vetämällä tai ▲▼-painikkeilla. Tyhjä = ei ruutuja. Jokaisella asettelulla on oma lista.",
+  "editor.advanced": "Lisäasetukset",
+  "editor.advanced_hint": "Diagnostiikka. Voit jättää oletusarvoihin.",
+  "editor.show_version": "Kirjaa versio konsoliin",
+  "editor.debug": "Virheenkorjausloki",
+  "editor.card_version": "Sauna Card -versio",
+  "editor.badge_version": "Sauna Badge -versio"
 }
