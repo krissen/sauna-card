@@ -4,7 +4,7 @@ Tracks development toward and beyond 0.1.0. Mirrors `CHANGELOG.md` (this file is
 the forward-looking plan; the changelog records what shipped). Each increment is
 its own feature branch → PR against `dev`, and must pass the full loop
 (build + tests green → deploy to `hass-test` → smoke test against the live
-`ha-harvia-sauna` integration → dual-bot review) before the next one starts.
+`ha-harvia-sauna` integration → code review) before the next one starts.
 **We do not oneshot 0.1.0** — it is the target, reached one reviewed increment
 at a time.
 
@@ -16,10 +16,7 @@ at a time.
    `cp dist/sauna-card.js ../hass-test/config/www/community/sauna-card/ && gzip -kf ../hass-test/config/www/community/sauna-card/sauna-card.js`
    then restart HA and smoke-test (HA serves the `.gz`; without gzip changes are invisible).
 4. Commit per logical change `(scope) English message`; PR against `dev` with ≥1 label.
-5. Review loop, **both bots every round** (Codex + Copilot via `gh_botreview`).
-   Break-point: no bot posts new substantive findings. Fallback if a bot can't
-   run: `/nagelfar` substitutes for it — one bot out of quota → replaced per-bot
-   (review stays dual); both down → Nagelfararna alone.
+5. Code review on the PR; address findings until the review is clean.
 6. Merge → next increment. `dev → master` + tag only at release.
 
 Escalate to the product owner: scope changes, UX-affecting architecture,
@@ -28,14 +25,13 @@ releases/version bumps, new npm dependencies.
 ## Phase 0 — Foundation (`0.0.x`, tag `v0.0.1`)
 
 - [x] **F0 · Repo & team.** `git init`, branch model (`master` default, work via
-      feature → `dev`), MIT license, README, `hacs.json`, `.gitignore`, team
-      structure, ADRs 0001–0004.
+      feature → `dev`), MIT license, README, `hacs.json`, `.gitignore`.
 - [x] **F1 · Tooling skeleton.** TypeScript + Lit 3 + Vite → `dist/sauna-card.js`
       with `__VERSION__` injection; Vitest, ESLint, Prettier; CI (`ci.yml`:
       typecheck/lint/test/build) and `release.yml` (build + enforcing
       `hacs/action` at release time — `hassfest` omitted, this is a frontend
       card). Placeholder `<sauna-card>` registered and deployed to `hass-test`.
-      Merged via PR #1 after dual-bot review. **Tag `v0.0.1` (tag only, no
+      Merged via PR #1 after code review. **Tag `v0.0.1` (tag only, no
       GitHub release).**
 
 > Release policy: `v0.0.1` is an internal tag only. The **first GitHub release is
@@ -91,8 +87,7 @@ releases/version bumps, new npm dependencies.
   `0.1.x` releases. **`0.2.0` released** on `master`: the heatup/cooldown
   temperature graph, tap-to-more-info on read-only displays, the entity-resolution
   cache, and the control-row spacing fix — plus refreshed multilingual docs.
-  All passed the review loop (Codex + Nagelfararna while Copilot was out) and were
-  live-verified in `hass-test` (Xenio device).
+  All passed code review and were live-verified in `hass-test` (Xenio device).
 - **Next:** gather feedback, then HACS default-repo submission.
 - **Deferred:** Fenix live verification (only a Xenio in `hass-test`);
   dev-toolchain advisories (own PR). **Done:** perf — entity-id resolution and
