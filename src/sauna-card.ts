@@ -46,6 +46,7 @@ import {
   MAX_TEMP,
 } from "./controls";
 import { fireMoreInfo } from "./utils/more-info";
+import { logVersionBanner, dlog } from "./log";
 
 const TEMP_STEP = 5;
 
@@ -162,6 +163,9 @@ export class SaunaCard extends LitElement {
   // Reset when the sauna is powered on again.
   private _cooldownReconstructAttempted = false;
 
+  // Set once the version banner has been printed, so re-renders don't spam it.
+  private _versionLogged = false;
+
   static getStubConfig(): Record<string, unknown> {
     return {};
   }
@@ -218,6 +222,8 @@ export class SaunaCard extends LitElement {
       "show_cooldown_graph",
       "cooldown_include_heatup",
       "tap_more_info",
+      "show_version",
+      "debug",
     ]) {
       if (config[key] !== undefined && typeof config[key] !== "boolean") {
         throw new Error(`sauna-card: "${key}" must be a boolean`);
@@ -231,6 +237,12 @@ export class SaunaCard extends LitElement {
       throw new Error('sauna-card: "cooldown_target_temp" must be a number');
     }
     this._config = config as unknown as SaunaCardConfig;
+    // Log the version banner once per instance, unless explicitly opted out.
+    // Absent flag ⇒ on, so existing configs keep logging.
+    if (!this._versionLogged && this._config.show_version !== false) {
+      logVersionBanner("Sauna Card");
+      this._versionLogged = true;
+    }
   }
 
   getCardSize(): number {
@@ -254,6 +266,10 @@ export class SaunaCard extends LitElement {
 
   private get _controls(): ControlsMode {
     return this._config.controls ?? "power+temp";
+  }
+
+  private get _debug(): boolean {
+    return this._config.debug === true;
   }
 
   /** Control chips, unless controls are off. */
@@ -291,7 +307,13 @@ export class SaunaCard extends LitElement {
   private _state(): SaunaState | null {
     if (!this.hass) return null;
     const adapter = pickIntegration(this.hass, this._config.integration);
-    return adapter ? adapter.readState(this.hass, this._config) : null;
+    if (!adapter) {
+      dlog(this._debug, "no adapter for integration", this._config.integration);
+      return null;
+    }
+    const state = adapter.readState(this.hass, this._config);
+    dlog(this._debug, `state via ${adapter.id}`, state);
+    return state;
   }
 
   // Arrow field so it stays bound when passed as a callback (e.g. to a catalog
@@ -379,7 +401,7 @@ export class SaunaCard extends LitElement {
 
   private _toggle(s: SaunaState, key: string): void {
     const id = s.entities[key];
-    if (id && this.hass) toggleSwitch(this.hass, id);
+    if (id && this.hass) toggleSwitch(this.hass, id, this._debug);
   }
 
   private _step(s: SaunaState, delta: number): void {
@@ -393,7 +415,7 @@ export class SaunaCard extends LitElement {
       Math.min(MAX_TEMP, Math.round(base + delta)),
     );
     this._pendingTarget = next;
-    setTargetTemperature(this.hass, s, next);
+    setTargetTemperature(this.hass, s, next, this._debug);
   }
 
   override disconnectedCallback(): void {
@@ -778,6 +800,7 @@ export class SaunaCard extends LitElement {
       this.hass,
       { ...s, targetTemp: this._effectiveTarget(s) },
       active,
+      this._debug,
     );
   }
 
