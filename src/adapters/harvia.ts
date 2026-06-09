@@ -3,7 +3,6 @@ import type {
   SaunaAdapter,
   SaunaCardConfig,
   SaunaState,
-  SaunaStatus,
   DetectedDevice,
 } from "../types";
 import {
@@ -11,6 +10,7 @@ import {
   resolveEntities,
   type EntityDescriptor,
 } from "../utils/autodetect";
+import { buildSaunaState } from "./build-state";
 
 export const HARVIA_PLATFORM = "harvia_sauna";
 
@@ -83,51 +83,12 @@ export const HARVIA_ENTITIES = {
 
 export type HarviaEntityKey = keyof typeof HARVIA_ENTITIES;
 
-const UNAVAILABLE = new Set(["unavailable", "unknown", "none", ""]);
-
-function num(hass: Hass, entityId: string | undefined): number | undefined {
-  if (!entityId) return undefined;
-  const st = hass.states[entityId];
-  if (!st || UNAVAILABLE.has(st.state)) return undefined;
-  const n = Number(st.state);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function isOn(hass: Hass, entityId: string | undefined): boolean | undefined {
-  if (!entityId) return undefined;
-  const st = hass.states[entityId];
-  if (!st || UNAVAILABLE.has(st.state)) return undefined;
-  return st.state === "on";
-}
-
-function str(hass: Hass, entityId: string | undefined): string | undefined {
-  if (!entityId) return undefined;
-  const st = hass.states[entityId];
-  if (!st || UNAVAILABLE.has(st.state)) return undefined;
-  return st.state;
-}
-
 /** Best-effort device model: "xenio" | "fenix" | undefined. */
 export function detectModel(hass: Hass, deviceId: string): string | undefined {
   const model = `${hass.devices?.[deviceId]?.model ?? ""}`.toLowerCase();
   if (model.includes("xenio") || model.startsWith("cx")) return "xenio";
   if (model.includes("fenix") || model.startsWith("fx")) return "fenix";
   return undefined;
-}
-
-function deriveStatus(
-  powerOn: boolean | undefined,
-  heatingActive: boolean | undefined,
-  currentTemp: number | undefined,
-  targetTemp: number | undefined,
-): SaunaStatus {
-  if (powerOn === false) return "off";
-  if (powerOn === undefined) return "unknown";
-  if (heatingActive) return "heating";
-  if (currentTemp !== undefined && targetTemp !== undefined) {
-    return currentTemp >= targetTemp - 2 ? "ready" : "idle";
-  }
-  return "idle";
 }
 
 function pickDevice(
@@ -176,92 +137,12 @@ export const harviaAdapter: SaunaAdapter = {
       HARVIA_PLATFORM,
       HARVIA_ENTITIES,
     );
-
-    const currentTemp = num(hass, e.currentTemperature);
-    const targetTemp = num(hass, e.targetTemperature);
-    const powerOn = isOn(hass, e.power);
-    const heatingActive = isOn(hass, e.heating);
-    const tempTrend = num(hass, e.tempTrend);
-
-    // Ready ETA: estimate from the temperature trend (current → target at the
-    // current °C/min). We deliberately do NOT use the integration's heat_up_time
-    // sensor — despite the name it is a static heat-up estimate (it reads the
-    // same value even while the sauna is off), not a live countdown, so showing
-    // it as "ready in X" never decreases and misleads. temp_trend is disabled by
-    // default in the integration; when it's absent the card derives its own
-    // trend from observed temperatures instead.
-    let readyEtaMinutes: number | undefined;
-    if (
-      heatingActive &&
-      currentTemp !== undefined &&
-      targetTemp !== undefined &&
-      tempTrend !== undefined &&
-      tempTrend > 0 &&
-      currentTemp < targetTemp
-    ) {
-      readyEtaMinutes = Math.ceil((targetTemp - currentTemp) / tempTrend);
-    }
-
-    // Auxiliary switch states, by logical key (omitting any that are absent).
-    const switchEntities: Record<string, string | undefined> = {
-      power: e.power,
-      light: e.light,
-      fan: e.fan,
-      steamer: e.steamer,
-      aroma: e.aroma,
-      dehumidifier: e.dehumidifier,
-      auto_light: e.autoLight,
-      auto_fan: e.autoFan,
-    };
-    const switches: Record<string, boolean> = {};
-    for (const [key, id] of Object.entries(switchEntities)) {
-      const on = isOn(hass, id);
-      if (on !== undefined) switches[key] = on;
-    }
-
-    return {
-      integration: HARVIA_PLATFORM,
-      deviceId: device.deviceId,
-      model: detectModel(hass, device.deviceId),
-      available: Object.keys(e).length > 0,
-      status: deriveStatus(powerOn, heatingActive, currentTemp, targetTemp),
-      currentTemp,
-      targetTemp,
-      humidity: num(hass, e.humidity),
-      remainingMinutes: num(hass, e.remainingTime),
-      readyEtaMinutes,
-      power: num(hass, e.powerSensor),
-      energy: num(hass, e.energy),
-      sessionsToday: num(hass, e.sessionsToday),
-      tempTrend,
-      wifiRssi: num(hass, e.wifi),
-      doorOpen: isOn(hass, e.door),
-      heatingActive,
-      steamActive: isOn(hass, e.steam),
-      targetHumidity: num(hass, e.targetHumidity),
-      aromaLevel: num(hass, e.aromaLevelSet),
-      sessionLength: num(hass, e.sessionLength),
-      lastSessionDuration: num(hass, e.lastSessionDuration),
-      lastSessionMaxTemp: num(hass, e.lastSessionMaxTemp),
-      heaterPowerActual: num(hass, e.heaterPowerActual),
-      mainSensorTemp: num(hass, e.mainSensorTemp),
-      extSensorTemp: num(hass, e.extSensorTemp),
-      panelTemp: num(hass, e.panelTemp),
-      statusCodes: str(hass, e.statusCodes),
-      activeProfile: str(hass, e.activeProfile),
-      heatOnCounter: num(hass, e.heatOnCounter),
-      steamOnCounter: num(hass, e.steamOnCounter),
-      ph1RelayCounter: num(hass, e.ph1RelayCounter),
-      ph2RelayCounter: num(hass, e.ph2RelayCounter),
-      ph3RelayCounter: num(hass, e.ph3RelayCounter),
-      totalHours: num(hass, e.totalHours),
-      totalBathingHours: num(hass, e.totalBathingHours),
-      totalSessions: num(hass, e.totalSessions),
-      remoteAllowed: isOn(hass, e.remoteAllowed),
-      safetyRelay: isOn(hass, e.safetyRelay),
-      screenLock: isOn(hass, e.screenLock),
-      switches,
-      entities: e,
-    };
+    return buildSaunaState(
+      hass,
+      HARVIA_PLATFORM,
+      device.deviceId,
+      e,
+      detectModel(hass, device.deviceId),
+    );
   },
 };
