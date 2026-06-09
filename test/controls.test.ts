@@ -116,7 +116,29 @@ describe("controls", () => {
     ]);
   });
 
-  it("setActive on a manual sauna with no power entity does nothing", () => {
+  it("setActive on a manual climate-only sauna switches the thermostat on/off", () => {
+    const { hass, calls } = mockHass();
+    const manual: SaunaState = {
+      ...state,
+      integration: "manual",
+      deviceId: "manual",
+      entities: { thermostat: "climate.diy_sauna" },
+    };
+    setActive(hass, manual, true);
+    expect(calls[0]).toEqual([
+      "climate",
+      "turn_on",
+      { entity_id: "climate.diy_sauna" },
+    ]);
+    setActive(hass, manual, false);
+    expect(calls[1]).toEqual([
+      "climate",
+      "turn_off",
+      { entity_id: "climate.diy_sauna" },
+    ]);
+  });
+
+  it("setActive on a manual sauna with neither power nor thermostat does nothing", () => {
     const { hass, calls } = mockHass();
     const manual: SaunaState = {
       ...state,

@@ -89,10 +89,20 @@ export function setActive(
 ): Promise<unknown> | undefined {
   if (state.integration === "manual") {
     const power = state.entities.power;
-    if (!power) return undefined;
-    return call(hass, "homeassistant", active ? "turn_on" : "turn_off", {
-      entity_id: power,
-    });
+    if (power) {
+      return call(hass, "homeassistant", active ? "turn_on" : "turn_off", {
+        entity_id: power,
+      });
+    }
+    // No dedicated power switch: switch the mapped thermostat (climate) on/off
+    // directly, so a climate-only sauna still has a working power button.
+    const thermo = state.entities.thermostat;
+    if (thermo) {
+      return call(hass, "climate", active ? "turn_on" : "turn_off", {
+        entity_id: thermo,
+      });
+    }
+    return undefined;
   }
   return setSession(hass, state, {
     active,
