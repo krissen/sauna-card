@@ -19,6 +19,7 @@ import {
 } from "./status";
 import { detectLang, t } from "./i18n";
 import { fireMoreInfo } from "./utils/more-info";
+import { logVersionBanner, dlog } from "./log";
 
 const CONTENTS: BadgeContent[] = ["primary", "single", "row"];
 const VISUALS: BadgeVisual[] = [
@@ -83,6 +84,9 @@ export class SaunaBadge extends LitElement {
 
   @state() private _config: SaunaBadgeConfig = { type: "custom:sauna-badge" };
 
+  // Set once the version banner has been printed, so re-renders don't spam it.
+  private _versionLogged = false;
+
   static getStubConfig(): Record<string, unknown> {
     // Empty config → autodetect device + integration, default content/visual.
     return {};
@@ -136,11 +140,10 @@ export class SaunaBadge extends LitElement {
     if (config.entity_map !== undefined && !isPlainObject(config.entity_map)) {
       throw new Error(`sauna-badge: "entity_map" must be an object`);
     }
-    if (
-      config.show_label !== undefined &&
-      typeof config.show_label !== "boolean"
-    ) {
-      throw new Error(`sauna-badge: "show_label" must be a boolean`);
+    for (const key of ["show_label", "show_version", "debug"]) {
+      if (config[key] !== undefined && typeof config[key] !== "boolean") {
+        throw new Error(`sauna-badge: "${key}" must be a boolean`);
+      }
     }
     if (
       config.scale !== undefined &&
@@ -151,6 +154,12 @@ export class SaunaBadge extends LitElement {
       throw new Error(`sauna-badge: "scale" must be a positive number`);
     }
     this._config = config as unknown as SaunaBadgeConfig;
+    // Log the version banner once per instance, unless explicitly opted out.
+    // Absent flag ⇒ on, so existing configs keep logging.
+    if (!this._versionLogged && this._config.show_version !== false) {
+      logVersionBanner("Sauna Badge");
+      this._versionLogged = true;
+    }
   }
 
   private get _lang(): string {
@@ -179,13 +188,23 @@ export class SaunaBadge extends LitElement {
     return this._config.label_position ?? "right";
   }
 
+  private get _debug(): boolean {
+    return this._config.debug === true;
+  }
+
   private _t = (key: string, vars?: Record<string, string | number>): string =>
     t(key, this._lang, vars);
 
   private _state(): SaunaState | null {
     if (!this.hass) return null;
     const adapter = pickIntegration(this.hass, this._config.integration);
-    return adapter ? adapter.readState(this.hass, this._config) : null;
+    if (!adapter) {
+      dlog(this._debug, "no adapter for integration", this._config.integration);
+      return null;
+    }
+    const state = adapter.readState(this.hass, this._config);
+    dlog(this._debug, `state via ${adapter.id}`, state);
+    return state;
   }
 
   private _units(s: SaunaState): Unit[] {

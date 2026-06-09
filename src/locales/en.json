@@ -124,5 +124,11 @@
   "editor.reset_all": "Reset all content",
   "editor.tiles_add": "+ Add a value…",
   "editor.tiles_empty": "No tiles shown",
-  "editor.tiles_hint": "Drag or use ▲▼ to reorder. Empty = no tiles. Each layout keeps its own list."
+  "editor.tiles_hint": "Drag or use ▲▼ to reorder. Empty = no tiles. Each layout keeps its own list.",
+  "editor.advanced": "Advanced",
+  "editor.advanced_hint": "Diagnostics. Safe to leave at the defaults.",
+  "editor.show_version": "Log version to console",
+  "editor.debug": "Debug logging",
+  "editor.card_version": "Sauna Card version",
+  "editor.badge_version": "Sauna Badge version"
 }

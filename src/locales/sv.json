@@ -124,5 +124,11 @@
   "editor.reset_all": "Återställ allt innehåll",
   "editor.tiles_add": "+ Lägg till ett värde…",
   "editor.tiles_empty": "Inga rutor visas",
-  "editor.tiles_hint": "Dra eller använd ▲▼ för att ordna om. Tomt = inga rutor. Varje layout har sin egen lista."
+  "editor.tiles_hint": "Dra eller använd ▲▼ för att ordna om. Tomt = inga rutor. Varje layout har sin egen lista.",
+  "editor.advanced": "Avancerat",
+  "editor.advanced_hint": "Diagnostik. Kan lämnas på standardvärdena.",
+  "editor.show_version": "Logga version till konsolen",
+  "editor.debug": "Felsökningsloggning",
+  "editor.card_version": "Sauna Card-version",
+  "editor.badge_version": "Sauna Badge-version"
 }

@@ -46,6 +46,7 @@ import {
   MAX_TEMP,
 } from "./controls";
 import { fireMoreInfo } from "./utils/more-info";
+import { logVersionBanner, dlog } from "./log";
 
 const TEMP_STEP = 5;
 
@@ -144,6 +145,8 @@ export class SaunaCard extends LitElement {
   private _cooldownSamples: TempSample[] = [];
   // Context key (device|target) the heatup buffer belongs to; a change clears it.
   private _graphCtx?: string;
+  // Last graph phase, so debug logging fires only on a phase change (not every update).
+  private _prevGraphPhase?: "heatup" | "cooldown" | null;
   // Open cooldown window, if any (set on shutdown after a session).
   private _cooldownAnchor?: CooldownAnchor;
   // Temperature the current/last session started from (≈ room temp), captured at
@@ -161,6 +164,9 @@ export class SaunaCard extends LitElement {
   // off-episode from the recorder (so we attempt it once, not every update).
   // Reset when the sauna is powered on again.
   private _cooldownReconstructAttempted = false;
+
+  // Set once the version banner has been printed, so re-renders don't spam it.
+  private _versionLogged = false;
 
   static getStubConfig(): Record<string, unknown> {
     return {};
@@ -218,6 +224,8 @@ export class SaunaCard extends LitElement {
       "show_cooldown_graph",
       "cooldown_include_heatup",
       "tap_more_info",
+      "show_version",
+      "debug",
     ]) {
       if (config[key] !== undefined && typeof config[key] !== "boolean") {
         throw new Error(`sauna-card: "${key}" must be a boolean`);
@@ -231,6 +239,12 @@ export class SaunaCard extends LitElement {
       throw new Error('sauna-card: "cooldown_target_temp" must be a number');
     }
     this._config = config as unknown as SaunaCardConfig;
+    // Log the version banner once per instance, unless explicitly opted out.
+    // Absent flag ⇒ on, so existing configs keep logging.
+    if (!this._versionLogged && this._config.show_version !== false) {
+      logVersionBanner("Sauna Card");
+      this._versionLogged = true;
+    }
   }
 
   getCardSize(): number {
@@ -254,6 +268,10 @@ export class SaunaCard extends LitElement {
 
   private get _controls(): ControlsMode {
     return this._config.controls ?? "power+temp";
+  }
+
+  private get _debug(): boolean {
+    return this._config.debug === true;
   }
 
   /** Control chips, unless controls are off. */
@@ -291,7 +309,13 @@ export class SaunaCard extends LitElement {
   private _state(): SaunaState | null {
     if (!this.hass) return null;
     const adapter = pickIntegration(this.hass, this._config.integration);
-    return adapter ? adapter.readState(this.hass, this._config) : null;
+    if (!adapter) {
+      dlog(this._debug, "no adapter for integration", this._config.integration);
+      return null;
+    }
+    const state = adapter.readState(this.hass, this._config);
+    dlog(this._debug, `state via ${adapter.id}`, state);
+    return state;
   }
 
   // Arrow field so it stays bound when passed as a callback (e.g. to a catalog
@@ -379,7 +403,7 @@ export class SaunaCard extends LitElement {
 
   private _toggle(s: SaunaState, key: string): void {
     const id = s.entities[key];
-    if (id && this.hass) toggleSwitch(this.hass, id);
+    if (id && this.hass) toggleSwitch(this.hass, id, this._debug);
   }
 
   private _step(s: SaunaState, delta: number): void {
@@ -393,7 +417,7 @@ export class SaunaCard extends LitElement {
       Math.min(MAX_TEMP, Math.round(base + delta)),
     );
     this._pendingTarget = next;
-    setTargetTemperature(this.hass, s, next);
+    setTargetTemperature(this.hass, s, next, this._debug);
   }
 
   override disconnectedCallback(): void {
@@ -501,6 +525,19 @@ export class SaunaCard extends LitElement {
     const phase = s
       ? graphPhase(s.status, s.currentTemp, s.targetTemp, this._cooldownAnchor)
       : null;
+    if (phase !== this._prevGraphPhase) {
+      dlog(
+        this._debug,
+        `graph phase ${this._prevGraphPhase ?? "none"} → ${phase ?? "none"}`,
+        {
+          status,
+          currentTemp: s?.currentTemp,
+          targetTemp: s?.targetTemp,
+          cooldownAnchor: this._cooldownAnchor,
+        },
+      );
+      this._prevGraphPhase = phase;
+    }
 
     if (phase === "heatup" && s?.currentTemp !== undefined) {
       const ctx = `${s.deviceId}|${s.targetTemp ?? ""}`;
@@ -577,6 +614,11 @@ export class SaunaCard extends LitElement {
           baselineTemp: target,
         };
         this._cooldownSamples = [];
+        dlog(this._debug, "reconstructed cooldown from recorder", {
+          offTime: session.offTime,
+          onTime: session.onTime,
+          baselineTemp: target,
+        });
         // Mark this window fetched so _maybeFetchHistory won't fetch it again.
         const key = this._phaseKey(cur, "cooldown");
         if (key) this._historyFetched.add(key);
@@ -778,6 +820,7 @@ export class SaunaCard extends LitElement {
       this.hass,
       { ...s, targetTemp: this._effectiveTarget(s) },
       active,
+      this._debug,
     );
   }
 

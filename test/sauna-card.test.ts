@@ -90,6 +90,31 @@ describe("sauna-card", () => {
     expect(card.getCardSize()).toBe(5);
   });
 
+  it("logs the version banner once per instance, unless opted out", () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    // Default (flag absent) logs once, and re-applying config does not re-log.
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card" });
+    card.setConfig({ type: "custom:sauna-card", name: "x" });
+    expect(info).toHaveBeenCalledTimes(1);
+    // show_version: false suppresses the banner entirely.
+    info.mockClear();
+    const silent = new SaunaCard();
+    silent.setConfig({ type: "custom:sauna-card", show_version: false });
+    expect(info).not.toHaveBeenCalled();
+    info.mockRestore();
+  });
+
+  it("rejects a non-boolean show_version or debug", () => {
+    const card = new SaunaCard();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", show_version: "yes" }),
+    ).toThrow();
+    expect(() =>
+      card.setConfig({ type: "custom:sauna-card", debug: 1 }),
+    ).toThrow();
+  });
+
   it("rejects wrong-typed fields and unknown layouts", () => {
     const card = new SaunaCard();
     expect(() =>

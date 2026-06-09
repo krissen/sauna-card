@@ -1,3 +1,4 @@
+import { dlog } from "./log";
 import type { Hass, SaunaState } from "./types";
 
 export const MIN_TEMP = 40;
@@ -9,14 +10,17 @@ function clampTemp(t: number): number {
 
 /**
  * Invoke a service, swallowing rejections so callers can safely fire-and-forget
- * without producing unhandled promise rejections.
+ * without producing unhandled promise rejections. When `debug` is set, the call
+ * (domain.service + payload) is logged before dispatch.
  */
 function call(
   hass: Hass,
   domain: string,
   service: string,
   data: Record<string, unknown>,
+  debug = false,
 ): Promise<unknown> | undefined {
+  dlog(debug, `call ${domain}.${service}`, data);
   const result = hass.callService?.(domain, service, data);
   return result?.catch((err: unknown) => {
     console.error(`[sauna-card] ${domain}.${service} failed`, err);
@@ -31,8 +35,9 @@ function call(
 export function toggleSwitch(
   hass: Hass,
   entityId: string,
+  debug = false,
 ): Promise<unknown> | undefined {
-  return call(hass, "homeassistant", "toggle", { entity_id: entityId });
+  return call(hass, "homeassistant", "toggle", { entity_id: entityId }, debug);
 }
 
 /** Set the thermostat target temperature (clamped to the Harvia range). */
@@ -40,13 +45,20 @@ export function setTargetTemperature(
   hass: Hass,
   state: SaunaState,
   temperature: number,
+  debug = false,
 ): Promise<unknown> | undefined {
   const entityId = state.entities.thermostat;
   if (!entityId) return undefined;
-  return call(hass, "climate", "set_temperature", {
-    entity_id: entityId,
-    temperature: clampTemp(temperature),
-  });
+  return call(
+    hass,
+    "climate",
+    "set_temperature",
+    {
+      entity_id: entityId,
+      temperature: clampTemp(temperature),
+    },
+    debug,
+  );
 }
 
 /** Nudge the target temperature by `delta` °C from the current target. */
@@ -54,9 +66,10 @@ export function stepTargetTemperature(
   hass: Hass,
   state: SaunaState,
   delta: number,
+  debug = false,
 ): Promise<unknown> | undefined {
   if (state.targetTemp === undefined) return undefined;
-  return setTargetTemperature(hass, state, state.targetTemp + delta);
+  return setTargetTemperature(hass, state, state.targetTemp + delta, debug);
 }
 
 /**
@@ -67,13 +80,14 @@ export function setSession(
   hass: Hass,
   state: SaunaState,
   opts: { target_temp?: number; duration?: number; active?: boolean },
+  debug = false,
 ): Promise<unknown> | undefined {
   const data: Record<string, unknown> = { device_id: state.deviceId };
   if (opts.target_temp !== undefined)
     data.target_temp = clampTemp(opts.target_temp);
   if (opts.duration !== undefined) data.duration = opts.duration;
   if (opts.active !== undefined) data.active = opts.active;
-  return call(hass, "harvia_sauna", "set_session", data);
+  return call(hass, "harvia_sauna", "set_session", data, debug);
 }
 
 /**
@@ -86,28 +100,42 @@ export function setActive(
   hass: Hass,
   state: SaunaState,
   active: boolean,
+  debug = false,
 ): Promise<unknown> | undefined {
   if (state.integration === "manual") {
     const power = state.entities.power;
     if (power) {
-      return call(hass, "homeassistant", active ? "turn_on" : "turn_off", {
-        entity_id: power,
-      });
+      return call(
+        hass,
+        "homeassistant",
+        active ? "turn_on" : "turn_off",
+        { entity_id: power },
+        debug,
+      );
     }
     // No dedicated power switch: switch the mapped thermostat (climate) on/off
     // directly, so a climate-only sauna still has a working power button.
     const thermo = state.entities.thermostat;
     if (thermo) {
-      return call(hass, "climate", active ? "turn_on" : "turn_off", {
-        entity_id: thermo,
-      });
+      return call(
+        hass,
+        "climate",
+        active ? "turn_on" : "turn_off",
+        { entity_id: thermo },
+        debug,
+      );
     }
     return undefined;
   }
-  return setSession(hass, state, {
-    active,
-    ...(active && state.targetTemp !== undefined
-      ? { target_temp: state.targetTemp }
-      : {}),
-  });
+  return setSession(
+    hass,
+    state,
+    {
+      active,
+      ...(active && state.targetTemp !== undefined
+        ? { target_temp: state.targetTemp }
+        : {}),
+    },
+    debug,
+  );
 }

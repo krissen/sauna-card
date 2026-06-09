@@ -124,5 +124,11 @@
   "editor.reset_all": "Gesamten Inhalt zurücksetzen",
   "editor.tiles_add": "+ Wert hinzufügen…",
   "editor.tiles_empty": "Keine Kacheln",
-  "editor.tiles_hint": "Zum Sortieren ziehen oder ▲▼ verwenden. Leer = keine Kacheln. Jedes Layout behält seine eigene Liste."
+  "editor.tiles_hint": "Zum Sortieren ziehen oder ▲▼ verwenden. Leer = keine Kacheln. Jedes Layout behält seine eigene Liste.",
+  "editor.advanced": "Erweitert",
+  "editor.advanced_hint": "Diagnose. Die Standardwerte können beibehalten werden.",
+  "editor.show_version": "Version in der Konsole protokollieren",
+  "editor.debug": "Debug-Protokollierung",
+  "editor.card_version": "Sauna Card-Version",
+  "editor.badge_version": "Sauna Badge-Version"
 }

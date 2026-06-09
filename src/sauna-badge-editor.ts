@@ -303,6 +303,42 @@ export class SaunaBadgeEditor extends LitElement {
     </details>`;
   }
 
+  // ---- advanced section ----
+
+  /** Folded-by-default section with the version banner toggle, debug toggle and
+   * the build-version readout. */
+  private _advancedSection(): TemplateResult {
+    const lang = this._lang;
+    const cfg = this._config;
+    return html`<details class="section advfold">
+      <summary>${t("editor.advanced", lang)}</summary>
+      <div class="hint">${t("editor.advanced_hint", lang)}</div>
+      <ha-formfield .label=${t("editor.show_version", lang)}>
+        <ha-switch
+          .checked=${cfg.show_version !== false}
+          @change=${(e: Event) =>
+            this._emit({
+              show_version: (e.target as HTMLInputElement).checked
+                ? undefined
+                : false,
+            })}
+        ></ha-switch>
+      </ha-formfield>
+      <ha-formfield .label=${t("editor.debug", lang)}>
+        <ha-switch
+          .checked=${cfg.debug === true}
+          @change=${(e: Event) =>
+            this._emit({
+              debug: (e.target as HTMLInputElement).checked || undefined,
+            })}
+        ></ha-switch>
+      </ha-formfield>
+      <div class="version-info">
+        ${t("editor.badge_version", lang)}: ${__VERSION__}
+      </div>
+    </details>`;
+  }
+
   override render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
     const data = {
@@ -329,7 +365,8 @@ export class SaunaBadgeEditor extends LitElement {
         .schema=${rest}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
-      ></ha-form>`;
+      ></ha-form>
+      ${this._advancedSection()}`;
   }
 
   static override styles = css`
@@ -344,13 +381,23 @@ export class SaunaBadgeEditor extends LitElement {
       /* Space before the next form half, kept whether expanded or folded. */
       margin-bottom: 16px;
     }
-    .mapfold > summary {
+    .mapfold > summary,
+    .advfold > summary {
       font-weight: 600;
       cursor: pointer;
       list-style-position: inside;
       user-select: none;
       padding: 2px 0;
       margin-bottom: 4px;
+    }
+    .advfold ha-formfield {
+      display: block;
+      margin-top: 6px;
+    }
+    .version-info {
+      font-size: 0.72rem;
+      color: var(--secondary-text-color);
+      margin-top: 10px;
     }
     .hint {
       font-size: 0.72rem;
