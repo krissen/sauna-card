@@ -23,12 +23,16 @@ function call(
   });
 }
 
-/** Toggle a switch entity (power, light, fan, steamer, …). */
+/**
+ * Toggle an on/off entity (power, light, fan, steamer, …). Uses the
+ * domain-agnostic `homeassistant.toggle` so a manually mapped control works
+ * whether it's a switch, light, fan or input_boolean — not only `switch.*`.
+ */
 export function toggleSwitch(
   hass: Hass,
   entityId: string,
 ): Promise<unknown> | undefined {
-  return call(hass, "switch", "toggle", { entity_id: entityId });
+  return call(hass, "homeassistant", "toggle", { entity_id: entityId });
 }
 
 /** Set the thermostat target temperature (clamped to the Harvia range). */
@@ -72,12 +76,24 @@ export function setSession(
   return call(hass, "harvia_sauna", "set_session", data);
 }
 
-/** Start the heater at the current target; stop turns it off. */
+/**
+ * Start the heater at the current target; stop turns it off. Harvia drives a
+ * timed session via its own service. A manual sauna has no such service, so it
+ * switches the mapped power entity on/off (domain-agnostic); with no power
+ * entity mapped there is nothing to start (the CTA is disabled in that case).
+ */
 export function setActive(
   hass: Hass,
   state: SaunaState,
   active: boolean,
 ): Promise<unknown> | undefined {
+  if (state.integration === "manual") {
+    const power = state.entities.power;
+    if (!power) return undefined;
+    return call(hass, "homeassistant", active ? "turn_on" : "turn_off", {
+      entity_id: power,
+    });
+  }
   return setSession(hass, state, {
     active,
     ...(active && state.targetTemp !== undefined

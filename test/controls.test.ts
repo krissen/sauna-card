@@ -36,11 +36,11 @@ const state: SaunaState = {
 };
 
 describe("controls", () => {
-  it("toggles a switch entity", () => {
+  it("toggles an on/off entity via the domain-agnostic service", () => {
     const { hass, calls } = mockHass();
-    toggleSwitch(hass, "switch.bastu_belysning");
+    toggleSwitch(hass, "light.diy_sauna_light");
     expect(calls).toEqual([
-      ["switch", "toggle", { entity_id: "switch.bastu_belysning" }],
+      ["homeassistant", "toggle", { entity_id: "light.diy_sauna_light" }],
     ]);
   });
 
@@ -92,5 +92,39 @@ describe("controls", () => {
     });
     setActive(hass, state, false);
     expect(calls[1][2]).toEqual({ device_id: "dev1", active: false });
+  });
+
+  it("setActive on a manual sauna switches the mapped power entity, not set_session", () => {
+    const { hass, calls } = mockHass();
+    const manual: SaunaState = {
+      ...state,
+      integration: "manual",
+      deviceId: "manual",
+      entities: { power: "switch.diy_sauna_power" },
+    };
+    setActive(hass, manual, true);
+    expect(calls[0]).toEqual([
+      "homeassistant",
+      "turn_on",
+      { entity_id: "switch.diy_sauna_power" },
+    ]);
+    setActive(hass, manual, false);
+    expect(calls[1]).toEqual([
+      "homeassistant",
+      "turn_off",
+      { entity_id: "switch.diy_sauna_power" },
+    ]);
+  });
+
+  it("setActive on a manual sauna with no power entity does nothing", () => {
+    const { hass, calls } = mockHass();
+    const manual: SaunaState = {
+      ...state,
+      integration: "manual",
+      deviceId: "manual",
+      entities: {},
+    };
+    setActive(hass, manual, true);
+    expect(calls).toHaveLength(0);
   });
 });
