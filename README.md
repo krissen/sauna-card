@@ -149,6 +149,13 @@ full value catalog, or the [quick start](docs/quick-start.md) for a guided walk-
 - [Localization](docs/localization.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
+## Contributing
+
+Contributions are welcome — translations, support for more sauna models and
+integrations, fixes and docs. See [CONTRIBUTING.md](CONTRIBUTING.md); the
+developer documentation (the entry point for extending the card) lives in
+[docs/dev/](docs/dev/README.md).
+
 ## Support
 
 - **Bugs:** [GitHub Issues](https://github.com/krissen/sauna-card/issues)
