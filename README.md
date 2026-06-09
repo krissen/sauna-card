@@ -2,6 +2,7 @@
 
 [![License][license-shield]](LICENSE)
 [![hacs][hacsbadge]][hacs]
+[![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
 
 A Lovelace custom card **and badge** for Home Assistant that show and control
 **Harvia sauna heaters**. Built for the
@@ -152,6 +153,7 @@ full value catalog, or the [quick start](docs/quick-start.md) for a guided walk-
 
 - **Bugs:** [GitHub Issues](https://github.com/krissen/sauna-card/issues)
 - **Docs:** the [`docs/`](docs/) folder
+- **Like it?** [Buy me a coffee!](https://coff.ee/krissen)
 
 ## License
 
@@ -160,3 +162,5 @@ full value catalog, or the [quick start](docs/quick-start.md) for a guided walk-
 [license-shield]: https://img.shields.io/github/license/krissen/sauna-card.svg
 [hacs]: https://github.com/hacs/integration
 [hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg
+[buymecoffee]: https://coff.ee/krissen
+[buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg
