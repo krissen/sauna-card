@@ -14,8 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   once on load; omitting the option keeps it on, so existing cards keep logging.
   *Debug logging* (`debug`, off by default) emits verbose `console.debug` lines
   (prefixed `[sauna-card]`) across integration detection, service calls and
-  graph/session computation. The section also shows the running build version.
-  See [Configuration → Advanced](docs/configuration.md#advanced).
+  graph/session computation. For the manual adapter it also flags each entity
+  you mapped that can't be used: a non-numeric value where a number is expected
+  (e.g. a pollen sensor mapped as temperature), an unavailable entity, or an
+  entity_id that no longer exists. The section also shows the running build
+  version. See [Configuration → Advanced](docs/configuration.md#advanced).
 - **Manual entity mapping — use the card with any sauna, not just Harvia.** A new
   source mode (`integration: "manual"`) lets you point the card at your own Home
   Assistant entities: a `climate` entity plus whatever switches and sensors you
