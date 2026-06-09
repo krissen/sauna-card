@@ -8,8 +8,11 @@ extending) an adapter. The card, editor and badge then work unchanged.
 
 The registry is keyed by **integration**, not by device model. Different models
 (e.g. Harvia Xenio and Fenix) are handled *inside* one adapter, not as separate
-adapters. [`src/adapters/harvia.ts`](../../src/adapters/harvia.ts) is the worked
-example to read alongside this guide.
+adapters. Two worked examples sit alongside this guide:
+[`src/adapters/harvia.ts`](../../src/adapters/harvia.ts) (an auto-detected
+integration) and [`src/adapters/manual.ts`](../../src/adapters/manual.ts) (the
+manual-mapping adapter, which maps user-supplied entities instead of detecting a
+device).
 
 ## The adapter contract
 
@@ -20,6 +23,7 @@ Every adapter implements `SaunaAdapter` from
 interface SaunaAdapter {
   readonly id: string;                       // integration id, e.g. "harvia_sauna"
   readonly stubConfig: Partial<SaunaCardConfig>;
+  readonly manual?: boolean;                 // selected explicitly, never auto-detected
   detect(hass): DetectedDevice[];            // devices this integration exposes (empty if absent)
   resolveEntityIds(hass, config): Record<string, string>;  // logical key → entity_id
   readState(hass, config): SaunaState | null;              // normalized state, or null
@@ -33,10 +37,28 @@ integration actually reports; the card renders whatever is present. Resolve
 entities by their **domain + translation key**, not by entity-id slug — slugs
 are localized and unstable.
 
+**Reuse the shared state builder.** Once you have a `Record<string, string>` of
+logical key → entity_id, you usually don't need to assemble `SaunaState` by hand:
+pass it to [`buildSaunaState`](../../src/adapters/build-state.ts) and it fills the
+whole normalized shape (status derivation, ready-ETA, the `switches` map, and so
+on), with sensible fallbacks (e.g. reading temperatures and status from a
+`climate` entity's attributes when no dedicated sensor is mapped). The Harvia and
+manual adapters both delegate to it, so they render identically. Use the same
+**logical keys** the builder reads (the keys in `HARVIA_ENTITIES`) so your values
+land in the right fields.
+
+**Auto-detected vs. manual.** Most adapters detect a device and resolve entities
+for the user. An adapter can instead set `manual: true` and read a user-supplied
+`entity_map` from the config (this is what `manual.ts` does) — the registry then
+selects it explicitly, past the detect gate, and keeps it out of auto-detection
+and the card-picker suggestions. Reach for that pattern when there's no
+integration to detect.
+
 ## Steps
 
 1. **Write the adapter.** Create `src/adapters/<integration>.ts` exporting a
-   `SaunaAdapter`. Map the integration's entities into `SaunaState`.
+   `SaunaAdapter`. Resolve a logical-key → entity_id map and hand it to
+   `buildSaunaState` (see above) rather than building `SaunaState` by hand.
 
 2. **Register it.** Add it to the `registry` in
    [`src/adapter-registry.ts`](../../src/adapter-registry.ts).
@@ -44,7 +66,8 @@ are localized and unstable.
 3. **Make it auto-detectable.** Add the integration id to `INTEGRATION_PRIORITY`
    and its detection logic in
    [`src/utils/autodetect.ts`](../../src/utils/autodetect.ts), so the card finds
-   the device with no entity IDs typed.
+   the device with no entity IDs typed. *(A `manual: true` adapter skips this — it
+   isn't auto-detected; it's chosen explicitly in the editor.)*
 
 4. **Add any new labels.** If you surface values the catalog doesn't have yet,
    add their keys to `src/locales/en.json` (other locales back-fill from
