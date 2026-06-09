@@ -26,8 +26,7 @@ partial translation is fine — it just back-fills from `en.json`.
 
 ## Adding a language
 
-1. Copy `src/locales/en.json` to `src/locales/<code>.json` (e.g. `no.json`).
-2. Translate the values — you can translate only some keys; the rest back-fill
-   from English. Unknown keys are not allowed.
-3. Open a pull request. Locales are auto-discovered (`import.meta.glob`), so no
-   registration is needed.
+Want to contribute a translation? You can translate only some keys (the rest
+back-fill from English), and it's one of the easiest ways to help. The full,
+step-by-step guide for contributors is in the developer docs:
+[Adding a language](dev/adding-a-language.md).

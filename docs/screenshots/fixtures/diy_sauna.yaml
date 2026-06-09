@@ -1,0 +1,156 @@
+# DIY sauna fixture package for sauna-card manual adapter testing.
+# Simulates a home-built sauna using helper entities (input_number / input_boolean),
+# template switches, template sensors and binary_sensors, and a generic_thermostat.
+# All entity names use the diy_ prefix.
+
+input_number:
+  diy_sauna_current_temp:
+    name: DIY Sauna Current Temperature
+    min: 0
+    max: 120
+    step: 0.5
+    unit_of_measurement: "°C"
+    initial: 22
+    icon: mdi:thermometer
+
+  diy_sauna_humidity:
+    name: DIY Sauna Humidity
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    initial: 35
+    icon: mdi:water-percent
+
+input_boolean:
+  diy_sauna_power_bool:
+    name: DIY Sauna Power (bool)
+    icon: mdi:power
+
+  diy_sauna_light_bool:
+    name: DIY Sauna Light (bool)
+    icon: mdi:lightbulb
+
+  diy_sauna_fan_bool:
+    name: DIY Sauna Fan (bool)
+    icon: mdi:fan
+
+  diy_sauna_steamer_bool:
+    name: DIY Sauna Steamer (bool)
+    icon: mdi:weather-fog
+
+  diy_sauna_door_bool:
+    name: DIY Sauna Door (bool)
+    icon: mdi:door
+
+  diy_sauna_heating_bool:
+    name: DIY Sauna Heating Active (bool)
+    icon: mdi:fire
+
+template:
+  # Template switches expose the input_booleans in the switch domain. (The manual
+  # adapter toggles via the domain-agnostic homeassistant.toggle, so a
+  # light/fan/input_boolean works too; switches just keep this fixture explicit.)
+  - switch:
+      - name: DIY Sauna Power
+        unique_id: diy_sauna_power
+        state: "{{ is_state('input_boolean.diy_sauna_power_bool', 'on') }}"
+        turn_on:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.diy_sauna_power_bool
+        turn_off:
+          service: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.diy_sauna_power_bool
+        icon: mdi:power
+
+      - name: DIY Sauna Light
+        unique_id: diy_sauna_light
+        state: "{{ is_state('input_boolean.diy_sauna_light_bool', 'on') }}"
+        turn_on:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.diy_sauna_light_bool
+        turn_off:
+          service: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.diy_sauna_light_bool
+        icon: mdi:lightbulb
+
+      - name: DIY Sauna Fan
+        unique_id: diy_sauna_fan
+        state: "{{ is_state('input_boolean.diy_sauna_fan_bool', 'on') }}"
+        turn_on:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.diy_sauna_fan_bool
+        turn_off:
+          service: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.diy_sauna_fan_bool
+        icon: mdi:fan
+
+      - name: DIY Sauna Steamer
+        unique_id: diy_sauna_steamer
+        state: "{{ is_state('input_boolean.diy_sauna_steamer_bool', 'on') }}"
+        turn_on:
+          service: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.diy_sauna_steamer_bool
+        turn_off:
+          service: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.diy_sauna_steamer_bool
+        icon: mdi:weather-fog
+
+  # Template sensors expose the input_numbers as proper sensor-domain entities
+  # so the manual adapter catalog's domain requirements are met.
+  - sensor:
+      - name: DIY Sauna Temperature
+        unique_id: diy_sauna_temperature_sensor
+        state: "{{ states('input_number.diy_sauna_current_temp') | float(0) }}"
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        icon: mdi:thermometer
+
+      - name: DIY Sauna Humidity Sensor
+        unique_id: diy_sauna_humidity_sensor
+        state: "{{ states('input_number.diy_sauna_humidity') | float(0) }}"
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        icon: mdi:water-percent
+
+  # Template binary_sensors for door and heating active.
+  - binary_sensor:
+      - name: DIY Sauna Door
+        unique_id: diy_sauna_door_binary
+        state: "{{ is_state('input_boolean.diy_sauna_door_bool', 'on') }}"
+        device_class: door
+        icon: mdi:door
+
+      - name: DIY Sauna Heating
+        unique_id: diy_sauna_heating_binary
+        state: "{{ is_state('input_boolean.diy_sauna_heating_bool', 'on') }}"
+        device_class: heat
+        icon: mdi:fire
+
+# generic_thermostat creates a proper climate entity for the thermostat key.
+# diy_sauna_heating_bool acts as the heater relay.
+# The temperature sensor reads from the template sensor above.
+climate:
+  - platform: generic_thermostat
+    name: DIY Sauna
+    unique_id: diy_sauna_climate
+    heater: input_boolean.diy_sauna_heating_bool
+    target_sensor: sensor.diy_sauna_temperature
+    min_temp: 40
+    max_temp: 110
+    target_temp: 80
+    ac_mode: false
+    cold_tolerance: 0.5
+    hot_tolerance: 0.5
+    initial_hvac_mode: "off"
+    precision: 0.5

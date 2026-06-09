@@ -89,6 +89,9 @@ export interface SaunaCardConfig {
   /** Make read-only value displays tap-to-open HA's more-info dialog for the
    * underlying entity. Default on. */
   tap_more_info?: boolean;
+  /** Manual entity mapping for the "manual" adapter: logical key → entity_id.
+   * Only the keys the user maps are present; the card hides everything else. */
+  entity_map?: Record<string, string>;
 }
 
 /** Badge content selection: the headline, one chosen value, or several. */
@@ -130,6 +133,8 @@ export interface SaunaBadgeConfig {
   label_position?: BadgeLabelPosition;
   /** Overall size multiplier of the badge pill (default 1). */
   scale?: number;
+  /** Manual entity mapping for the "manual" adapter: logical key → entity_id. */
+  entity_map?: Record<string, string>;
 }
 
 /**
@@ -212,6 +217,10 @@ export interface DetectedDevice {
 export interface SaunaAdapter {
   readonly id: string;
   readonly stubConfig: Partial<SaunaCardConfig>;
+  /** Manual adapters are selected explicitly (config.integration), never
+   * auto-detected — they map user-supplied entities, so detection can't find
+   * them via a platform. The registry picks them past the detect gate. */
+  readonly manual?: boolean;
   /** Devices this integration exposes in `hass` (empty if not installed). */
   detect(hass: Hass): DetectedDevice[];
   /** Map config → resolved entity ids (logical key → entity_id). */

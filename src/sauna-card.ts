@@ -202,6 +202,9 @@ export class SaunaCard extends LitElement {
     ) {
       throw new Error(`sauna-card: "compact_slots" must be an object`);
     }
+    if (config.entity_map !== undefined && !isPlainObject(config.entity_map)) {
+      throw new Error(`sauna-card: "entity_map" must be an object`);
+    }
     if (
       config.controls !== undefined &&
       !CONTROLS_MODES.includes(config.controls as ControlsMode)
@@ -804,7 +807,13 @@ export class SaunaCard extends LitElement {
 
   private _powerOn(s: SaunaState): boolean {
     const id = s.entities.power;
-    return id ? this.hass?.states[id]?.state === "on" : false;
+    if (id) return this.hass?.states[id]?.state === "on";
+    // Manual climate-only sauna: the thermostat's own mode stands in for a power
+    // switch — it reads "off" when the heater is off, any other mode is "on".
+    const thermo = s.entities.thermostat;
+    if (!thermo) return false;
+    const st = this.hass?.states[thermo]?.state;
+    return st !== undefined && !entityUnavailable(st) && st !== "off";
   }
 
   private _tempStepper(s: SaunaState): TemplateResult {
@@ -838,10 +847,11 @@ export class SaunaCard extends LitElement {
   }
 
   private _cta(s: SaunaState): TemplateResult {
-    const powerState = s.entities.power
-      ? this.hass?.states[s.entities.power]?.state
-      : undefined;
-    const unavailable = !s.entities.power || entityUnavailable(powerState);
+    // On/off target: a mapped power switch, else the thermostat — a manual
+    // climate-only sauna switches the climate entity itself.
+    const ctlId = s.entities.power ?? s.entities.thermostat;
+    const ctlState = ctlId ? this.hass?.states[ctlId]?.state : undefined;
+    const unavailable = !ctlId || entityUnavailable(ctlState);
     const on = this._powerOn(s);
     return html`<div class="cta">
       <button
@@ -911,7 +921,7 @@ export class SaunaCard extends LitElement {
           unavailable ? "common.unavailable" : on ? "common.on" : "common.off",
         );
         // State is exposed in text (aria-label), not by colour alone (a11y).
-        // Interactive toggle (switch.toggle); keyboard-operable.
+        // Interactive toggle (homeassistant.toggle); keyboard-operable.
         const toggle = () => this._toggle(s, c.key);
         return html`<button
           type="button"
