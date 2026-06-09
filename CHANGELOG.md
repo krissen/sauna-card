@@ -15,9 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   (or type) the entity for it — the list is foldable and sits right under the
   source picker. The card shows what you map and hides the rest. Controls work
   generically: the temperature stepper uses `climate.set_temperature`, the power
-  button switches the mapped power entity, and toggle chips use
-  `homeassistant.toggle`, so a light/fan can be a `switch`, `light`, `fan` or
-  `input_boolean` entity. The companion badge supports manual mapping too. See
+  button switches the mapped power entity (or the `climate` entity itself when no
+  separate power switch is mapped, so a single `climate` entity gives you on/off),
+  and toggle chips use `homeassistant.toggle`, so a light/fan can be a `switch`,
+  `light`, `fan` or `input_boolean` entity. The companion badge supports manual
+  mapping too. See
   [Integrations and compatibility](docs/integrations.md#manual-mapping).
 
 ## [0.2.0] - 2026-06-08

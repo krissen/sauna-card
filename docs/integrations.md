@@ -71,13 +71,16 @@ controls just work:
 
 - **Temperature stepper** → `climate.set_temperature` on the mapped thermostat.
 - **Power button** → switches the mapped power entity on/off
-  (`homeassistant.turn_on` / `turn_off`).
+  (`homeassistant.turn_on` / `turn_off`). If you didn't map a separate power
+  switch, it switches the **thermostat** instead (`climate.turn_on` /
+  `turn_off`) — so a single `climate` entity already gives you on/off.
 - **Toggle chips** (light/fan/steamer/…) → `homeassistant.toggle`, which is why a
   toggle can be a `switch`, `light`, `fan` or `input_boolean` entity.
 
-If you map a thermostat but no power entity, the power button is hidden — control
-the heater with the temperature stepper (or the thermostat's own more-info
-dialog).
+This means the **simplest setup is just a `climate` entity**: map it as
+*Thermostat* and you get the current/target temperature, the status, the
+temperature stepper and the on/off button — all from that one entity. Map a
+separate power switch only if you have (or prefer) one.
 
 ### YAML
 
