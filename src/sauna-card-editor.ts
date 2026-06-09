@@ -523,6 +523,42 @@ export class SaunaCardEditor extends LitElement {
     </div>`;
   }
 
+  // ---- advanced section ----
+
+  /** Folded-by-default section with the version banner toggle, debug toggle and
+   * the build-version readout. Reuses the manual-section fold styling. */
+  private _advancedSection(): TemplateResult {
+    const lang = this._lang;
+    const cfg = this._config;
+    return html`<details class="section advfold">
+      <summary>${t("editor.advanced", lang)}</summary>
+      <div class="hint">${t("editor.advanced_hint", lang)}</div>
+      <ha-formfield .label=${t("editor.show_version", lang)}>
+        <ha-switch
+          .checked=${cfg.show_version !== false}
+          @change=${(e: Event) =>
+            this._emit({
+              show_version: (e.target as HTMLInputElement).checked
+                ? undefined
+                : false,
+            })}
+        ></ha-switch>
+      </ha-formfield>
+      <ha-formfield .label=${t("editor.debug", lang)}>
+        <ha-switch
+          .checked=${cfg.debug === true}
+          @change=${(e: Event) =>
+            this._emit({
+              debug: (e.target as HTMLInputElement).checked || undefined,
+            })}
+        ></ha-switch>
+      </ha-formfield>
+      <div class="version-info">
+        ${t("editor.card_version", lang)}: ${__VERSION__}
+      </div>
+    </details>`;
+  }
+
   override render(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
     // Pre-select Harvia in the source dropdown when no integration is set yet
@@ -552,7 +588,7 @@ export class SaunaCardEditor extends LitElement {
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
-      ${this._tilesSection()}${this._slotsSection()}
+      ${this._tilesSection()}${this._slotsSection()}${this._advancedSection()}
       <div class="foot">
         <button type="button" class="reset-all" @click=${this._resetAll}>
           ${t("editor.reset_all", this._lang)}
@@ -667,12 +703,22 @@ export class SaunaCardEditor extends LitElement {
       /* Space before the next form half, kept whether expanded or folded. */
       margin-bottom: 16px;
     }
-    .mapfold > summary {
+    .mapfold > summary,
+    .advfold > summary {
       font-weight: 600;
       cursor: pointer;
       list-style-position: inside;
       user-select: none;
       padding: 2px 0;
+    }
+    .advfold ha-formfield {
+      display: block;
+      margin-top: 6px;
+    }
+    .version-info {
+      font-size: 0.72rem;
+      color: var(--secondary-text-color);
+      margin-top: 10px;
     }
     .maprows {
       display: flex;
