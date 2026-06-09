@@ -10,7 +10,10 @@
 export function logVersionBanner(name: string): void {
   console.info(
     `%c♨️ ${name}: version ${__VERSION__}`,
-    "background:#b3541e;color:#fff;padding:2px 6px;border-radius:3px;font-weight:600;",
+    // Light warm-wood background with dark text: keeps the sauna tone while the
+    // red ♨️ glyph and the label both stay legible (a dark background made the
+    // red emoji blend in).
+    "background:#e8d5b5;color:#5a2e12;padding:2px 6px;border-radius:3px;font-weight:600;",
   );
 }
 
