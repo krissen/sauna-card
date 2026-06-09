@@ -145,6 +145,8 @@ export class SaunaCard extends LitElement {
   private _cooldownSamples: TempSample[] = [];
   // Context key (device|target) the heatup buffer belongs to; a change clears it.
   private _graphCtx?: string;
+  // Last graph phase, so debug logging fires only on a phase change (not every update).
+  private _prevGraphPhase?: "heatup" | "cooldown" | null;
   // Open cooldown window, if any (set on shutdown after a session).
   private _cooldownAnchor?: CooldownAnchor;
   // Temperature the current/last session started from (≈ room temp), captured at
@@ -523,6 +525,19 @@ export class SaunaCard extends LitElement {
     const phase = s
       ? graphPhase(s.status, s.currentTemp, s.targetTemp, this._cooldownAnchor)
       : null;
+    if (phase !== this._prevGraphPhase) {
+      dlog(
+        this._debug,
+        `graph phase ${this._prevGraphPhase ?? "none"} → ${phase ?? "none"}`,
+        {
+          status,
+          currentTemp: s?.currentTemp,
+          targetTemp: s?.targetTemp,
+          cooldownAnchor: this._cooldownAnchor,
+        },
+      );
+      this._prevGraphPhase = phase;
+    }
 
     if (phase === "heatup" && s?.currentTemp !== undefined) {
       const ctx = `${s.deviceId}|${s.targetTemp ?? ""}`;
@@ -599,6 +614,11 @@ export class SaunaCard extends LitElement {
           baselineTemp: target,
         };
         this._cooldownSamples = [];
+        dlog(this._debug, "reconstructed cooldown from recorder", {
+          offTime: session.offTime,
+          onTime: session.onTime,
+          baselineTemp: target,
+        });
         // Mark this window fetched so _maybeFetchHistory won't fetch it again.
         const key = this._phaseKey(cur, "cooldown");
         if (key) this._historyFetched.add(key);
