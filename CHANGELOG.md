@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- **Manual entity mapping — use the card with any sauna, not just Harvia.** A new
+  source mode (`integration: "manual"`) lets you point the card at your own Home
+  Assistant entities: a `climate` entity plus whatever switches and sensors you
+  have. Built for DIY / KNX / non-Harvia saunas. In the visual editor, choose
+  **Custom mapping** under *Source*, then tick each type your sauna has and pick
+  (or type) the entity for it — the list is foldable and sits right under the
+  source picker. The card shows what you map and hides the rest. Controls work
+  generically: the temperature stepper uses `climate.set_temperature`, the power
+  button switches the mapped power entity, and toggle chips use
+  `homeassistant.toggle`, so a light/fan can be a `switch`, `light`, `fan` or
+  `input_boolean` entity. The companion badge supports manual mapping too. See
+  [Integrations and compatibility](docs/integrations.md#manual-mapping).
+
 ## [0.2.0] - 2026-06-08
 
 ### Added

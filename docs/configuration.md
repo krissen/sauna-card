@@ -16,8 +16,9 @@ The card and badge auto-detect the Harvia device, so most options are optional.
 |------|------|---------|-------------|
 | `type` | `string` | **Required** | `custom:sauna-card`. |
 | `name` | `string` | *(device name)* | Card title. |
-| `integration` | `string` | *(auto)* | Integration id; auto-detected (`harvia_sauna`). |
-| `device_id` | `string` | *(auto)* | Device within the integration; auto-selected when omitted. |
+| `integration` | `string` | *(auto)* | Source: auto-detected `harvia_sauna`, or `manual` for [manual mapping](#manual-mapping). |
+| `device_id` | `string` | *(auto)* | Device within the integration; auto-selected when omitted. Not used by `manual`. |
+| `entity_map` | `object` | *(none)* | `manual` source only: logical key → entity ID. See [Manual mapping](#manual-mapping). |
 | `layout` | `string` | `status-dashboard` | `status-dashboard`, `thermostat-hero`, or `compact`. |
 | `controls` | `string` | `power+temp` | Interactive controls: `none`, `power`, or `power+temp`. See [Controls](#controls). |
 | `language` | `string` | *(HA locale)* | Locale override (`sv`, `fi`, `en`, `de`, …). |
@@ -33,6 +34,27 @@ The card and badge auto-detect the Harvia device, so most options are optional.
 Each content option is **saved per layout** — switching layouts never clears
 another layout's selection. Leaving an option unset uses its default; setting an
 empty list (`[]`) shows nothing.
+
+## Manual mapping
+
+For a non-Harvia sauna, set `integration: manual` and map your own entities with
+`entity_map` (logical key → entity ID). The editor builds this for you: set
+**Source → Custom mapping**, then tick each type and pick its entity. The card
+renders only what you map.
+
+```yaml
+type: custom:sauna-card
+integration: manual
+entity_map:
+  thermostat: climate.my_sauna
+  power: switch.my_sauna_power
+  light: switch.my_sauna_light
+  humidity: sensor.my_sauna_humidity
+  door: binary_sensor.my_sauna_door
+```
+
+The full list of mappable types, the controls, and a ready-made example fixture
+are in [Integrations and compatibility → Manual mapping](integrations.md#manual-mapping).
 
 ## Temperature graph
 

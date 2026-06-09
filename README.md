@@ -46,6 +46,10 @@ The companion **badge**, in several appearances:
 - **Auto-detection** — finds your Harvia device automatically; no entity IDs to
   type. Resolves entities by their translation key, so localized entity IDs don't
   matter.
+- **Works beyond Harvia, too** — a **manual mapping** mode lets you point the card
+  at your own entities (a `climate` entity plus any switches and sensors), for
+  DIY / KNX / non-Harvia saunas. See
+  [Integrations and compatibility](docs/integrations.md).
 - **Multilingual** — Swedish, Finnish, English, German out of the box (more on
   request), following Home Assistant's locale, with a per-card override.
 - **Visual editor** and **card-picker suggestion** on Home Assistant 2026.6+.
@@ -66,9 +70,14 @@ for the heat-up, cool-down and whole-session options.
 
 ## Requirements
 
-The [`ha-harvia-sauna`](https://github.com/WiesiDeluxe/ha-harvia-sauna)
-integration, installed and set up for your heater (Harvia **Xenio WiFi** or
-**Fenix**). The card auto-detects the device it controls.
+For Harvia heaters: the
+[`ha-harvia-sauna`](https://github.com/WiesiDeluxe/ha-harvia-sauna) integration,
+installed and set up for your heater (Harvia **Xenio WiFi** or **Fenix**). The
+card auto-detects the device it controls.
+
+For any other sauna: no integration required — use **manual mapping** to point the
+card at your own `climate`, `switch` and `sensor` entities. See
+[Integrations and compatibility](docs/integrations.md#manual-mapping).
 
 ## Installation
 
@@ -146,6 +155,8 @@ full value catalog, or the [quick start](docs/quick-start.md) for a guided walk-
 - [Quick start](docs/quick-start.md)
 - [Configuration reference](docs/configuration.md) — every card and badge option,
   the value catalog, and examples
+- [Integrations and compatibility](docs/integrations.md) — Harvia and manual
+  mapping for any other sauna
 - [Localization](docs/localization.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
