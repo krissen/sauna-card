@@ -663,6 +663,10 @@ export class SaunaCardEditor extends LitElement {
       color: var(--secondary-text-color);
       font: inherit;
     }
+    .mapfold {
+      /* Space before the next form half, kept whether expanded or folded. */
+      margin-bottom: 16px;
+    }
     .mapfold > summary {
       font-weight: 600;
       cursor: pointer;

@@ -340,6 +340,10 @@ export class SaunaBadgeEditor extends LitElement {
       font-weight: 600;
       margin-bottom: 4px;
     }
+    .mapfold {
+      /* Space before the next form half, kept whether expanded or folded. */
+      margin-bottom: 16px;
+    }
     .mapfold > summary {
       font-weight: 600;
       cursor: pointer;
