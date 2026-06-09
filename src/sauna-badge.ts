@@ -133,6 +133,9 @@ export class SaunaBadge extends LitElement {
     if (config.items !== undefined && !Array.isArray(config.items)) {
       throw new Error(`sauna-badge: "items" must be an array`);
     }
+    if (config.entity_map !== undefined && !isPlainObject(config.entity_map)) {
+      throw new Error(`sauna-badge: "entity_map" must be an object`);
+    }
     if (
       config.show_label !== undefined &&
       typeof config.show_label !== "boolean"

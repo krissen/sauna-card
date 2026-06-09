@@ -202,6 +202,9 @@ export class SaunaCard extends LitElement {
     ) {
       throw new Error(`sauna-card: "compact_slots" must be an object`);
     }
+    if (config.entity_map !== undefined && !isPlainObject(config.entity_map)) {
+      throw new Error(`sauna-card: "entity_map" must be an object`);
+    }
     if (
       config.controls !== undefined &&
       !CONTROLS_MODES.includes(config.controls as ControlsMode)
@@ -911,7 +914,7 @@ export class SaunaCard extends LitElement {
           unavailable ? "common.unavailable" : on ? "common.on" : "common.off",
         );
         // State is exposed in text (aria-label), not by colour alone (a11y).
-        // Interactive toggle (switch.toggle); keyboard-operable.
+        // Interactive toggle (homeassistant.toggle); keyboard-operable.
         const toggle = () => this._toggle(s, c.key);
         return html`<button
           type="button"
