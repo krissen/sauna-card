@@ -168,8 +168,15 @@ describe("manual entity catalog", () => {
     const valid = new Set(Object.keys(HARVIA_ENTITIES));
     for (const spec of MANUAL_ENTITY_CATALOG) {
       expect(valid.has(spec.key)).toBe(true);
-      // The picker filter domain must match the catalog's source of truth.
-      expect(spec.domain).toBe(HARVIA_ENTITIES[spec.key].domain);
+      const domain = HARVIA_ENTITIES[spec.key].domain;
+      // The picker is filtered to the type's own domain — except interactive
+      // switch-domain toggles, which accept the broader on/off domains.
+      if (domain === "switch") {
+        expect(spec.domains).toContain("switch");
+        expect(spec.domains).toContain("input_boolean");
+      } else {
+        expect(spec.domains).toEqual([domain]);
+      }
     }
   });
 

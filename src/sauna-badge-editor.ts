@@ -286,7 +286,7 @@ export class SaunaBadgeEditor extends LitElement {
               ? html`<ha-entity-picker
                   .hass=${this.hass}
                   .value=${map[spec.key] || ""}
-                  .includeDomains=${[spec.domain]}
+                  .includeDomains=${spec.domains}
                   .allowCustomEntity=${true}
                   allow-custom-entity
                   @value-changed=${(e: CustomEvent) =>

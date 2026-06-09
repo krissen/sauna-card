@@ -9,13 +9,18 @@ import { buildSaunaState } from "./build-state";
 
 export const MANUAL_ID = "manual";
 
-/** A mappable type offered in the editor: its logical key, HA domain (for the
- * entity picker filter) and i18n label. Ordered most-common first. */
+/** A mappable type offered in the editor: its logical key, the HA domains the
+ * entity picker accepts and its i18n label. Ordered most-common first. */
 export interface ManualEntitySpec {
   key: HarviaEntityKey;
-  domain: string;
+  /** Domains the editor's entity picker is filtered to for this type. */
+  domains: string[];
   labelKey: string;
 }
+
+// On/off controls are toggled via the domain-agnostic homeassistant.toggle, so
+// a DIY light/fan needn't be a `switch.*` — accept the common on/off domains.
+const TOGGLE_DOMAINS = ["switch", "light", "fan", "input_boolean"];
 
 // Logical key → label, in display order. The domain is derived from
 // HARVIA_ENTITIES so the picker filter and the keys the state builder reads can
@@ -67,7 +72,13 @@ const CATALOG: Array<[HarviaEntityKey, string]> = [
 ];
 
 export const MANUAL_ENTITY_CATALOG: ManualEntitySpec[] = CATALOG.map(
-  ([key, labelKey]) => ({ key, domain: HARVIA_ENTITIES[key].domain, labelKey }),
+  ([key, labelKey]) => {
+    const domain = HARVIA_ENTITIES[key].domain;
+    // Switch-domain types are interactive toggles → accept the broader on/off
+    // domains; everything else is filtered to its own domain.
+    const domains = domain === "switch" ? TOGGLE_DOMAINS : [domain];
+    return { key, domains, labelKey };
+  },
 );
 
 /** Keep only mappings whose entity_id is non-empty and actually present in hass. */
