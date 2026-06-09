@@ -4,6 +4,7 @@
 // taken from a user-supplied entity_map) call this, so a manually mapped sauna
 // renders identically to a Harvia one — for whatever entities are present.
 import type { Hass, SaunaState, SaunaStatus } from "../types";
+import { dlog } from "../log";
 
 const UNAVAILABLE = new Set(["unavailable", "unknown", "none", ""]);
 
@@ -119,22 +120,65 @@ export function buildSaunaState(
   deviceId: string,
   e: Record<string, string>,
   model?: string,
+  debug = false,
 ): SaunaState {
+  // Key-aware readers: when debug is on, flag a mapped entity that is present in
+  // hass but reads as unusable (the genuine "you mapped this but its value can't
+  // be used" case, e.g. a pollen sensor mapped as temperature). Unmapped keys are
+  // skipped, and the manual adapter has already pruned truly-missing entities.
+  const raw = (id?: string) => (id ? hass.states[id]?.state : undefined);
+  const n = (key: string, id?: string): number | undefined => {
+    const v = num(hass, id);
+    if (debug && id && hass.states[id] && v === undefined)
+      dlog(
+        true,
+        `mapping '${key}' (${id}) = "${raw(id)}" is not numeric (ignored)`,
+      );
+    return v;
+  };
+  const b = (key: string, id?: string): boolean | undefined => {
+    const v = isOn(hass, id);
+    if (debug && id && hass.states[id] && v === undefined)
+      dlog(
+        true,
+        `mapping '${key}' (${id}) = "${raw(id)}" is unavailable (ignored)`,
+      );
+    return v;
+  };
+  const s = (key: string, id?: string): string | undefined => {
+    const v = str(hass, id);
+    if (debug && id && hass.states[id] && v === undefined)
+      dlog(
+        true,
+        `mapping '${key}' (${id}) = "${raw(id)}" is unavailable (ignored)`,
+      );
+    return v;
+  };
+  const attr = (key: string, id: string | undefined, name: string) => {
+    const v = attrNum(hass, id, name);
+    if (debug && id && hass.states[id] && v === undefined)
+      dlog(
+        true,
+        `mapping '${key}': thermostat (${id}) has no usable ${name} attribute (ignored)`,
+      );
+    return v;
+  };
+
   const currentTemp =
     e.currentTemperature !== undefined
-      ? num(hass, e.currentTemperature)
-      : attrNum(hass, e.thermostat, "current_temperature");
+      ? n("currentTemperature", e.currentTemperature)
+      : attr("currentTemperature", e.thermostat, "current_temperature");
   const targetTemp =
     e.targetTemperature !== undefined
-      ? num(hass, e.targetTemperature)
-      : attrNum(hass, e.thermostat, "temperature");
+      ? n("targetTemperature", e.targetTemperature)
+      : attr("targetTemperature", e.thermostat, "temperature");
   const powerOn =
-    e.power !== undefined ? isOn(hass, e.power) : climateOn(hass, e.thermostat);
+    e.power !== undefined ? b("power", e.power) : climateOn(hass, e.thermostat);
   const heatingActive =
     e.heating !== undefined
-      ? isOn(hass, e.heating)
+      ? b("heating", e.heating)
       : climateHeating(hass, e.thermostat);
-  const tempTrend = num(hass, e.tempTrend);
+  const tempTrend = n("tempTrend", e.tempTrend);
 
   // Ready ETA: estimate from the temperature trend (current → target at the
   // current °C/min). We deliberately do NOT use the integration's heat_up_time
@@ -156,7 +200,7 @@ export function buildSaunaState(
   // Auxiliary switch states, by logical key (omitting any that are absent).
   const switches: Record<string, boolean> = {};
   for (const [entityKey, switchKey] of SWITCH_KEYS) {
-    const on = isOn(hass, e[entityKey]);
+    const on = b(entityKey, e[entityKey]);
     if (on !== undefined) switches[switchKey] = on;
   }
 
@@ -168,39 +212,39 @@ export function buildSaunaState(
     status: deriveStatus(powerOn, heatingActive, currentTemp, targetTemp),
     currentTemp,
     targetTemp,
-    humidity: num(hass, e.humidity),
-    remainingMinutes: num(hass, e.remainingTime),
+    humidity: n("humidity", e.humidity),
+    remainingMinutes: n("remainingTime", e.remainingTime),
     readyEtaMinutes,
-    power: num(hass, e.powerSensor),
-    energy: num(hass, e.energy),
-    sessionsToday: num(hass, e.sessionsToday),
+    power: n("powerSensor", e.powerSensor),
+    energy: n("energy", e.energy),
+    sessionsToday: n("sessionsToday", e.sessionsToday),
     tempTrend,
-    wifiRssi: num(hass, e.wifi),
-    doorOpen: isOn(hass, e.door),
+    wifiRssi: n("wifi", e.wifi),
+    doorOpen: b("door", e.door),
     heatingActive,
-    steamActive: isOn(hass, e.steam),
-    targetHumidity: num(hass, e.targetHumidity),
-    aromaLevel: num(hass, e.aromaLevelSet),
-    sessionLength: num(hass, e.sessionLength),
-    lastSessionDuration: num(hass, e.lastSessionDuration),
-    lastSessionMaxTemp: num(hass, e.lastSessionMaxTemp),
-    heaterPowerActual: num(hass, e.heaterPowerActual),
-    mainSensorTemp: num(hass, e.mainSensorTemp),
-    extSensorTemp: num(hass, e.extSensorTemp),
-    panelTemp: num(hass, e.panelTemp),
-    statusCodes: str(hass, e.statusCodes),
-    activeProfile: str(hass, e.activeProfile),
-    heatOnCounter: num(hass, e.heatOnCounter),
-    steamOnCounter: num(hass, e.steamOnCounter),
-    ph1RelayCounter: num(hass, e.ph1RelayCounter),
-    ph2RelayCounter: num(hass, e.ph2RelayCounter),
-    ph3RelayCounter: num(hass, e.ph3RelayCounter),
-    totalHours: num(hass, e.totalHours),
-    totalBathingHours: num(hass, e.totalBathingHours),
-    totalSessions: num(hass, e.totalSessions),
-    remoteAllowed: isOn(hass, e.remoteAllowed),
-    safetyRelay: isOn(hass, e.safetyRelay),
-    screenLock: isOn(hass, e.screenLock),
+    steamActive: b("steam", e.steam),
+    targetHumidity: n("targetHumidity", e.targetHumidity),
+    aromaLevel: n("aromaLevelSet", e.aromaLevelSet),
+    sessionLength: n("sessionLength", e.sessionLength),
+    lastSessionDuration: n("lastSessionDuration", e.lastSessionDuration),
+    lastSessionMaxTemp: n("lastSessionMaxTemp", e.lastSessionMaxTemp),
+    heaterPowerActual: n("heaterPowerActual", e.heaterPowerActual),
+    mainSensorTemp: n("mainSensorTemp", e.mainSensorTemp),
+    extSensorTemp: n("extSensorTemp", e.extSensorTemp),
+    panelTemp: n("panelTemp", e.panelTemp),
+    statusCodes: s("statusCodes", e.statusCodes),
+    activeProfile: s("activeProfile", e.activeProfile),
+    heatOnCounter: n("heatOnCounter", e.heatOnCounter),
+    steamOnCounter: n("steamOnCounter", e.steamOnCounter),
+    ph1RelayCounter: n("ph1RelayCounter", e.ph1RelayCounter),
+    ph2RelayCounter: n("ph2RelayCounter", e.ph2RelayCounter),
+    ph3RelayCounter: n("ph3RelayCounter", e.ph3RelayCounter),
+    totalHours: n("totalHours", e.totalHours),
+    totalBathingHours: n("totalBathingHours", e.totalBathingHours),
+    totalSessions: n("totalSessions", e.totalSessions),
+    remoteAllowed: b("remoteAllowed", e.remoteAllowed),
+    safetyRelay: b("safetyRelay", e.safetyRelay),
+    screenLock: b("screenLock", e.screenLock),
     switches,
     entities: e,
   };

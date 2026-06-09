@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import type { Hass, HassEntityState, SaunaCardConfig } from "../../src/types";
 import {
   manualAdapter,
@@ -160,6 +160,65 @@ describe("manual adapter readState", () => {
     );
     expect(s!.humidity).toBe(18);
     expect(s!.doorOpen).toBe(true);
+  });
+});
+
+describe("manual adapter debug diagnostics", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const dbg = (entity_map: Record<string, string>): SaunaCardConfig => ({
+    ...cfg(entity_map),
+    debug: true,
+  });
+
+  /** All console.debug args joined into one searchable string per call. */
+  function debugLines(spy: ReturnType<typeof vi.spyOn>): string[] {
+    return spy.mock.calls.map((c) => c.map(String).join(" "));
+  }
+
+  it("flags a mapped entity whose state is not numeric (e.g. a pollen sensor as temp)", () => {
+    const spy = vi.spyOn(console, "debug").mockImplementation(() => {});
+    const hass = makeHass({ "sensor.pollen_al": { state: "Låg" } });
+    const s = manualAdapter.readState(
+      hass,
+      dbg({ currentTemperature: "sensor.pollen_al" }),
+    );
+    expect(s!.currentTemp).toBeUndefined();
+    expect(
+      debugLines(spy).some(
+        (l) =>
+          l.includes("currentTemperature") &&
+          l.includes("sensor.pollen_al") &&
+          l.includes("Låg") &&
+          l.includes("not numeric"),
+      ),
+    ).toBe(true);
+  });
+
+  it("is silent when debug is off", () => {
+    const spy = vi.spyOn(console, "debug").mockImplementation(() => {});
+    const hass = makeHass({ "sensor.pollen_al": { state: "Låg" } });
+    manualAdapter.readState(
+      hass,
+      cfg({ currentTemperature: "sensor.pollen_al" }),
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("flags a mapped entity_id that does not exist in Home Assistant", () => {
+    const spy = vi.spyOn(console, "debug").mockImplementation(() => {});
+    const hass = makeHass({ "climate.diy": { state: "heat" } });
+    manualAdapter.readState(
+      hass,
+      dbg({ thermostat: "climate.diy", currentTemperature: "sensor.ghost" }),
+    );
+    expect(
+      debugLines(spy).some(
+        (l) =>
+          l.includes("sensor.ghost") &&
+          l.includes("not found in Home Assistant"),
+      ),
+    ).toBe(true);
   });
 });
 

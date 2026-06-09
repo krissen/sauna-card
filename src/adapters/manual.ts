@@ -6,6 +6,7 @@
 import type { Hass, SaunaAdapter, SaunaCardConfig } from "../types";
 import { HARVIA_ENTITIES, type HarviaEntityKey } from "./harvia";
 import { buildSaunaState } from "./build-state";
+import { dlog } from "../log";
 
 export const MANUAL_ID = "manual";
 
@@ -114,13 +115,28 @@ export const manualAdapter: SaunaAdapter = {
   },
 
   readState(hass, config) {
-    const entities = pruneToExisting(hass, config.entity_map ?? {});
+    const debug = config.debug === true;
+    const map = config.entity_map ?? {};
+    const entities = pruneToExisting(hass, map);
+    if (debug) {
+      // Surface mapped entity_ids that aren't present in hass (typo / removed
+      // entity) — pruning would otherwise drop them silently.
+      for (const [key, id] of Object.entries(map)) {
+        if (id && !hass.states[id])
+          dlog(
+            true,
+            `dropped mapping '${key}' (${id}) — entity not found in Home Assistant`,
+          );
+      }
+    }
     if (Object.keys(entities).length === 0) return null;
     return buildSaunaState(
       hass,
       MANUAL_ID,
       config.device_id ?? MANUAL_ID,
       entities,
+      undefined,
+      debug,
     );
   },
 };
