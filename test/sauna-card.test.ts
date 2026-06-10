@@ -1299,3 +1299,70 @@ describe("sauna-card tap → more-info", () => {
     document.body.removeChild(card);
   });
 });
+
+describe("require_remote_allowed", () => {
+  function manualHass(climate: string, remote: string): Hass {
+    return {
+      states: {
+        "climate.diy": {
+          entity_id: "climate.diy",
+          state: climate,
+          attributes: { current_temperature: 40, temperature: 90 },
+        },
+        "binary_sensor.remote": {
+          entity_id: "binary_sensor.remote",
+          state: remote,
+          attributes: {},
+        },
+      },
+      entities: {},
+      devices: {},
+    } as unknown as Hass;
+  }
+  const cfg = {
+    type: "custom:sauna-card",
+    integration: "manual",
+    entity_map: {
+      thermostat: "climate.diy",
+      remoteAllowed: "binary_sensor.remote",
+    },
+    require_remote_allowed: true,
+  };
+
+  async function ctaButton(
+    config: Record<string, unknown>,
+    hass: Hass,
+  ): Promise<{ card: SaunaCard; btn: HTMLButtonElement }> {
+    const card = new SaunaCard();
+    card.setConfig(config as never);
+    document.body.appendChild(card);
+    card.hass = hass;
+    await card.updateComplete;
+    const btn = card.shadowRoot!.querySelector(
+      ".cta button",
+    ) as HTMLButtonElement;
+    return { card, btn };
+  }
+
+  it("disables the start button while remote control is off", async () => {
+    const { card, btn } = await ctaButton(cfg, manualHass("off", "off"));
+    expect(btn).toBeTruthy();
+    expect(btn.disabled).toBe(true);
+    document.body.removeChild(card);
+  });
+
+  it("enables the start button when remote control is on", async () => {
+    const { card, btn } = await ctaButton(cfg, manualHass("off", "on"));
+    expect(btn.disabled).toBe(false);
+    document.body.removeChild(card);
+  });
+
+  it("ignores remote state when the option is off", async () => {
+    const { card, btn } = await ctaButton(
+      { ...cfg, require_remote_allowed: false },
+      manualHass("off", "off"),
+    );
+    expect(btn.disabled).toBe(false);
+    document.body.removeChild(card);
+  });
+});

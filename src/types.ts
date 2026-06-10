@@ -75,6 +75,10 @@ export interface SaunaCardConfig {
   compact_slots?: { left?: string; mid?: string; right?: string };
   /** Interactive controls shown across layouts (default "power+temp"). */
   controls?: ControlsMode;
+  /** When true, the start button is disabled while the "remote control allowed"
+   * entity (binary_sensor) is off — so the sauna can't be started from the card
+   * when the heater forbids remote start. Default false. */
+  require_remote_allowed?: boolean;
   /** Show the rising temperature curve while heating (default on). */
   show_heatup_graph?: boolean;
   /** Show the falling temperature curve while cooling down (default on). */

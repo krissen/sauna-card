@@ -220,6 +220,7 @@ export class SaunaCard extends LitElement {
       );
     }
     for (const key of [
+      "require_remote_allowed",
       "show_heatup_graph",
       "show_cooldown_graph",
       "cooldown_include_heatup",
@@ -894,13 +895,21 @@ export class SaunaCard extends LitElement {
     // climate-only sauna switches the climate entity itself.
     const ctlId = s.entities.power ?? s.entities.thermostat;
     const ctlState = ctlId ? this.hass?.states[ctlId]?.state : undefined;
-    const unavailable = !ctlId || entityUnavailable(ctlState);
     const on = this._powerOn(s);
+    // Optionally gate *starting* on the "remote control allowed" entity: when
+    // the option is on and remote is explicitly off, the start button is
+    // disabled (stopping an already-running sauna stays allowed).
+    const remoteBlocked =
+      this._config.require_remote_allowed === true &&
+      s.remoteAllowed === false &&
+      !on;
+    const unavailable = !ctlId || entityUnavailable(ctlState) || remoteBlocked;
     return html`<div class="cta">
       <button
         type="button"
         class="btn ${on ? "" : "primary"}"
         ?disabled=${unavailable}
+        title=${remoteBlocked ? this._t("warn.remote_not_allowed") : nothing}
         @click=${() => this._setActive(s, !on)}
       >
         ${on ? this._t("action.turn_off") : this._t("action.start_session")}

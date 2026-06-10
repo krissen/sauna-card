@@ -24,6 +24,7 @@ const LABEL_KEY: Record<string, string> = {
   device_id: "editor.device",
   layout: "editor.layout",
   controls: "editor.controls",
+  require_remote_allowed: "editor.require_remote_allowed",
   show_heatup_graph: "editor.show_heatup_graph",
   show_cooldown_graph: "editor.show_cooldown_graph",
   cooldown_target_temp: "editor.cooldown_target_temp",
@@ -167,6 +168,7 @@ export class SaunaCardEditor extends LitElement {
           },
         },
       },
+      { name: "require_remote_allowed", selector: { boolean: {} } },
       { name: "show_heatup_graph", selector: { boolean: {} } },
       { name: "show_cooldown_graph", selector: { boolean: {} } },
       {
