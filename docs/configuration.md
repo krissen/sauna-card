@@ -22,6 +22,7 @@ The card and badge auto-detect the Harvia device, so most options are optional.
 | `entity_map` | `object` | *(none)* | `manual` source only: logical key → entity ID. See [Manual mapping](#manual-mapping). |
 | `layout` | `string` | `status-dashboard` | `status-dashboard`, `thermostat-hero`, or `compact`. |
 | `controls` | `string` | `power+temp` | Interactive controls: `none`, `power`, or `power+temp`. See [Controls](#controls). |
+| `require_remote_allowed` | `boolean` | `false` | Disable the start button while the mapped "remote control allowed" entity is off, so the sauna can't be started from the card when the heater forbids remote start. Stopping a running sauna stays allowed. Needs a `remoteAllowed` entity (Harvia exposes one; for manual mapping, map your "remote start allowed" binary sensor). |
 | `language` | `string` | *(HA locale)* | Locale override (`sv`, `fi`, `en`, `de`, …). |
 | `tap_more_info` | `boolean` | `true` | Tap a read-only value (tile, slot, the big temperature, the status badge) to open Home Assistant's more-info dialog for its entity. Interactive controls are unaffected. |
 | `show_heatup_graph` | `boolean` | `true` | Show the rising temperature curve in the main area while heating. |
@@ -136,6 +137,12 @@ Default `dashboard_tiles`: `humidity`, `power`, `energy`, `remaining`, `door`,
 
 On `compact`, any value other than `none` adds a controls row (so the compact
 layout becomes interactive).
+
+Set `require_remote_allowed: true` to gate **starting** on a "remote control
+allowed" entity: while that entity is off, the start button is disabled (a
+running sauna can still be stopped). This is handy when the heater only permits
+remote start under certain conditions — disable the button instead of hiding the
+whole card.
 
 ## Badge options
 

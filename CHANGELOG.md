@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- **Disable start when remote control is off** (`require_remote_allowed`, off by
+  default). When enabled, the start button is disabled while the mapped "remote
+  control allowed" entity is off — so the sauna can't be started from the card
+  when the heater forbids remote start (stopping a running sauna stays allowed).
+  A tidier alternative to hiding the whole card. Works with Harvia's
+  remote-allowed sensor or a `remoteAllowed` entity you map manually.
 - **Advanced editor section: version banner and debug logging.** The card and
   badge editors now have a folded **Advanced** section at the bottom with two
   diagnostics. *Log version to console* (`show_version`, on by default) prints a
