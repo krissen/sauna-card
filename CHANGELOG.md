@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- **Remote-off action** (`remote_off_action`, default `disable_start`). Choose
+  what the card does while the mapped "remote control allowed" entity is off (and
+  the sauna is off, so a start is what's blocked): `disable_start` (disable just
+  the start button), `lock` (disable all controls), `hide_controls` (display-only),
+  `compact` (switch to the compact layout, start disabled) or `compact_locked`
+  (compact, all controls disabled); `none` opts out. In every active mode the
+  status pill swaps its icon for a lock — a visual cue that reads without hover
+  (no tooltip or banner). The default only engages when a remote-allowed entity
+  exists and reads off (Harvia exposes one; map a `remoteAllowed` binary sensor
+  manually), so it's safe out of the box. A tidier alternative to hiding the whole
+  card.
 - **Advanced editor section: version banner and debug logging.** The card and
   badge editors now have a folded **Advanced** section at the bottom with two
   diagnostics. *Log version to console* (`show_version`, on by default) prints a

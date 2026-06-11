@@ -22,6 +22,7 @@ The card and badge auto-detect the Harvia device, so most options are optional.
 | `entity_map` | `object` | *(none)* | `manual` source only: logical key → entity ID. See [Manual mapping](#manual-mapping). |
 | `layout` | `string` | `status-dashboard` | `status-dashboard`, `thermostat-hero`, or `compact`. |
 | `controls` | `string` | `power+temp` | Interactive controls: `none`, `power`, or `power+temp`. See [Controls](#controls). |
+| `remote_off_action` | `string` | `disable_start` | What the card does while the mapped "remote control allowed" entity is off (and the sauna is off, so a start is what's blocked). See [Remote-off action](#remote-off-action). |
 | `language` | `string` | *(HA locale)* | Locale override (`sv`, `fi`, `en`, `de`, …). |
 | `tap_more_info` | `boolean` | `true` | Tap a read-only value (tile, slot, the big temperature, the status badge) to open Home Assistant's more-info dialog for its entity. Interactive controls are unaffected. |
 | `show_heatup_graph` | `boolean` | `true` | Show the rising temperature curve in the main area while heating. |
@@ -83,9 +84,9 @@ reconstructed from the recorder after a page reload.
 
 - **`status-dashboard`** (default) — big current temperature, a target stepper, a
   heating progress bar, a grid of tiles, control chips and a start/stop button.
+- **`compact`** — a single row of three slots, with an optional controls row.
 - **`thermostat-hero`** — a 270° temperature dial; the same controls and an
   optional tile row below.
-- **`compact`** — a single row of three slots, with an optional controls row.
 
 ## Choosing what to show
 
@@ -130,12 +131,35 @@ Default `dashboard_tiles`: `humidity`, `power`, `energy`, `remaining`, `door`,
 
 | Value | Shows |
 |-------|-------|
+| `power+temp` *(default)* | Temperature stepper + start/stop + chips. |
 | `none` | Display only — no stepper, start/stop or chips. |
 | `power` | Start/stop button + control chips. |
-| `power+temp` *(default)* | Temperature stepper + start/stop + chips. |
 
 On `compact`, any value other than `none` adds a controls row (so the compact
 layout becomes interactive).
+
+## Remote-off action
+
+`remote_off_action` gates the card on a "remote control allowed" entity — handy
+when the heater only permits remote start under certain conditions. It engages
+while that entity is **off** and the sauna is **off** (so a *start* is what's
+blocked; stopping a running sauna is never blocked). In every non-`none` mode the
+status pill swaps its icon for a **lock** — a visual cue that reads without hover
+(no tooltip or banner). Needs a `remoteAllowed` entity: Harvia exposes one; for
+manual mapping, map your "remote start allowed" binary sensor. With no such entity
+present nothing changes, so the default is safe — set `none` to opt out entirely.
+
+| Value | While remote control is off |
+|-------|------------------------------|
+| `disable_start` *(default)* | Disable just the start button (faded). |
+| `compact` | Switch to the compact layout; start disabled. |
+| `compact_locked` | Switch to compact; all controls disabled. |
+| `hide_controls` | Remove the controls entirely — display-only. |
+| `lock` | Disable all controls (stepper, chips and start). |
+| `none` | Ignore — normal card. |
+
+The `compact` modes use the card's `compact_slots` (falling back to the
+defaults). A tidier alternative to hiding the whole card with a conditional card.
 
 ## Badge options
 
@@ -144,8 +168,8 @@ layout becomes interactive).
 | `type` | `string` | **Required** | `custom:sauna-badge`. |
 | `name` | `string` | *(device name)* | Override label / aria text. |
 | `integration` · `device_id` · `language` | `string` | *(auto)* | As for the card. |
-| `content` | `string` | `primary` | `primary` (status + temperature), `single` (one value), or `row` (several). |
-| `visual` | `string` | `chip` | `chip`, `icon`, `value`, `ring_value`, `ring_icon`, or `ring`. |
+| `content` | `string` | `primary` | `primary` (status + temperature), `row` (several values), or `single` (one value). |
+| `visual` | `string` | `chip` | `chip`, `icon`, `ring`, `ring_icon`, `ring_value`, or `value`. |
 | `single_item` | `string` | `current_temp` | The value shown when `content: single` (a catalog key). |
 | `items` | `array<string>` | `[status, current_temp, humidity]` | The values shown when `content: row`. |
 | `show_label` | `boolean` | `false` | Show each value's label. |

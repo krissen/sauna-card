@@ -17,6 +17,7 @@ import type {
   SaunaStatus,
   SaunaLayout,
   ControlsMode,
+  RemoteOffAction,
 } from "./types";
 import {
   graphPhase,
@@ -78,6 +79,18 @@ const LAYOUTS: SaunaLayout[] = [
 ];
 
 const CONTROLS_MODES: ControlsMode[] = ["none", "power", "power+temp"];
+
+const REMOTE_OFF_ACTIONS: RemoteOffAction[] = [
+  "none",
+  "disable_start",
+  "lock",
+  "hide_controls",
+  "compact",
+  "compact_locked",
+];
+
+// The status pill's icon when a remote-off action blocks the card.
+const LOCK_ICON = "mdi:lock";
 
 // The compact slots shown when the user hasn't customized them.
 export const DEFAULT_COMPACT_SLOTS = {
@@ -219,6 +232,16 @@ export class SaunaCard extends LitElement {
         `sauna-card: invalid controls "${String(config.controls)}"`,
       );
     }
+    if (
+      config.remote_off_action !== undefined &&
+      !REMOTE_OFF_ACTIONS.includes(config.remote_off_action as RemoteOffAction)
+    ) {
+      throw new Error(
+        `sauna-card: invalid remote_off_action "${String(
+          config.remote_off_action,
+        )}"`,
+      );
+    }
     for (const key of [
       "show_heatup_graph",
       "show_cooldown_graph",
@@ -247,15 +270,22 @@ export class SaunaCard extends LitElement {
     }
   }
 
+  /** Layout for size hints — honours a compact remote-off override so the card
+   * doesn't reserve the configured layout's height while rendering compact. */
+  private _sizingLayout(): SaunaLayout {
+    const s = this.hass ? this._state() : null;
+    return s ? this._effectiveLayout(s) : this._layout;
+  }
+
   getCardSize(): number {
-    if (this._layout === "compact") {
+    if (this._sizingLayout() === "compact") {
       return this._controls === "none" ? 2 : 3;
     }
     return 5;
   }
 
   getGridOptions(): Record<string, number> {
-    if (this._layout === "compact") {
+    if (this._sizingLayout() === "compact") {
       const rows = this._controls === "none" ? 2 : 3;
       return { rows, columns: 12, min_columns: 6 };
     }
@@ -274,19 +304,64 @@ export class SaunaCard extends LitElement {
     return this._config.debug === true;
   }
 
-  /** Control chips, unless controls are off. */
+  private get _remoteAction(): RemoteOffAction {
+    // Default: disable the start button when the remote-allowed entity is off.
+    // This only engages when such an entity exists and reads off, so it's a safe
+    // default; set "none" to opt out entirely.
+    return this._config.remote_off_action ?? "disable_start";
+  }
+
+  /**
+   * True when a remote-off action should engage: the option is set, the mapped
+   * "remote control allowed" entity is explicitly off, and the sauna is off (so
+   * a start is what's blocked — stopping a running sauna is never blocked).
+   */
+  private _remoteBlocked(s: SaunaState): boolean {
+    return (
+      this._remoteAction !== "none" &&
+      s.remoteAllowed === false &&
+      !this._powerOn(s)
+    );
+  }
+
+  /** Controls are removed entirely (display-only) while blocked. */
+  private _controlsHidden(s: SaunaState): boolean {
+    return this._remoteAction === "hide_controls" && this._remoteBlocked(s);
+  }
+
+  /** Stepper + chips are disabled (greyed) while blocked. */
+  private _controlsLocked(s: SaunaState): boolean {
+    const a = this._remoteAction;
+    return (a === "lock" || a === "compact_locked") && this._remoteBlocked(s);
+  }
+
+  /** Configured layout, overridden to compact while a compact action blocks. */
+  private _effectiveLayout(s: SaunaState): SaunaLayout {
+    const a = this._remoteAction;
+    if ((a === "compact" || a === "compact_locked") && this._remoteBlocked(s)) {
+      return "compact";
+    }
+    return this._layout;
+  }
+
+  /** Control chips, unless controls are off or hidden by a remote-off action. */
   private _chips(s: SaunaState): TemplateResult | typeof nothing {
-    return this._controls === "none" ? nothing : this._controlChips(s);
+    return this._controls === "none" || this._controlsHidden(s)
+      ? nothing
+      : this._controlChips(s);
   }
 
-  /** Start/stop CTA, unless controls are off. */
+  /** Start/stop CTA, unless controls are off or hidden by a remote-off action. */
   private _ctaIf(s: SaunaState): TemplateResult | typeof nothing {
-    return this._controls === "none" ? nothing : this._cta(s);
+    return this._controls === "none" || this._controlsHidden(s)
+      ? nothing
+      : this._cta(s);
   }
 
-  /** Temperature control: the stepper when enabled, else a static target. */
+  /** Temperature control: the stepper when enabled, else a static target. A
+   * hide-controls remote action falls back to the static value. */
   private _targetControl(s: SaunaState): TemplateResult {
-    return this._controls === "power+temp"
+    return this._controls === "power+temp" && !this._controlsHidden(s)
       ? this._tempStepper(s)
       : this._staticTarget(s, "tval");
   }
@@ -863,7 +938,10 @@ export class SaunaCard extends LitElement {
     const thermo = s.entities.thermostat;
     const thermoState = thermo ? this.hass?.states[thermo]?.state : undefined;
     const disabled =
-      s.targetTemp === undefined || !thermo || entityUnavailable(thermoState);
+      s.targetTemp === undefined ||
+      !thermo ||
+      entityUnavailable(thermoState) ||
+      this._controlsLocked(s);
     const shown = this._effectiveTarget(s);
     const tt = this._t("label.target_temperature");
     return html`<div class="stepper">
@@ -894,13 +972,18 @@ export class SaunaCard extends LitElement {
     // climate-only sauna switches the climate entity itself.
     const ctlId = s.entities.power ?? s.entities.thermostat;
     const ctlState = ctlId ? this.hass?.states[ctlId]?.state : undefined;
-    const unavailable = !ctlId || entityUnavailable(ctlState);
     const on = this._powerOn(s);
+    // A remote-off action that keeps the button (disable_start/lock/compact*)
+    // disables *starting* — stopping a running sauna is never blocked (the gate
+    // requires the sauna to be off). hide_controls removes the button instead.
+    const remoteBlocked = this._remoteBlocked(s);
+    const unavailable = !ctlId || entityUnavailable(ctlState) || remoteBlocked;
     return html`<div class="cta">
       <button
         type="button"
         class="btn ${on ? "" : "primary"}"
         ?disabled=${unavailable}
+        title=${remoteBlocked ? this._t("warn.remote_not_allowed") : nothing}
         @click=${() => this._setActive(s, !on)}
       >
         ${on ? this._t("action.turn_off") : this._t("action.start_session")}
@@ -916,7 +999,7 @@ export class SaunaCard extends LitElement {
         <div class="empty">${this._t("card.no_device")}</div>
       </ha-card>`;
     }
-    switch (this._layout) {
+    switch (this._effectiveLayout(s)) {
       case "thermostat-hero":
         return this._renderHero(s);
       case "compact":
@@ -934,8 +1017,12 @@ export class SaunaCard extends LitElement {
       etaMin !== undefined
         ? ` · ${this._t("common.minutes", { count: etaMin })}`
         : "";
-    const inner = html`<ha-icon icon=${STATUS_ICON[s.status]}></ha-icon>
-      ${this._t(STATUS_KEY[s.status])}${eta}`;
+    // Remote-off cue: the status pill keeps its text (the sauna is off, so "off")
+    // but its icon becomes a lock — a visual signal that reads without hover.
+    const icon = this._remoteBlocked(s) ? LOCK_ICON : STATUS_ICON[s.status];
+    const inner = html`<ha-icon icon=${icon}></ha-icon> ${this._t(
+        STATUS_KEY[s.status],
+      )}${eta}`;
     return this._readout(
       MI_TAG.span,
       `badge status-${s.status}`,
@@ -954,6 +1041,8 @@ export class SaunaCard extends LitElement {
   }
 
   private _controlChips(s: SaunaState): TemplateResult {
+    // A lock / compact_locked remote action greys every chip out.
+    const locked = this._controlsLocked(s);
     return html`<div class="chips">
       ${CONTROLS.filter((c) => s.entities[c.key]).map((c) => {
         const st = this.hass?.states[s.entities[c.key]]?.state;
@@ -969,7 +1058,7 @@ export class SaunaCard extends LitElement {
         return html`<button
           type="button"
           class="chip ${on ? "on" : ""} ${unavailable ? "unavailable" : ""}"
-          ?disabled=${unavailable}
+          ?disabled=${unavailable || locked}
           aria-pressed=${on}
           aria-label="${label}: ${stateText}"
           title="${label}: ${stateText}"
@@ -1318,7 +1407,9 @@ export class SaunaCard extends LitElement {
           </div>`,
         )}
         ${this._doorWarning(s)} ${this._notices()}
-        ${this._controls === "power+temp" ? this._tempStepper(s) : nothing}
+        ${this._controls === "power+temp" && !this._controlsHidden(s)
+          ? this._tempStepper(s)
+          : nothing}
         ${this._tilesRow(s, this._config.hero_items ?? [])} ${this._chips(s)}
         ${this._ctaIf(s)}
       </div>
@@ -1341,7 +1432,10 @@ export class SaunaCard extends LitElement {
     const v = def.value(s, this._t);
     if (!v) return nothing;
     const cls = def.statusTinted ? `status-${s.status}` : "";
-    const inner = html`<ha-icon icon=${def.icon(s)}></ha-icon>
+    // Remote-off cue in compact: the status slot's icon becomes a lock.
+    const icon =
+      value === "status" && this._remoteBlocked(s) ? LOCK_ICON : def.icon(s);
+    const inner = html`<ha-icon icon=${icon}></ha-icon>
       <span class="cval"
         >${v.text}${v.unit
           ? html`<span class="cunit">${v.unit}</span>`
@@ -1360,13 +1454,25 @@ export class SaunaCard extends LitElement {
     // Merge over the defaults so a partial config (e.g. only `left`) still
     // fills the other slots rather than leaving them blank.
     const slots = { ...DEFAULT_COMPACT_SLOTS, ...this._config.compact_slots };
+    // The remote-off cue lives in the status slot; if the user removed status
+    // from compact, surface the lock in the left slot so the cue isn't lost.
+    const lockLeft =
+      this._remoteBlocked(s) &&
+      ![slots.left, slots.mid, slots.right].includes("status");
+    const hideControls = this._controls === "none" || this._controlsHidden(s);
     return html`<ha-card>
       <div class="compact">
-        <div class="cslot left">${this._slot(s, slots.left)}</div>
+        <div class="cslot left">
+          ${lockLeft
+            ? html`<span class="citem"
+                ><ha-icon icon=${LOCK_ICON}></ha-icon
+              ></span>`
+            : this._slot(s, slots.left)}
+        </div>
         <div class="cslot mid">${this._slot(s, slots.mid)}</div>
         <div class="cslot right">${this._slot(s, slots.right)}</div>
       </div>
-      ${this._controls === "none"
+      ${hideControls
         ? nothing
         : html`<div class="ccontrols">
               ${this._controls === "power+temp"
