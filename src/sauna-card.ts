@@ -270,15 +270,22 @@ export class SaunaCard extends LitElement {
     }
   }
 
+  /** Layout for size hints — honours a compact remote-off override so the card
+   * doesn't reserve the configured layout's height while rendering compact. */
+  private _sizingLayout(): SaunaLayout {
+    const s = this.hass ? this._state() : null;
+    return s ? this._effectiveLayout(s) : this._layout;
+  }
+
   getCardSize(): number {
-    if (this._layout === "compact") {
+    if (this._sizingLayout() === "compact") {
       return this._controls === "none" ? 2 : 3;
     }
     return 5;
   }
 
   getGridOptions(): Record<string, number> {
-    if (this._layout === "compact") {
+    if (this._sizingLayout() === "compact") {
       const rows = this._controls === "none" ? 2 : 3;
       return { rows, columns: 12, min_columns: 6 };
     }

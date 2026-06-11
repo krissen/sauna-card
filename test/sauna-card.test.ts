@@ -1442,4 +1442,34 @@ describe("remote_off_action", () => {
     ).toBe(true);
     document.body.removeChild(c);
   });
+
+  // ---- the two safety invariants the whole feature rests on ----
+
+  it("does not fire without a mapped remote-allowed entity (default action)", async () => {
+    const c = await mount(
+      // remote_off_action defaults to disable_start, but no remoteAllowed mapped
+      {
+        ...base,
+        entity_map: { thermostat: "climate.diy", light: "switch.light" },
+      },
+      manualHass("off", "off"),
+    );
+    expect(cta(c)!.disabled).toBe(false);
+    expect(badgeIcon(c)).not.toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("never blocks a running sauna (stopping stays allowed)", async () => {
+    const c = await mount(
+      { ...base, remote_off_action: "lock" },
+      manualHass("heat", "off"),
+    );
+    // Sauna on + remote off → not blocked: the stop button is live and nothing locks.
+    expect(cta(c)!.disabled).toBe(false);
+    expect(badgeIcon(c)).not.toBe("mdi:lock");
+    expect(
+      (c.shadowRoot!.querySelector(".step") as HTMLButtonElement).disabled,
+    ).toBe(false);
+    document.body.removeChild(c);
+  });
 });
