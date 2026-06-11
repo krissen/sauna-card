@@ -25,14 +25,15 @@ const LABEL_KEY: Record<string, string> = {
   language: "editor.language",
 };
 
-const CONTENT_OPTIONS = ["primary", "single", "row"] as const;
+// Option order: default first, then alphabetical (see config-option style).
+const CONTENT_OPTIONS = ["primary", "row", "single"] as const;
 const VISUAL_OPTIONS = [
   "chip",
   "icon",
-  "value",
-  "ring_value",
-  "ring_icon",
   "ring",
+  "ring_icon",
+  "ring_value",
+  "value",
 ] as const;
 
 /**

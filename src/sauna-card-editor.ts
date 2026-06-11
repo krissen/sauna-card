@@ -24,7 +24,7 @@ const LABEL_KEY: Record<string, string> = {
   device_id: "editor.device",
   layout: "editor.layout",
   controls: "editor.controls",
-  require_remote_allowed: "editor.require_remote_allowed",
+  remote_off_action: "editor.remote_off_action",
   show_heatup_graph: "editor.show_heatup_graph",
   show_cooldown_graph: "editor.show_cooldown_graph",
   cooldown_target_temp: "editor.cooldown_target_temp",
@@ -143,11 +143,11 @@ export class SaunaCardEditor extends LitElement {
                 value: "status-dashboard",
                 label: t("editor.layout_status_dashboard", lang),
               },
+              { value: "compact", label: t("editor.layout_compact", lang) },
               {
                 value: "thermostat-hero",
                 label: t("editor.layout_thermostat_hero", lang),
               },
-              { value: "compact", label: t("editor.layout_compact", lang) },
             ],
           },
         },
@@ -158,17 +158,44 @@ export class SaunaCardEditor extends LitElement {
           select: {
             mode: "dropdown",
             options: [
-              { value: "none", label: t("editor.controls_none", lang) },
-              { value: "power", label: t("editor.controls_power", lang) },
               {
                 value: "power+temp",
                 label: t("editor.controls_power_temp", lang),
               },
+              { value: "none", label: t("editor.controls_none", lang) },
+              { value: "power", label: t("editor.controls_power", lang) },
             ],
           },
         },
       },
-      { name: "require_remote_allowed", selector: { boolean: {} } },
+      {
+        name: "remote_off_action",
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: [
+              {
+                value: "disable_start",
+                label: t("editor.remote_off_disable_start", lang),
+              },
+              {
+                value: "compact",
+                label: t("editor.remote_off_compact", lang),
+              },
+              {
+                value: "compact_locked",
+                label: t("editor.remote_off_compact_locked", lang),
+              },
+              {
+                value: "hide_controls",
+                label: t("editor.remote_off_hide_controls", lang),
+              },
+              { value: "lock", label: t("editor.remote_off_lock", lang) },
+              { value: "none", label: t("editor.remote_off_none", lang) },
+            ],
+          },
+        },
+      },
       { name: "show_heatup_graph", selector: { boolean: {} } },
       { name: "show_cooldown_graph", selector: { boolean: {} } },
       {
@@ -568,6 +595,8 @@ export class SaunaCardEditor extends LitElement {
     const data = {
       ...this._config,
       integration: this._config.integration || "harvia_sauna",
+      // Reflect the default (disable_start) so the dropdown never shows blank.
+      remote_off_action: this._config.remote_off_action ?? "disable_start",
     };
     // Split the form at the source picker so the manual entity-map section can
     // sit directly under it (ha-form renders its schema as one contiguous block).
