@@ -54,6 +54,19 @@ export type SaunaLayout = "status-dashboard" | "thermostat-hero" | "compact";
 /** Which interactive controls a layout shows. */
 export type ControlsMode = "none" | "power" | "power+temp";
 
+/**
+ * What the card does when the mapped "remote control allowed" entity is off and
+ * the sauna is off (so a start is what's blocked). The status pill shows a lock
+ * in every case; the difference is how the controls react.
+ */
+export type RemoteOffAction =
+  | "none" // ignore (default)
+  | "disable_start" // disable only the start button
+  | "lock" // disable all controls (stepper + chips + start)
+  | "hide_controls" // display-only (remove the controls)
+  | "compact" // switch to the compact layout, start disabled
+  | "compact_locked"; // switch to compact, all controls disabled
+
 export interface SaunaCardConfig {
   type: string;
   /** Card title; defaults to the device name. */
@@ -75,6 +88,10 @@ export interface SaunaCardConfig {
   compact_slots?: { left?: string; mid?: string; right?: string };
   /** Interactive controls shown across layouts (default "power+temp"). */
   controls?: ControlsMode;
+  /** What to do when the mapped "remote control allowed" entity is off (and the
+   * sauna is off, so a start is what's blocked). The status pill shows a lock in
+   * every non-"none" case. Default "none". */
+  remote_off_action?: RemoteOffAction;
   /** Show the rising temperature curve while heating (default on). */
   show_heatup_graph?: boolean;
   /** Show the falling temperature curve while cooling down (default on). */

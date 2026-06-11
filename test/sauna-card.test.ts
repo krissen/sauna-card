@@ -1337,3 +1337,177 @@ describe("sauna-card tap → more-info", () => {
     document.body.removeChild(card);
   });
 });
+
+describe("remote_off_action", () => {
+  function manualHass(climate: string, remote: string): Hass {
+    return {
+      states: {
+        "climate.diy": {
+          entity_id: "climate.diy",
+          state: climate,
+          attributes: { current_temperature: 40, temperature: 90 },
+        },
+        "switch.light": {
+          entity_id: "switch.light",
+          state: "off",
+          attributes: {},
+        },
+        "binary_sensor.remote": {
+          entity_id: "binary_sensor.remote",
+          state: remote,
+          attributes: {},
+        },
+      },
+      entities: {},
+      devices: {},
+    } as unknown as Hass;
+  }
+  const base = {
+    type: "custom:sauna-card",
+    integration: "manual",
+    entity_map: {
+      thermostat: "climate.diy",
+      light: "switch.light",
+      remoteAllowed: "binary_sensor.remote",
+    },
+  };
+
+  async function mount(
+    config: Record<string, unknown>,
+    hass: Hass,
+  ): Promise<SaunaCard> {
+    const card = new SaunaCard();
+    card.setConfig(config as never);
+    document.body.appendChild(card);
+    card.hass = hass;
+    await card.updateComplete;
+    return card;
+  }
+  const cta = (c: SaunaCard) =>
+    c.shadowRoot!.querySelector(".cta button") as HTMLButtonElement | null;
+  const badgeIcon = (c: SaunaCard) =>
+    c.shadowRoot!.querySelector(".badge ha-icon")?.getAttribute("icon");
+
+  it("disable_start: start disabled and the status pill shows a lock", async () => {
+    const c = await mount(
+      { ...base, remote_off_action: "disable_start" },
+      manualHass("off", "off"),
+    );
+    expect(cta(c)!.disabled).toBe(true);
+    expect(badgeIcon(c)).toBe("mdi:lock");
+    // The light chip still works under disable_start.
+    expect(
+      (c.shadowRoot!.querySelector(".chip") as HTMLButtonElement).disabled,
+    ).toBe(false);
+    document.body.removeChild(c);
+  });
+
+  it("does nothing while remote control is on", async () => {
+    const c = await mount(
+      { ...base, remote_off_action: "disable_start" },
+      manualHass("off", "on"),
+    );
+    expect(cta(c)!.disabled).toBe(false);
+    expect(badgeIcon(c)).not.toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("defaults to disable_start when nothing is configured", async () => {
+    const c = await mount(base, manualHass("off", "off"));
+    expect(cta(c)!.disabled).toBe(true);
+    expect(badgeIcon(c)).toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("'none' opts out entirely", async () => {
+    const c = await mount(
+      { ...base, remote_off_action: "none" },
+      manualHass("off", "off"),
+    );
+    expect(cta(c)!.disabled).toBe(false);
+    expect(badgeIcon(c)).not.toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("lock: every control is disabled", async () => {
+    const c = await mount(
+      { ...base, remote_off_action: "lock" },
+      manualHass("off", "off"),
+    );
+    expect(cta(c)!.disabled).toBe(true);
+    expect(
+      (c.shadowRoot!.querySelector(".step") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (c.shadowRoot!.querySelector(".chip") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    document.body.removeChild(c);
+  });
+
+  it("hide_controls: the controls are removed (display-only)", async () => {
+    const c = await mount(
+      { ...base, remote_off_action: "hide_controls" },
+      manualHass("off", "off"),
+    );
+    expect(cta(c)).toBeNull();
+    expect(c.shadowRoot!.querySelector(".stepper")).toBeNull();
+    expect(c.shadowRoot!.querySelector(".chips")).toBeNull();
+    // Still locked-looking via the status pill.
+    expect(badgeIcon(c)).toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("compact: switches to the compact layout with start disabled", async () => {
+    const c = await mount(
+      { ...base, layout: "status-dashboard", remote_off_action: "compact" },
+      manualHass("off", "off"),
+    );
+    expect(c.shadowRoot!.querySelector(".compact")).toBeTruthy();
+    expect(c.shadowRoot!.querySelector(".hero")).toBeNull();
+    expect(cta(c)!.disabled).toBe(true);
+    document.body.removeChild(c);
+  });
+
+  it("compact_locked: compact layout with every control disabled", async () => {
+    const c = await mount(
+      { ...base, remote_off_action: "compact_locked" },
+      manualHass("off", "off"),
+    );
+    expect(c.shadowRoot!.querySelector(".compact")).toBeTruthy();
+    expect(cta(c)!.disabled).toBe(true);
+    expect(
+      (c.shadowRoot!.querySelector(".step") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    document.body.removeChild(c);
+  });
+
+  // ---- the two safety invariants the whole feature rests on ----
+
+  it("does not fire without a mapped remote-allowed entity (default action)", async () => {
+    const c = await mount(
+      // remote_off_action defaults to disable_start, but no remoteAllowed mapped
+      {
+        ...base,
+        entity_map: { thermostat: "climate.diy", light: "switch.light" },
+      },
+      manualHass("off", "off"),
+    );
+    expect(cta(c)!.disabled).toBe(false);
+    expect(badgeIcon(c)).not.toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("never blocks a running sauna (stopping stays allowed)", async () => {
+    const c = await mount(
+      { ...base, remote_off_action: "lock" },
+      manualHass("heat", "off"),
+    );
+    // Sauna on + remote off → not blocked: the stop button is live and nothing locks.
+    expect(cta(c)!.disabled).toBe(false);
+    expect(badgeIcon(c)).not.toBe("mdi:lock");
+    expect(
+      (c.shadowRoot!.querySelector(".step") as HTMLButtonElement).disabled,
+    ).toBe(false);
+    document.body.removeChild(c);
+  });
+});

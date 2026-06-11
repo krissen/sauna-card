@@ -24,6 +24,7 @@ const LABEL_KEY: Record<string, string> = {
   device_id: "editor.device",
   layout: "editor.layout",
   controls: "editor.controls",
+  remote_off_action: "editor.remote_off_action",
   show_heatup_graph: "editor.show_heatup_graph",
   show_cooldown_graph: "editor.show_cooldown_graph",
   cooldown_target_temp: "editor.cooldown_target_temp",
@@ -152,11 +153,11 @@ export class SaunaCardEditor extends LitElement {
                 value: "status-dashboard",
                 label: t("editor.layout_status_dashboard", lang),
               },
+              { value: "compact", label: t("editor.layout_compact", lang) },
               {
                 value: "thermostat-hero",
                 label: t("editor.layout_thermostat_hero", lang),
               },
-              { value: "compact", label: t("editor.layout_compact", lang) },
             ],
           },
         },
@@ -167,12 +168,40 @@ export class SaunaCardEditor extends LitElement {
           select: {
             mode: "dropdown",
             options: [
-              { value: "none", label: t("editor.controls_none", lang) },
-              { value: "power", label: t("editor.controls_power", lang) },
               {
                 value: "power+temp",
                 label: t("editor.controls_power_temp", lang),
               },
+              { value: "none", label: t("editor.controls_none", lang) },
+              { value: "power", label: t("editor.controls_power", lang) },
+            ],
+          },
+        },
+      },
+      {
+        name: "remote_off_action",
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: [
+              {
+                value: "disable_start",
+                label: t("editor.remote_off_disable_start", lang),
+              },
+              {
+                value: "compact",
+                label: t("editor.remote_off_compact", lang),
+              },
+              {
+                value: "compact_locked",
+                label: t("editor.remote_off_compact_locked", lang),
+              },
+              {
+                value: "hide_controls",
+                label: t("editor.remote_off_hide_controls", lang),
+              },
+              { value: "lock", label: t("editor.remote_off_lock", lang) },
+              { value: "none", label: t("editor.remote_off_none", lang) },
             ],
           },
         },
@@ -584,6 +613,8 @@ export class SaunaCardEditor extends LitElement {
     const data = {
       ...this._config,
       integration: this._config.integration || "harvia_sauna",
+      // Reflect the default (disable_start) so the dropdown never shows blank.
+      remote_off_action: this._config.remote_off_action ?? "disable_start",
       // Reflect the real (on) defaults so a fresh card's toggles aren't shown
       // off just because the keys are absent (ha-form renders undefined as off).
       show_heatup_graph: this._config.show_heatup_graph ?? true,
