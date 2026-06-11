@@ -26,8 +26,8 @@ The card and badge auto-detect the Harvia device, so most options are optional.
 | `tap_more_info` | `boolean` | `true` | Tap a read-only value (tile, slot, the big temperature, the status badge) to open Home Assistant's more-info dialog for its entity. Interactive controls are unaffected. |
 | `show_heatup_graph` | `boolean` | `true` | Show the rising temperature curve in the main area while heating. |
 | `show_cooldown_graph` | `boolean` | `true` | Show the falling temperature curve after a session, while cooling down. |
-| `cooldown_target_temp` | `number` | *(none)* | Temperature (°C) the cooldown tracks toward — roughly room temperature. When set it's the cooldown baseline and lets the cooldown be reconstructed from the recorder after a page reload. |
-| `cooldown_include_heatup` | `boolean` | `false` | Extend the cooldown curve back over the heatup so one two-tone curve shows the whole session. |
+| `cooldown_target_temp` | `number` | *(auto)* | Temperature (°C) the cooldown tracks toward — roughly room temperature. Auto-detected from the session's start temperature, falling back to **25 °C** when that isn't known (e.g. after a page reload). Set it explicitly for an exact baseline. |
+| `cooldown_include_heatup` | `boolean` | `true` | Extend the cooldown curve back over the heatup so one two-tone curve shows the whole session. |
 | `dashboard_tiles` | `array<string>` | *(see below)* | Ordered item keys shown as tiles in `status-dashboard`. |
 | `hero_items` | `array<string>` | `[]` | Ordered item keys shown as tiles in `thermostat-hero`. |
 | `compact_slots` | `object` | `{left: status, mid: name, right: current_temp}` | The compact layout's three slots. |
@@ -76,8 +76,9 @@ options above:
 |:---:|:---:|:---:|
 | ![Heat-up temperature graph](screenshots/graph-heatup-dashboard.png) | ![Cool-down temperature graph](screenshots/graph-cooldown-dashboard.png) | ![Two-tone whole-session graph](screenshots/graph-session-dashboard.png) |
 
-Set `cooldown_target_temp` (≈ your room temperature) so the cool-down curve can be
-reconstructed from the recorder after a page reload.
+The cool-down is reconstructed from the recorder after a page reload out of the
+box (falling toward ~25 °C when the room temperature isn't known). Set
+`cooldown_target_temp` to your actual room temperature for an exact baseline.
 
 ## Layouts
 

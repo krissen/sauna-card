@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- **Whole-session graph and cool-down robustness.** The whole-session two-tone
+  arc (`cooldown_include_heatup`) is now **on by default**, so a session shows the
+  rising heat-up and falling cool-down as one curve. The cool-down now
+  **reconstructs after a page reload out of the box**: the target temperature is
+  taken from the session's start (ambient) temperature, falling back to 25 °C when
+  that isn't known, instead of requiring `cooldown_target_temp`. The editor's
+  graph and "tap for more info" toggles now correctly show their **on** defaults
+  (they were rendered off when the keys were absent, even though the features were
+  active).
+
 ### Added
 - **Advanced editor section: version banner and debug logging.** The card and
   badge editors now have a folded **Advanced** section at the bottom with two
