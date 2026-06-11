@@ -566,6 +566,12 @@ export class SaunaCardEditor extends LitElement {
     const data = {
       ...this._config,
       integration: this._config.integration || "harvia_sauna",
+      // Reflect the real (on) defaults so a fresh card's toggles aren't shown
+      // off just because the keys are absent (ha-form renders undefined as off).
+      show_heatup_graph: this._config.show_heatup_graph ?? true,
+      show_cooldown_graph: this._config.show_cooldown_graph ?? true,
+      cooldown_include_heatup: this._config.cooldown_include_heatup ?? true,
+      tap_more_info: this._config.tap_more_info ?? true,
     };
     // Split the form at the source picker so the manual entity-map section can
     // sit directly under it (ha-form renders its schema as one contiguous block).
