@@ -805,10 +805,11 @@ describe("sauna-card", () => {
     });
 
     const card = new SaunaCard();
+    // cooldown_include_heatup is on by default, so the whole-session arc shows
+    // without setting it.
     card.setConfig({
       type: "custom:sauna-card",
       cooldown_target_temp: 18,
-      cooldown_include_heatup: true,
     });
     document.body.appendChild(card);
     card.hass = graphHass("off", "off", 24, { callWS });
@@ -880,16 +881,53 @@ describe("sauna-card", () => {
     document.body.removeChild(card);
   });
 
-  it("does not reconstruct a cooldown without a target temp", async () => {
+  it("reconstructs a cooldown without an explicit target (25 fallback)", async () => {
+    const T = Date.now();
+    const offAt = T - 3_600_000;
+    const callWS = vi.fn().mockImplementation((msg) => {
+      const id = (msg.entity_ids as string[])[0];
+      if (id === "switch.power") {
+        return Promise.resolve({
+          "switch.power": [
+            { s: "on", lu: (T - 7_200_000) / 1000 },
+            { s: "off", lu: offAt / 1000 },
+          ],
+        });
+      }
+      if (id === "sensor.cur") {
+        return Promise.resolve({
+          "sensor.cur": [
+            { s: "50", lu: (T - 3_000_000) / 1000 },
+            { s: "35", lu: (T - 1_500_000) / 1000 },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card" }); // no cooldown_target_temp → 25
+    document.body.appendChild(card);
+    // Off but 30° (above the 25 fallback) — the post-reload case.
+    card.hass = graphHass("off", "off", 30, { callWS });
+    await card.updateComplete;
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    await card.updateComplete;
+    expect(callWS).toHaveBeenCalled();
+    expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeTruthy();
+    document.body.removeChild(card);
+  });
+
+  it("skips reconstruction when already at or below the fallback target", async () => {
     const callWS = vi.fn().mockResolvedValue({});
     const card = new SaunaCard();
-    card.setConfig({ type: "custom:sauna-card" }); // no cooldown_target_temp
+    card.setConfig({ type: "custom:sauna-card" });
     document.body.appendChild(card);
+    // 24° is below the 25 fallback → nothing to cool toward, no query fires.
     card.hass = graphHass("off", "off", 24, { callWS });
     await card.updateComplete;
     await new Promise((r) => setTimeout(r, 0));
     await card.updateComplete;
-    // No target → reload reconstruction is opt-in, so no switch query fires.
     expect(callWS).not.toHaveBeenCalled();
     expect(card.shadowRoot?.querySelector(".graph.cooldown")).toBeFalsy();
     document.body.removeChild(card);

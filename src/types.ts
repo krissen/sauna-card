@@ -79,12 +79,13 @@ export interface SaunaCardConfig {
   show_heatup_graph?: boolean;
   /** Show the falling temperature curve while cooling down (default on). */
   show_cooldown_graph?: boolean;
-  /** Temperature (°C) the cooldown tracks toward — roughly room temperature. When
-   * set it is the cooldown baseline (more reliable than the captured session
-   * start) and enables showing a cooldown after a page reload. */
+  /** Temperature (°C) the cooldown tracks toward — roughly room temperature.
+   * An explicit value overrides the captured session-start (ambient) temp; when
+   * neither is known (e.g. after a page reload) the cooldown falls back to a
+   * generic default (DEFAULT_COOLDOWN_TARGET) so it still reconstructs. */
   cooldown_target_temp?: number;
   /** Extend the cooldown curve back over the heatup so it shows the whole session
-   * arc — a two-tone curve (orange rising, blue falling). Default off. */
+   * arc — a two-tone curve (orange rising, blue falling). Default on. */
   cooldown_include_heatup?: boolean;
   /** Make read-only value displays tap-to-open HA's more-info dialog for the
    * underlying entity. Default on. */
