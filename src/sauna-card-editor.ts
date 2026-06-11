@@ -33,6 +33,16 @@ const LABEL_KEY: Record<string, string> = {
   language: "editor.language",
 };
 
+// Boolean options that default to on. The editor shows them on (render()'s data
+// normalisation), and a default-equal value is stripped on emit so it isn't
+// baked into the config (see _valueChanged).
+const DEFAULT_ON_BOOLEANS = [
+  "show_heatup_graph",
+  "show_cooldown_graph",
+  "cooldown_include_heatup",
+  "tap_more_info",
+] as const;
+
 /** A layout's configurable tile list: which config key, its defaults, its title. */
 interface TileSpec {
   configKey: "dashboard_tiles" | "hero_items";
@@ -269,6 +279,14 @@ export class SaunaCardEditor extends LitElement {
     // everything else (the per-layout tile lists, the entity map).
     const value = (ev.detail as { value: Partial<SaunaCardConfig> }).value;
     const patch: Partial<SaunaCardConfig> = { ...value };
+    // render() shows the default-on toggles at their real default; strip a
+    // default-equal value back out so an unrelated edit doesn't bake the
+    // defaults into the saved config (absent === default), keeping the config
+    // minimal and letting a future default change still reach the user.
+    const patchRec = patch as Record<string, unknown>;
+    for (const key of DEFAULT_ON_BOOLEANS) {
+      if (patchRec[key] === true) patchRec[key] = undefined;
+    }
     const was = this._config.integration;
     if (value.integration === "manual" && was !== "manual") {
       // Switching to manual: seed an (empty) map and drop the Harvia device id.
@@ -597,6 +615,12 @@ export class SaunaCardEditor extends LitElement {
       integration: this._config.integration || "harvia_sauna",
       // Reflect the default (disable_start) so the dropdown never shows blank.
       remote_off_action: this._config.remote_off_action ?? "disable_start",
+      // Reflect the real (on) defaults so a fresh card's toggles aren't shown
+      // off just because the keys are absent (ha-form renders undefined as off).
+      show_heatup_graph: this._config.show_heatup_graph ?? true,
+      show_cooldown_graph: this._config.show_cooldown_graph ?? true,
+      cooldown_include_heatup: this._config.cooldown_include_heatup ?? true,
+      tap_more_info: this._config.tap_more_info ?? true,
     };
     // Split the form at the source picker so the manual entity-map section can
     // sit directly under it (ha-form renders its schema as one contiguous block).

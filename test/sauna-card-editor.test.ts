@@ -84,6 +84,61 @@ describe("sauna-card-editor", () => {
       },
     ]);
   });
+
+  it("does not bake the default-on toggles into config on an unrelated edit", () => {
+    const editor = new SaunaCardEditor();
+    editor.setConfig({ type: "custom:sauna-card" });
+    const received: SaunaCardConfig[] = [];
+    editor.addEventListener("config-changed", (e) =>
+      received.push((e as CustomEvent).detail.config),
+    );
+    // ha-form re-emits the full data, including the normalised default-on toggles.
+    (
+      editor as unknown as { _valueChanged(e: CustomEvent): void }
+    )._valueChanged(
+      new CustomEvent("value-changed", {
+        detail: {
+          value: {
+            type: "custom:sauna-card",
+            name: "Bastu",
+            show_heatup_graph: true,
+            show_cooldown_graph: true,
+            cooldown_include_heatup: true,
+            tap_more_info: true,
+          },
+        },
+      }),
+    );
+    const cfg = received.at(-1)! as unknown as Record<string, unknown>;
+    expect(cfg.name).toBe("Bastu");
+    for (const k of [
+      "show_heatup_graph",
+      "show_cooldown_graph",
+      "cooldown_include_heatup",
+      "tap_more_info",
+    ]) {
+      expect(k in cfg).toBe(false);
+    }
+  });
+
+  it("keeps a toggle set to a non-default value", () => {
+    const editor = new SaunaCardEditor();
+    editor.setConfig({ type: "custom:sauna-card" });
+    const received: SaunaCardConfig[] = [];
+    editor.addEventListener("config-changed", (e) =>
+      received.push((e as CustomEvent).detail.config),
+    );
+    (
+      editor as unknown as { _valueChanged(e: CustomEvent): void }
+    )._valueChanged(
+      new CustomEvent("value-changed", {
+        detail: {
+          value: { type: "custom:sauna-card", show_heatup_graph: false },
+        },
+      }),
+    );
+    expect(received.at(-1)!.show_heatup_graph).toBe(false);
+  });
 });
 
 // Access the editor's private tile-list API for focused unit tests.

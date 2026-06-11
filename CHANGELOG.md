@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- **Whole-session graph and cool-down robustness.** The whole-session two-tone
+  arc (`cooldown_include_heatup`) is now **on by default**, so a session shows the
+  rising heat-up and falling cool-down as one curve. The cool-down now
+  **reconstructs after a page reload out of the box**: the target temperature is
+  taken from the session's start (ambient) temperature, falling back to 25 °C when
+  that isn't known, instead of requiring `cooldown_target_temp`. The editor's
+  graph and "tap for more info" toggles now correctly show their **on** defaults
+  (they were rendered off when the keys were absent, even though the features were
+  active).
+
 ### Added
 - **Remote-off action** (`remote_off_action`, default `disable_start`). Choose
   what the card does while the mapped "remote control allowed" entity is off (and

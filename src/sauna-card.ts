@@ -109,6 +109,11 @@ export const DEFAULT_DASHBOARD_TILES: BadgeItemKey[] = [
   "sessions",
 ];
 
+// Cooldown baseline (°C, ≈ room temperature) used when neither an explicit
+// cooldown_target_temp nor a captured ambient (session-start) temperature is
+// available — notably after a page reload, where the runtime ambient is lost.
+export const DEFAULT_COOLDOWN_TARGET = 25;
+
 // Read-only control chips shown in I5. Interactivity (callService) lands in I6.
 const CONTROLS: Array<{ key: string; icon: string; labelKey: string }> = [
   { key: "power", icon: "mdi:power", labelKey: "control.power" },
@@ -563,12 +568,14 @@ export class SaunaCard extends LitElement {
       status === "off" &&
       this._sessionStartTemp !== undefined
     ) {
-      // A configured cooldown target is the baseline when present (it's the
-      // temperature the room settles at); otherwise the captured session start.
+      // Baseline (temperature the room settles at): an explicit target wins,
+      // else the captured session-start (ambient) temp, else a generic default.
       this._cooldownAnchor = {
         startedAt: now,
         baselineTemp:
-          this._config.cooldown_target_temp ?? this._sessionStartTemp,
+          this._config.cooldown_target_temp ??
+          this._sessionStartTemp ??
+          DEFAULT_COOLDOWN_TARGET,
       };
       this._cooldownSamples = [];
     }
@@ -648,17 +655,16 @@ export class SaunaCard extends LitElement {
 
   /**
    * Reconstruct a cooldown window after a page reload: when the sauna is off but
-   * still above the configured target, ask the recorder for the switch's last
-   * on→off time within 24h. If found, open an anchor at that time (baseline = the
-   * configured target) and backfill the falling curve. Runs at most once per
-   * off-episode. Requires cooldown_target_temp — without it we can't know the
-   * baseline, so reload reconstruction is opt-in via that config.
+   * still above the target, ask the recorder for the switch's last on→off time
+   * within 24h. If found, open an anchor at that time (baseline = the target) and
+   * backfill the falling curve. Runs at most once per off-episode. The runtime
+   * ambient (session-start temp) is lost across a reload, so the target falls
+   * back to DEFAULT_COOLDOWN_TARGET when not explicitly configured.
    */
   private _maybeReconstructCooldown(s: SaunaState, now: number): void {
     if (this._cooldownAnchor || this._cooldownReconstructAttempted) return;
     if (this._config.show_cooldown_graph === false) return;
-    const target = this._config.cooldown_target_temp;
-    if (target === undefined) return;
+    const target = this._config.cooldown_target_temp ?? DEFAULT_COOLDOWN_TARGET;
     if (s.status !== "off") return;
     if (s.currentTemp === undefined || s.currentTemp <= target) return;
     if (!this.hass?.callWS) return;
@@ -699,7 +705,7 @@ export class SaunaCard extends LitElement {
         if (key) this._historyFetched.add(key);
         // Backfill the curve from the recorder, then render.
         const fetchFrom =
-          this._config.cooldown_include_heatup === true
+          this._config.cooldown_include_heatup !== false
             ? session.onTime
             : session.offTime;
         if (tempId && this.hass?.callWS) {
@@ -758,7 +764,7 @@ export class SaunaCard extends LitElement {
     // Cooldown normally backfills from the shutoff; with include-heatup it
     // extends back to the session's power-on so the curve shows the full arc.
     const cooldownStart =
-      this._config.cooldown_include_heatup === true
+      this._config.cooldown_include_heatup !== false
         ? (this._sessionStartAt ?? this._cooldownAnchor?.startedAt ?? now)
         : (this._cooldownAnchor?.startedAt ?? now);
     const startMs =
@@ -1231,7 +1237,7 @@ export class SaunaCard extends LitElement {
     }
     const twoTone =
       phase === "cooldown" &&
-      this._config.cooldown_include_heatup === true &&
+      this._config.cooldown_include_heatup !== false &&
       peakIdx > 0 &&
       peakIdx < samples.length - 1;
 
