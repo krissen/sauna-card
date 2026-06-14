@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   graph and "tap for more info" toggles now correctly show their **on** defaults
   (they were rendered off when the keys were absent, even though the features were
   active).
+- **Open door blocks start.** An open door now engages the same treatment as a
+  remote-off block (lock pill, dimmed/locked/hidden controls per
+  `remote_off_action`, reason on hover) instead of only warning after a failed
+  start attempt — the heater refuses to start with the door open. Stopping a
+  running sauna is never blocked.
 
 ### Added
 - **ha-harvia-sauna v2.8.0 support.** New value-catalog items for the statistics

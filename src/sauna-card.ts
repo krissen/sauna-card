@@ -328,15 +328,18 @@ export class SaunaCard extends LitElement {
   }
 
   /**
-   * True when a remote-off action should engage: the option is set, the mapped
-   * "remote control allowed" entity is explicitly off, and the sauna is off (so
-   * a start is what's blocked — stopping a running sauna is never blocked).
+   * True when a remote-off action should engage: the option is set, a start is
+   * what's blocked (the sauna is off — stopping a running sauna is never
+   * blocked), and remote start is actually disallowed. The latter is true when
+   * the mapped "remote control allowed" entity reads off OR the door is open —
+   * the heater physically refuses to start with the door open, so it gets the
+   * same treatment (lock pill, dimmed/locked/hidden controls) as a remote block.
    */
   private _remoteBlocked(s: SaunaState): boolean {
     return (
       this._remoteAction !== "none" &&
-      s.remoteAllowed === false &&
-      !this._powerOn(s)
+      !this._powerOn(s) &&
+      (s.remoteAllowed === false || s.doorOpen === true)
     );
   }
 
@@ -1036,12 +1039,19 @@ export class SaunaCard extends LitElement {
     // requires the sauna to be off). hide_controls removes the button instead.
     const remoteBlocked = this._remoteBlocked(s);
     const unavailable = !ctlId || entityUnavailable(ctlState) || remoteBlocked;
+    // Reason on hover: prefer the door message (more actionable) when the door is
+    // what's open, else the generic remote-not-allowed message.
+    const title = remoteBlocked
+      ? this._t(
+          s.doorOpen ? "warn.cannot_start_door" : "warn.remote_not_allowed",
+        )
+      : nothing;
     return html`<div class="cta">
       <button
         type="button"
         class="btn ${on ? "" : "primary"}"
         ?disabled=${unavailable}
-        title=${remoteBlocked ? this._t("warn.remote_not_allowed") : nothing}
+        title=${title}
         @click=${() => this._setActive(s, !on)}
       >
         ${on ? this._t("action.turn_off") : this._t("action.start_session")}
@@ -1101,25 +1111,35 @@ export class SaunaCard extends LitElement {
   private _controlChips(s: SaunaState): TemplateResult {
     // A lock / compact_locked remote action greys every chip out.
     const locked = this._controlsLocked(s);
+    // The power chip toggles the heater on/off — turning it on IS a start, so it
+    // must respect the same block as the start button (e.g. an open door). The
+    // auxiliary chips (light, fan, steamer) stay usable under disable_start.
+    const startBlocked = this._remoteBlocked(s);
     return html`<div class="chips">
       ${CONTROLS.filter((c) => s.entities[c.key]).map((c) => {
         const st = this.hass?.states[s.entities[c.key]]?.state;
         const unavailable = entityUnavailable(st);
         const on = st === "on";
+        const blocked = c.key === "power" && startBlocked;
         const label = this._t(c.labelKey);
         const stateText = this._t(
           unavailable ? "common.unavailable" : on ? "common.on" : "common.off",
         );
+        const title = blocked
+          ? this._t(
+              s.doorOpen ? "warn.cannot_start_door" : "warn.remote_not_allowed",
+            )
+          : `${label}: ${stateText}`;
         // State is exposed in text (aria-label), not by colour alone (a11y).
         // Interactive toggle (homeassistant.toggle); keyboard-operable.
         const toggle = () => this._toggle(s, c.key);
         return html`<button
           type="button"
           class="chip ${on ? "on" : ""} ${unavailable ? "unavailable" : ""}"
-          ?disabled=${unavailable || locked}
+          ?disabled=${unavailable || locked || blocked}
           aria-pressed=${on}
           aria-label="${label}: ${stateText}"
-          title="${label}: ${stateText}"
+          title="${title}"
           @click=${toggle}
         >
           <ha-icon icon=${c.icon}></ha-icon>${label}

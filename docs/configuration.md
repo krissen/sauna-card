@@ -177,17 +177,23 @@ value in the [catalog](#value-catalog).
 
 ## Remote-off action
 
-`remote_off_action` gates the card on a "remote control allowed" entity — handy
-when the heater only permits remote start under certain conditions. It engages
-while that entity is **off** and the sauna is **off** (so a *start* is what's
-blocked; stopping a running sauna is never blocked). In every non-`none` mode the
-status pill swaps its icon for a **lock** — a visual cue that reads without hover
-(no tooltip or banner). Needs a `remoteAllowed` entity: Harvia exposes one; for
-manual mapping, map your "remote start allowed" binary sensor. With no such entity
-present nothing changes, so the default is safe — set `none` to opt out entirely.
+`remote_off_action` gates the card while a *start* is blocked and the sauna is
+**off** (stopping a running sauna is never blocked). A start counts as blocked
+when either:
 
-| Value | While remote control is off |
-|-------|------------------------------|
+- the mapped **"remote control allowed"** entity is **off** (Harvia's Fenix
+  exposes one; for manual mapping, map your "remote start allowed" binary sensor), or
+- the **door is open** — the heater physically refuses to start with the door
+  open, so the card gives it the same treatment.
+
+In every non-`none` mode the status pill swaps its icon for a **lock** — a visual
+cue that reads without hover (no tooltip or banner); the start button also shows
+the reason ("door open" / "remote start not allowed") on hover. With neither a
+`remoteAllowed` entity nor a `door` sensor present nothing changes, so the default
+is safe — set `none` to opt out entirely.
+
+| Value | While a start is blocked |
+|-------|--------------------------|
 | `disable_start` *(default)* | Disable just the start button (faded). |
 | `compact` | Switch to the compact layout; start disabled. |
 | `compact_locked` | Switch to compact; all controls disabled. |

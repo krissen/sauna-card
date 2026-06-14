@@ -59,9 +59,10 @@ export type SaunaLayout = "status-dashboard" | "thermostat-hero" | "compact";
 export type ControlsMode = "none" | "power" | "power+temp";
 
 /**
- * What the card does when the mapped "remote control allowed" entity is off and
- * the sauna is off (so a start is what's blocked). The status pill shows a lock
- * in every case; the difference is how the controls react.
+ * What the card does when remote start is disallowed and the sauna is off (so a
+ * start is what's blocked) — i.e. the mapped "remote control allowed" entity is
+ * off, or the door is open (the heater refuses to start with the door open). The
+ * status pill shows a lock in every case; the difference is how the controls react.
  */
 export type RemoteOffAction =
   | "none" // ignore (default)
@@ -98,9 +99,10 @@ export interface SaunaCardConfig {
   /** Show the smart-preheat scheduling control (v2.8.0). Default off — it is an
    * advanced feature and requires the integration's preheat opt-in. */
   show_preheat?: boolean;
-  /** What to do when the mapped "remote control allowed" entity is off (and the
-   * sauna is off, so a start is what's blocked). The status pill shows a lock in
-   * every non-"none" case. Default "none". */
+  /** What to do when remote start is disallowed and the sauna is off (so a start
+   * is what's blocked): the mapped "remote control allowed" entity is off, or the
+   * door is open. The status pill shows a lock in every non-"none" case. Default
+   * "disable_start". */
   remote_off_action?: RemoteOffAction;
   /** Show the rising temperature curve while heating (default on). */
   show_heatup_graph?: boolean;
