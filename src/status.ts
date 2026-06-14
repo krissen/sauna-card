@@ -329,7 +329,20 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     // Deliberately compact: "45 min" rather than the localized long form
     // ("45 minutes" / "45 minuter"). "min" is the SI symbol and identical
     // across our locales (en/sv/fi/de), so this needs no separate locale key.
-    value: minutesVal((s) => s.remainingMinutes),
+    //
+    // The integration's session countdown only populates for HA-initiated
+    // sessions; an app-started session reports 0. So: show it when it's a real
+    // countdown (> 0); else, while heating, fall back to the derived ready-ETA
+    // ("N min" until target) so the tile shows a live timer instead of a
+    // misleading "0 min"; else hide.
+    value: (s) => {
+      const remaining = s.remainingMinutes;
+      if (remaining !== undefined && remaining > 0)
+        return { text: `${Math.round(remaining)}`, unit: "min" };
+      if (s.status === "heating" && s.readyEtaMinutes !== undefined)
+        return { text: `${Math.round(s.readyEtaMinutes)}`, unit: "min" };
+      return null;
+    },
     entityKey: "remainingTime",
   },
   session_length: {
@@ -456,7 +469,14 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     entityKey: "steam",
   },
   // The main power switch's on/off state (distinct from `power`, the watt draw).
-  power_switch: switchItem("power", "mdi:power", "control.power"),
+  // Power reflects the derived session on/off (not the raw switch), so an
+  // app-started session — where switch.power stays off — still reads on.
+  power_switch: {
+    icon: () => "mdi:power",
+    labelKey: "control.power",
+    value: boolVal((s) => s.powerOn),
+    entityKey: "power",
+  },
   light: switchItem("light", "mdi:lightbulb", "control.light"),
   fan: switchItem("fan", "mdi:fan", "control.fan"),
   steamer: switchItem("steamer", "mdi:pot-steam-outline", "control.steamer"),

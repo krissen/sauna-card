@@ -99,6 +99,57 @@ describe("status item catalog", () => {
     ).toBeNull();
   });
 
+  it("reflects the derived power-on for the power switch item, not the raw switch", () => {
+    // App-started session: switches.power is the raw (off) switch, but the
+    // derived powerOn is on — the item must follow the derived truth.
+    expect(
+      BADGE_ITEMS.power_switch.value(
+        { ...base, powerOn: true, switches: { power: false } },
+        tr,
+      ),
+    ).toEqual({ text: "common.on" });
+    expect(
+      BADGE_ITEMS.power_switch.value({ ...base, powerOn: false }, tr),
+    ).toEqual({ text: "common.off" });
+    expect(
+      BADGE_ITEMS.power_switch.value({ ...base, powerOn: undefined }, tr),
+    ).toBeNull();
+  });
+
+  it("shows the integration's remaining-time countdown when it is a real one", () => {
+    expect(
+      BADGE_ITEMS.remaining.value({ ...base, remainingMinutes: 30 }, tr),
+    ).toEqual({ text: "30", unit: "min" });
+  });
+
+  it("falls back to the ready-ETA while heating when there is no real countdown", () => {
+    // App session: remaining reads 0, but the sauna is heating → show the
+    // derived ready-ETA instead of a misleading "0 min".
+    expect(
+      BADGE_ITEMS.remaining.value(
+        { ...base, status: "heating", remainingMinutes: 0, readyEtaMinutes: 8 },
+        tr,
+      ),
+    ).toEqual({ text: "8", unit: "min" });
+  });
+
+  it("hides remaining-time when neither a countdown nor an ETA is meaningful", () => {
+    // Heating but no ETA available.
+    expect(
+      BADGE_ITEMS.remaining.value(
+        { ...base, status: "heating", remainingMinutes: 0 },
+        tr,
+      ),
+    ).toBeNull();
+    // A bare 0 while off (not heating) is not shown.
+    expect(
+      BADGE_ITEMS.remaining.value(
+        { ...base, status: "off", remainingMinutes: 0, readyEtaMinutes: 8 },
+        tr,
+      ),
+    ).toBeNull();
+  });
+
   it("accepts new keys and rejects prototype props", () => {
     expect(isBadgeItemKey("auto_fan")).toBe(true);
     expect(isBadgeItemKey("eta")).toBe(true);
