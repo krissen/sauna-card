@@ -237,6 +237,9 @@ export function buildSaunaState(
   return {
     integration,
     deviceId,
+    // Defaults to the registry id; the Harvia adapter overrides this with the
+    // cloud id its services require.
+    serviceDeviceId: deviceId,
     model,
     available: Object.keys(e).length > 0,
     status: deriveStatus(

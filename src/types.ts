@@ -22,6 +22,10 @@ export interface HassDevice {
   name_by_user?: string | null;
   model?: string | null;
   manufacturer?: string | null;
+  /** Integration identifiers, as `[domain, id]` pairs. For Harvia this carries
+   * the cloud device id the `harvia_sauna.*` services expect (distinct from the
+   * HA device-registry `id`). */
+  identifiers?: Array<[string, string]>;
 }
 
 /** A websocket command message; `type` plus arbitrary command-specific fields. */
@@ -178,7 +182,12 @@ export interface SaunaBadgeConfig {
  */
 export interface SaunaState {
   integration: string;
+  /** HA device-registry id — used for naming and more-info context. */
   deviceId: string;
+  /** Device id passed to the integration's own services (e.g. `harvia_sauna`).
+   * For Harvia this is the cloud id from the device identifiers, which differs
+   * from `deviceId`; defaults to `deviceId` when there's no distinct one. */
+  serviceDeviceId: string;
   /** e.g. "xenio" | "fenix" — when the adapter can tell. */
   model?: string;
   available: boolean;

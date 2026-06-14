@@ -86,7 +86,14 @@ function makeHass(
   return {
     states: st,
     entities,
-    devices: { [DEVICE]: { id: DEVICE, name: "Bastu", model: "CX110 Xenio" } },
+    devices: {
+      [DEVICE]: {
+        id: DEVICE,
+        name: "Bastu",
+        model: "CX110 Xenio",
+        identifiers: [["harvia_sauna", "cloud-uuid-1"]],
+      },
+    },
   };
 }
 
@@ -371,5 +378,22 @@ describe("harvia adapter readState", () => {
       { type: "custom:sauna-card" },
     );
     expect(s!.switches?.ambilight).toBe(true);
+  });
+
+  it("resolves serviceDeviceId from the Harvia cloud identifier", () => {
+    // deviceId is the HA registry id; serviceDeviceId is the cloud id the
+    // harvia_sauna.* services key on.
+    const s = harviaAdapter.readState(makeHass(), {
+      type: "custom:sauna-card",
+    });
+    expect(s!.deviceId).toBe(DEVICE);
+    expect(s!.serviceDeviceId).toBe("cloud-uuid-1");
+  });
+
+  it("falls back serviceDeviceId to the registry id without a Harvia identifier", () => {
+    const hass = makeHass();
+    hass.devices![DEVICE].identifiers = [];
+    const s = harviaAdapter.readState(hass, { type: "custom:sauna-card" });
+    expect(s!.serviceDeviceId).toBe(DEVICE);
   });
 });

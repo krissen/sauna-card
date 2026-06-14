@@ -104,7 +104,7 @@ export function scheduleReadyAt(
   debug = false,
 ): Promise<unknown> | undefined {
   const data: Record<string, unknown> = {
-    device_id: state.deviceId,
+    device_id: state.serviceDeviceId,
     ready_at: opts.ready_at,
   };
   if (opts.target_temp !== undefined)
@@ -122,7 +122,7 @@ export function cancelPreheat(
     hass,
     "harvia_sauna",
     "cancel_preheat",
-    { device_id: state.deviceId },
+    { device_id: state.serviceDeviceId },
     debug,
   );
 }
@@ -137,7 +137,7 @@ export function setSession(
   opts: { target_temp?: number; duration?: number; active?: boolean },
   debug = false,
 ): Promise<unknown> | undefined {
-  const data: Record<string, unknown> = { device_id: state.deviceId };
+  const data: Record<string, unknown> = { device_id: state.serviceDeviceId };
   if (opts.target_temp !== undefined)
     data.target_temp = clampTemp(opts.target_temp);
   if (opts.duration !== undefined) data.duration = opts.duration;

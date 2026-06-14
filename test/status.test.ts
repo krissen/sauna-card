@@ -9,6 +9,7 @@ const tr = (k: string): string => k;
 const base: SaunaState = {
   integration: "harvia_sauna",
   deviceId: "d",
+  serviceDeviceId: "d",
   available: true,
   status: "heating",
   entities: {},

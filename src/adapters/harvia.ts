@@ -109,6 +109,18 @@ export const HARVIA_ENTITIES = {
 
 export type HarviaEntityKey = keyof typeof HARVIA_ENTITIES;
 
+/**
+ * The Harvia cloud device id, taken from the device-registry identifiers. The
+ * `harvia_sauna.*` services key their devices by this id, NOT by the HA
+ * device-registry id — passing the registry id makes them silently no-op. Falls
+ * back to the registry id when no Harvia identifier is present.
+ */
+export function harviaServiceDeviceId(hass: Hass, deviceId: string): string {
+  const ids = hass.devices?.[deviceId]?.identifiers;
+  const match = ids?.find((pair) => pair?.[0] === HARVIA_PLATFORM);
+  return match?.[1] ?? deviceId;
+}
+
 /** Best-effort device model: "xenio" | "fenix" | undefined. */
 export function detectModel(hass: Hass, deviceId: string): string | undefined {
   const model = `${hass.devices?.[deviceId]?.model ?? ""}`.toLowerCase();
@@ -163,12 +175,15 @@ export const harviaAdapter: SaunaAdapter = {
       HARVIA_PLATFORM,
       HARVIA_ENTITIES,
     );
-    return buildSaunaState(
-      hass,
-      HARVIA_PLATFORM,
-      device.deviceId,
-      e,
-      detectModel(hass, device.deviceId),
-    );
+    return {
+      ...buildSaunaState(
+        hass,
+        HARVIA_PLATFORM,
+        device.deviceId,
+        e,
+        detectModel(hass, device.deviceId),
+      ),
+      serviceDeviceId: harviaServiceDeviceId(hass, device.deviceId),
+    };
   },
 };

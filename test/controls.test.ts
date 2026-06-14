@@ -28,6 +28,7 @@ function mockHass() {
 const state: SaunaState = {
   integration: "harvia_sauna",
   deviceId: "dev1",
+  serviceDeviceId: "dev1",
   available: true,
   status: "heating",
   currentTemp: 60,
@@ -202,6 +203,21 @@ describe("controls", () => {
       "harvia_sauna",
       "cancel_preheat",
       { device_id: "dev1" },
+    ]);
+  });
+
+  it("harvia_sauna services use serviceDeviceId (the cloud id), not deviceId", () => {
+    // The integration keys its devices by the Harvia cloud id, which differs
+    // from the HA registry deviceId; sending deviceId makes the service no-op.
+    const { hass, calls } = mockHass();
+    const cloud: SaunaState = { ...state, serviceDeviceId: "cloud-uuid" };
+    setSession(hass, cloud, { active: true });
+    scheduleReadyAt(hass, cloud, { ready_at: "2026-06-14T18:00:00.000Z" });
+    cancelPreheat(hass, cloud);
+    expect(calls.map((c) => c[2].device_id)).toEqual([
+      "cloud-uuid",
+      "cloud-uuid",
+      "cloud-uuid",
     ]);
   });
 });
