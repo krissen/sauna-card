@@ -29,9 +29,25 @@ export const HARVIA_ENTITIES = {
   targetTemperature: { domain: "sensor", translationKey: "target_temperature" },
   humidity: { domain: "sensor", translationKey: "humidity" },
   remainingTime: { domain: "sensor", translationKey: "remaining_time" },
+  // Live "minutes until ready" countdown (v2.7.0); distinct from the static
+  // heat_up_time estimate. Preferred over the card's local trend derivation.
+  timeToReady: { domain: "sensor", translationKey: "time_to_ready" },
+  // Timestamp the sauna is expected to reach the ready threshold (v2.7.0).
+  readyAt: { domain: "sensor", translationKey: "ready_at" },
+  // Computed heater start for an active preheat schedule (v2.8.0); its attributes
+  // carry the heating-model calibration state.
+  plannedStart: { domain: "sensor", translationKey: "planned_start" },
   powerSensor: { domain: "sensor", translationKey: "power" },
   energy: { domain: "sensor", translationKey: "energy" },
   sessionsToday: { domain: "sensor", translationKey: "sessions_today" },
+  // Statistics (v2.8.0): last session energy, weekly count, and lifetime records
+  // (the records sensor carries hottest/longest as attributes).
+  lastSessionEnergy: {
+    domain: "sensor",
+    translationKey: "last_session_energy",
+  },
+  sessionsWeek: { domain: "sensor", translationKey: "sessions_week" },
+  records: { domain: "sensor", translationKey: "records" },
   tempTrend: { domain: "sensor", translationKey: "temp_trend" },
   wifi: { domain: "sensor", translationKey: "wifi_rssi" },
   lastSessionDuration: {
@@ -65,9 +81,18 @@ export const HARVIA_ENTITIES = {
   door: { domain: "binary_sensor", translationKey: "door" },
   heating: { domain: "binary_sensor", translationKey: "heat_on" },
   steam: { domain: "binary_sensor", translationKey: "steam_on" },
+  // Latched per-session "ready" flag (v2.7.0) — authoritative for the ready status.
+  ready: { domain: "binary_sensor", translationKey: "ready" },
+  // Cloud / WebSocket connectivity (v2.8.0, diagnostic).
+  cloudConnection: {
+    domain: "binary_sensor",
+    translationKey: "cloud_connection",
+  },
   remoteAllowed: { domain: "binary_sensor", translationKey: "remote_allowed" },
   safetyRelay: { domain: "binary_sensor", translationKey: "safety_relay" },
   screenLock: { domain: "binary_sensor", translationKey: "screen_lock" },
+  // Preheat schedule control (v2.8.0): the "ready by" datetime.
+  nextSession: { domain: "datetime", translationKey: "next_session" },
   targetHumidity: { domain: "number", translationKey: "target_humidity" },
   aromaLevelSet: { domain: "number", translationKey: "aroma_level_set" },
   sessionLength: { domain: "number", translationKey: "on_time" },
@@ -79,6 +104,7 @@ export const HARVIA_ENTITIES = {
   dehumidifier: { domain: "switch", translationKey: "dehumidifier" },
   autoLight: { domain: "switch", translationKey: "auto_light" },
   autoFan: { domain: "switch", translationKey: "auto_fan" },
+  ambilight: { domain: "switch", translationKey: "ambilight" },
 } satisfies Record<string, EntityDescriptor>;
 
 export type HarviaEntityKey = keyof typeof HARVIA_ENTITIES;

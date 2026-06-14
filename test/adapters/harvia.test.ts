@@ -33,11 +33,25 @@ const REG: Record<string, [string, string]> = {
   "binary_sensor.bastu_sakerhetsrela": ["harvia_sauna", "safety_relay"],
   "sensor.bastu_statuskoder": ["harvia_sauna", "status_codes"],
   "sensor.bastu_totala_timmar": ["harvia_sauna", "total_hours"],
+  // v2.7/v2.8 entities (no default state → fields undefined unless a test sets one)
+  "sensor.bastu_tid_till_klar": ["harvia_sauna", "time_to_ready"],
+  "sensor.bastu_klar_kl": ["harvia_sauna", "ready_at"],
+  "sensor.bastu_planerad_start": ["harvia_sauna", "planned_start"],
+  "binary_sensor.bastu_klar": ["harvia_sauna", "ready"],
+  "binary_sensor.bastu_molnanslutning": ["harvia_sauna", "cloud_connection"],
+  "sensor.bastu_senaste_energi": ["harvia_sauna", "last_session_energy"],
+  "sensor.bastu_pass_denna_vecka": ["harvia_sauna", "sessions_week"],
+  "sensor.bastu_rekord": ["harvia_sauna", "records"],
+  "switch.bastu_ambilight": ["harvia_sauna", "ambilight"],
+  "datetime.bastu_nasta_pass": ["harvia_sauna", "next_session"],
   // foreign entity from another integration — must be ignored
   "sensor.vader_temp": ["met", "temperature"],
 };
 
-function makeHass(states: Record<string, string> = {}): Hass {
+function makeHass(
+  states: Record<string, string> = {},
+  attrs: Record<string, Record<string, unknown>> = {},
+): Hass {
   const entities: Record<string, HassRegistryEntry> = {};
   const st: Record<string, HassEntityState> = {};
   for (const [entity_id, [platform, translation_key]] of Object.entries(REG)) {
@@ -67,7 +81,7 @@ function makeHass(states: Record<string, string> = {}): Hass {
     "sensor.vader_temp": "5",
   };
   for (const [id, state] of Object.entries({ ...defaults, ...states })) {
-    st[id] = { entity_id: id, state, attributes: {} };
+    st[id] = { entity_id: id, state, attributes: attrs[id] ?? {} };
   }
   return {
     states: st,
@@ -232,5 +246,130 @@ describe("harvia adapter readState", () => {
       { type: "custom:sauna-card" },
     );
     expect(s!.humidity).toBeUndefined();
+  });
+
+  it("prefers the live time_to_ready sensor over the local trend estimate", () => {
+    // trend would give 8 min; the integration's live sensor (15) wins.
+    const s = harviaAdapter.readState(
+      makeHass({ "sensor.bastu_tid_till_klar": "15" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.readyEtaMinutes).toBe(15);
+  });
+
+  it("treats a present time_to_ready of 0 as ready (no ETA), not a fallback", () => {
+    // A present sensor is trusted: 0 means the ready threshold is reached, so the
+    // ETA clears. Falling back to the trend here would resurrect a stale "ready in".
+    const s = harviaAdapter.readState(
+      makeHass({ "sensor.bastu_tid_till_klar": "0" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.readyEtaMinutes).toBeUndefined();
+  });
+
+  it("falls back to the trend estimate when time_to_ready is unavailable", () => {
+    // Disabled/absent sensor → undefined → the local trend estimate (8) stands.
+    const s = harviaAdapter.readState(
+      makeHass({ "sensor.bastu_tid_till_klar": "unknown" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.readyEtaMinutes).toBe(8);
+  });
+
+  it("treats the latched ready binary sensor as authoritative for status", () => {
+    // Still heating and below target, but the integration latched ready.
+    const s = harviaAdapter.readState(
+      makeHass({ "binary_sensor.bastu_klar": "on" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.ready).toBe(true);
+    expect(s!.status).toBe("ready");
+  });
+
+  it("reads the statistics sensors and record attributes", () => {
+    const s = harviaAdapter.readState(
+      makeHass(
+        {
+          "sensor.bastu_senaste_energi": "7.5",
+          "sensor.bastu_pass_denna_vecka": "3",
+          "sensor.bastu_rekord": "42",
+          "binary_sensor.bastu_molnanslutning": "on",
+          "sensor.bastu_klar_kl": "2026-06-14T18:30:00+00:00",
+        },
+        {
+          "sensor.bastu_rekord": {
+            hottest_session_c: 95,
+            longest_session_min: 120,
+          },
+        },
+      ),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.lastSessionEnergy).toBe(7.5);
+    expect(s!.sessionsWeek).toBe(3);
+    expect(s!.recordsTotal).toBe(42);
+    expect(s!.recordMaxTemp).toBe(95);
+    expect(s!.recordDurationMin).toBe(120);
+    expect(s!.cloudConnected).toBe(true);
+    expect(s!.readyAtIso).toBe("2026-06-14T18:30:00+00:00");
+  });
+
+  it("reads climate presets from the thermostat attributes, dropping 'none'", () => {
+    const s = harviaAdapter.readState(
+      makeHass(
+        {},
+        {
+          "climate.bastu_termostat": {
+            preset_modes: ["none", "Sauna", "Löyly"],
+            preset_mode: "Sauna",
+          },
+        },
+      ),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.presetModes).toEqual(["Sauna", "Löyly"]);
+    expect(s!.activePreset).toBe("Sauna");
+  });
+
+  it("leaves activePreset undefined when 'none' is selected", () => {
+    const s = harviaAdapter.readState(
+      makeHass(
+        {},
+        {
+          "climate.bastu_termostat": {
+            preset_modes: ["none", "Sauna"],
+            preset_mode: "none",
+          },
+        },
+      ),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.activePreset).toBeUndefined();
+  });
+
+  it("reads the preheat schedule and calibration state", () => {
+    const s = harviaAdapter.readState(
+      makeHass(
+        {
+          "datetime.bastu_nasta_pass": "2026-06-14T20:00:00+00:00",
+          "sensor.bastu_planerad_start": "2026-06-14T18:45:00+00:00",
+        },
+        {
+          "sensor.bastu_planerad_start": { model_calibrated: false },
+        },
+      ),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.nextSessionIso).toBe("2026-06-14T20:00:00+00:00");
+    expect(s!.plannedStartIso).toBe("2026-06-14T18:45:00+00:00");
+    expect(s!.preheatCalibrated).toBe(false);
+  });
+
+  it("normalizes the ambilight switch by logical key", () => {
+    const s = harviaAdapter.readState(
+      makeHass({ "switch.bastu_ambilight": "on" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.switches?.ambilight).toBe(true);
   });
 });

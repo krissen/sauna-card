@@ -88,6 +88,12 @@ export interface SaunaCardConfig {
   compact_slots?: { left?: string; mid?: string; right?: string };
   /** Interactive controls shown across layouts (default "power+temp"). */
   controls?: ControlsMode;
+  /** Show climate-preset chips when the thermostat exposes presets. Default on;
+   * has no effect when the integration has no presets configured. */
+  show_presets?: boolean;
+  /** Show the smart-preheat scheduling control (v2.8.0). Default off — it is an
+   * advanced feature and requires the integration's preheat opt-in. */
+  show_preheat?: boolean;
   /** What to do when the mapped "remote control allowed" entity is off (and the
    * sauna is off, so a start is what's blocked). The status pill shows a lock in
    * every non-"none" case. Default "none". */
@@ -181,11 +187,26 @@ export interface SaunaState {
   targetTemp?: number;
   humidity?: number;
   remainingMinutes?: number;
-  /** Estimated minutes until ready, derived from the temperature trend. */
+  /** Minutes until ready. Prefers the integration's live `time_to_ready` sensor;
+   * falls back to a local estimate derived from the temperature trend. */
   readyEtaMinutes?: number;
+  /** Latched per-session "ready" flag from the integration (v2.7.0), when mapped. */
+  ready?: boolean;
+  /** Timestamp (ISO) the sauna is expected to be ready (v2.7.0). */
+  readyAtIso?: string;
   power?: number;
   energy?: number;
   sessionsToday?: number;
+  /** Sessions so far this ISO week (v2.8.0). */
+  sessionsWeek?: number;
+  /** Energy used by the most recent session (kWh, v2.8.0). */
+  lastSessionEnergy?: number;
+  /** Lifetime session count and its hottest/longest records (v2.8.0). */
+  recordsTotal?: number;
+  recordMaxTemp?: number;
+  recordDurationMin?: number;
+  /** Cloud / push-connection status (v2.8.0). */
+  cloudConnected?: boolean;
   tempTrend?: number;
   wifiRssi?: number;
   doorOpen?: boolean;
@@ -224,6 +245,15 @@ export interface SaunaState {
   remoteAllowed?: boolean;
   safetyRelay?: boolean;
   screenLock?: boolean;
+  /** Climate presets (v2.8.0): selectable names and the active one. The "none"
+   * pseudo-preset is filtered out — `activePreset` is undefined when none is set. */
+  presetModes?: string[];
+  activePreset?: string;
+  /** Smart preheat (v2.8.0): the scheduled "ready by" time and the computed
+   * heater start, both ISO, plus whether the heating model has calibrated. */
+  nextSessionIso?: string;
+  plannedStartIso?: string;
+  preheatCalibrated?: boolean;
   /** On/off state of each switch, by logical key — the main `power` switch plus
    * the auxiliaries (light, fan, steamer, aroma, dehumidifier, auto_light, …). */
   switches?: Record<string, boolean>;
