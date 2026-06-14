@@ -73,6 +73,61 @@ export function stepTargetTemperature(
 }
 
 /**
+ * Apply a climate preset (climate.set_preset_mode). The integration sets the
+ * preset's target temperature and duration but does NOT start the heater.
+ */
+export function setPresetMode(
+  hass: Hass,
+  state: SaunaState,
+  preset: string,
+  debug = false,
+): Promise<unknown> | undefined {
+  const entityId = state.entities.thermostat;
+  if (!entityId) return undefined;
+  return call(
+    hass,
+    "climate",
+    "set_preset_mode",
+    { entity_id: entityId, preset_mode: preset },
+    debug,
+  );
+}
+
+/**
+ * Schedule smart preheat (harvia_sauna.ready_at): start the heater so the sauna
+ * reaches its target by `ready_at` (an ISO datetime). Targets the device by id.
+ */
+export function scheduleReadyAt(
+  hass: Hass,
+  state: SaunaState,
+  opts: { ready_at: string; target_temp?: number },
+  debug = false,
+): Promise<unknown> | undefined {
+  const data: Record<string, unknown> = {
+    device_id: state.deviceId,
+    ready_at: opts.ready_at,
+  };
+  if (opts.target_temp !== undefined)
+    data.target_temp = clampTemp(opts.target_temp);
+  return call(hass, "harvia_sauna", "ready_at", data, debug);
+}
+
+/** Cancel an active preheat schedule (harvia_sauna.cancel_preheat). */
+export function cancelPreheat(
+  hass: Hass,
+  state: SaunaState,
+  debug = false,
+): Promise<unknown> | undefined {
+  return call(
+    hass,
+    "harvia_sauna",
+    "cancel_preheat",
+    { device_id: state.deviceId },
+    debug,
+  );
+}
+
+/**
  * Configure/start/stop a session in one call (harvia_sauna.set_session).
  * Targets the device by id; all session fields are optional.
  */

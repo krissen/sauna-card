@@ -6,6 +6,9 @@ import {
   stepTargetTemperature,
   setSession,
   setActive,
+  setPresetMode,
+  scheduleReadyAt,
+  cancelPreheat,
 } from "../src/controls";
 
 function mockHass() {
@@ -148,5 +151,57 @@ describe("controls", () => {
     };
     setActive(hass, manual, true);
     expect(calls).toHaveLength(0);
+  });
+
+  it("setPresetMode applies a preset on the thermostat", () => {
+    const { hass, calls } = mockHass();
+    setPresetMode(hass, state, "Sauna");
+    expect(calls[0]).toEqual([
+      "climate",
+      "set_preset_mode",
+      { entity_id: "climate.bastu_termostat", preset_mode: "Sauna" },
+    ]);
+  });
+
+  it("setPresetMode does nothing without a thermostat", () => {
+    const { hass, calls } = mockHass();
+    setPresetMode(hass, { ...state, entities: {} }, "Sauna");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("scheduleReadyAt targets the device with an ISO time, clamping target_temp", () => {
+    const { hass, calls } = mockHass();
+    scheduleReadyAt(hass, state, {
+      ready_at: "2026-06-14T18:00:00.000Z",
+      target_temp: 200,
+    });
+    expect(calls[0]).toEqual([
+      "harvia_sauna",
+      "ready_at",
+      {
+        device_id: "dev1",
+        ready_at: "2026-06-14T18:00:00.000Z",
+        target_temp: 110,
+      },
+    ]);
+  });
+
+  it("scheduleReadyAt omits target_temp when not given", () => {
+    const { hass, calls } = mockHass();
+    scheduleReadyAt(hass, state, { ready_at: "2026-06-14T18:00:00.000Z" });
+    expect(calls[0][2]).toEqual({
+      device_id: "dev1",
+      ready_at: "2026-06-14T18:00:00.000Z",
+    });
+  });
+
+  it("cancelPreheat targets the device id", () => {
+    const { hass, calls } = mockHass();
+    cancelPreheat(hass, state);
+    expect(calls[0]).toEqual([
+      "harvia_sauna",
+      "cancel_preheat",
+      { device_id: "dev1" },
+    ]);
   });
 });
