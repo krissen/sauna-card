@@ -24,6 +24,8 @@ const LABEL_KEY: Record<string, string> = {
   device_id: "editor.device",
   layout: "editor.layout",
   controls: "editor.controls",
+  show_presets: "editor.show_presets",
+  show_preheat: "editor.show_preheat",
   remote_off_action: "editor.remote_off_action",
   show_heatup_graph: "editor.show_heatup_graph",
   show_cooldown_graph: "editor.show_cooldown_graph",
@@ -37,6 +39,7 @@ const LABEL_KEY: Record<string, string> = {
 // normalisation), and a default-equal value is stripped on emit so it isn't
 // baked into the config (see _valueChanged).
 const DEFAULT_ON_BOOLEANS = [
+  "show_presets",
   "show_heatup_graph",
   "show_cooldown_graph",
   "cooldown_include_heatup",
@@ -178,6 +181,8 @@ export class SaunaCardEditor extends LitElement {
           },
         },
       },
+      { name: "show_presets", selector: { boolean: {} } },
+      { name: "show_preheat", selector: { boolean: {} } },
       {
         name: "remote_off_action",
         selector: {
@@ -617,6 +622,7 @@ export class SaunaCardEditor extends LitElement {
       remote_off_action: this._config.remote_off_action ?? "disable_start",
       // Reflect the real (on) defaults so a fresh card's toggles aren't shown
       // off just because the keys are absent (ha-form renders undefined as off).
+      show_presets: this._config.show_presets ?? true,
       show_heatup_graph: this._config.show_heatup_graph ?? true,
       show_cooldown_graph: this._config.show_cooldown_graph ?? true,
       cooldown_include_heatup: this._config.cooldown_include_heatup ?? true,
