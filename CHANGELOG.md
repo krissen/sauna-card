@@ -22,6 +22,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   start attempt — the heater refuses to start with the door open. Stopping a
   running sauna is never blocked.
 
+### Fixed
+- **Sessions started outside the card are now recognized.** Starting the sauna
+  from the Harvia app (or any path that doesn't flip the power switch) left the
+  card showing the sauna as **off** and drawing a **cool-down** curve while it
+  was actually heating, with the start button still offering to start and the
+  power chip reading off. On/off is now derived from every reliable signal —
+  power switch, climate mode, the `heat_on` binary sensor and real power draw —
+  as a single source of truth shared across the card and badge. So an
+  app-started session shows **heating**, the button becomes **stop** (and stops
+  the session), and the power chip reads **on**. The remaining-time tile, which
+  the integration only counts down for sessions it starts itself, now falls back
+  to the derived "ready in N min" while heating instead of a misleading **0 min**
+  (and hides when no estimate is available). See
+  [Troubleshooting](docs/troubleshooting.md#the-sauna-is-on-but-the-card-shows-it-as-off-or-cooling-down).
+
 ### Added
 - **ha-harvia-sauna v2.8.0 support.** New value-catalog items for the statistics
   and connectivity sensors (`sessions_week`, `last_session_energy`, `records`
