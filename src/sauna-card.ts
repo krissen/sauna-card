@@ -572,11 +572,7 @@ export class SaunaCard extends LitElement {
     ) {
       this._pendingTarget = undefined;
     }
-    if (
-      this._startFailed &&
-      s &&
-      (this._powerOn(s) || s.status === "heating")
-    ) {
+    if (this._startFailed && s && this._powerOn(s)) {
       this._startFailed = undefined;
     }
     this._trackTemp(s);
@@ -945,10 +941,9 @@ export class SaunaCard extends LitElement {
         this._startTimer = undefined;
         const cur = this._state();
         if (!cur) return;
-        this._startFailed =
-          this._powerOn(cur) || cur.status === "heating"
-            ? undefined
-            : this._failureReason(cur);
+        this._startFailed = this._powerOn(cur)
+          ? undefined
+          : this._failureReason(cur);
       }, START_GRACE_MS);
     }
     // Honour an in-flight stepper adjustment when starting a session.
@@ -985,14 +980,11 @@ export class SaunaCard extends LitElement {
   }
 
   private _powerOn(s: SaunaState): boolean {
-    const id = s.entities.power;
-    if (id) return this.hass?.states[id]?.state === "on";
-    // Manual climate-only sauna: the thermostat's own mode stands in for a power
-    // switch — it reads "off" when the heater is off, any other mode is "on".
-    const thermo = s.entities.thermostat;
-    if (!thermo) return false;
-    const st = this.hass?.states[thermo]?.state;
-    return st !== undefined && !entityUnavailable(st) && st !== "off";
+    // Single source of truth: the derived on/off in SaunaState already folds in
+    // the power switch, climate mode, heat_on and real power draw — so an
+    // app-started session (switch.power off) still reads on, and a manual
+    // climate-only sauna is covered via the climate-mode fallback in build-state.
+    return s.powerOn === true;
   }
 
   private _tempStepper(s: SaunaState): TemplateResult {
@@ -1117,10 +1109,16 @@ export class SaunaCard extends LitElement {
     const startBlocked = this._remoteBlocked(s);
     return html`<div class="chips">
       ${CONTROLS.filter((c) => s.entities[c.key]).map((c) => {
+        const isPower = c.key === "power";
         const st = this.hass?.states[s.entities[c.key]]?.state;
         const unavailable = entityUnavailable(st);
-        const on = st === "on";
-        const blocked = c.key === "power" && startBlocked;
+        // Power is a session concept, not a raw switch: an app-started session
+        // leaves switch.power off while running, so its on-state and its toggle
+        // must go through the same derived truth + set_session path as the CTA —
+        // otherwise the chip reads "off" mid-session and tapping it would turn
+        // the switch on instead of stopping the sauna. Aux chips stay raw.
+        const on = isPower ? this._powerOn(s) : st === "on";
+        const blocked = isPower && startBlocked;
         const label = this._t(c.labelKey);
         const stateText = this._t(
           unavailable ? "common.unavailable" : on ? "common.on" : "common.off",
@@ -1131,8 +1129,10 @@ export class SaunaCard extends LitElement {
             )
           : `${label}: ${stateText}`;
         // State is exposed in text (aria-label), not by colour alone (a11y).
-        // Interactive toggle (homeassistant.toggle); keyboard-operable.
-        const toggle = () => this._toggle(s, c.key);
+        // Keyboard-operable: power starts/stops the session, aux toggles the switch.
+        const toggle = isPower
+          ? () => this._setActive(s, !on)
+          : () => this._toggle(s, c.key);
         return html`<button
           type="button"
           class="chip ${on ? "on" : ""} ${unavailable ? "unavailable" : ""}"
