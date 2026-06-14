@@ -1511,3 +1511,137 @@ describe("remote_off_action", () => {
     document.body.removeChild(c);
   });
 });
+
+describe("door open blocks start (reuses the remote-off treatment)", () => {
+  // climate + door, with remote start explicitly allowed, so the door is the
+  // only thing that can block — proving door-open drives the same machinery.
+  function doorHass(climate: string, door: string): Hass {
+    return {
+      states: {
+        "climate.diy": {
+          entity_id: "climate.diy",
+          state: climate,
+          attributes: { current_temperature: 40, temperature: 90 },
+        },
+        "binary_sensor.door": {
+          entity_id: "binary_sensor.door",
+          state: door,
+          attributes: {},
+        },
+        "binary_sensor.remote": {
+          entity_id: "binary_sensor.remote",
+          state: "on",
+          attributes: {},
+        },
+      },
+      entities: {},
+      devices: {},
+    } as unknown as Hass;
+  }
+  const base = {
+    type: "custom:sauna-card",
+    integration: "manual",
+    entity_map: {
+      thermostat: "climate.diy",
+      door: "binary_sensor.door",
+      remoteAllowed: "binary_sensor.remote",
+    },
+  };
+  async function mount(
+    config: Record<string, unknown>,
+    hass: Hass,
+  ): Promise<SaunaCard> {
+    const card = new SaunaCard();
+    card.setConfig(config as never);
+    document.body.appendChild(card);
+    card.hass = hass;
+    await card.updateComplete;
+    return card;
+  }
+  const cta = (c: SaunaCard) =>
+    c.shadowRoot!.querySelector(".cta button") as HTMLButtonElement | null;
+  const badgeIcon = (c: SaunaCard) =>
+    c.shadowRoot!.querySelector(".badge ha-icon")?.getAttribute("icon");
+
+  it("door open + off: start disabled with the lock pill (default action)", async () => {
+    const c = await mount(base, doorHass("off", "on"));
+    expect(cta(c)!.disabled).toBe(true);
+    expect(cta(c)!.title).toBe("Can't start — the door is open");
+    expect(badgeIcon(c)).toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("door closed + off: start enabled, no lock", async () => {
+    const c = await mount(base, doorHass("off", "off"));
+    expect(cta(c)!.disabled).toBe(false);
+    expect(badgeIcon(c)).not.toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("door open but running: stopping is never blocked", async () => {
+    const c = await mount(base, doorHass("heat", "on"));
+    expect(cta(c)!.disabled).toBe(false);
+    expect(badgeIcon(c)).not.toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("'none' opts out: door open doesn't block", async () => {
+    const c = await mount(
+      { ...base, remote_off_action: "none" },
+      doorHass("off", "on"),
+    );
+    expect(cta(c)!.disabled).toBe(false);
+    expect(badgeIcon(c)).not.toBe("mdi:lock");
+    document.body.removeChild(c);
+  });
+
+  it("disables the power chip (a start) but not the aux chips", async () => {
+    const hass = {
+      states: {
+        "climate.diy": {
+          entity_id: "climate.diy",
+          state: "off",
+          attributes: { current_temperature: 40, temperature: 90 },
+        },
+        "binary_sensor.door": {
+          entity_id: "binary_sensor.door",
+          state: "on",
+          attributes: {},
+        },
+        "switch.power": {
+          entity_id: "switch.power",
+          state: "off",
+          attributes: {},
+        },
+        "switch.light": {
+          entity_id: "switch.light",
+          state: "off",
+          attributes: {},
+        },
+      },
+      entities: {},
+      devices: {},
+    } as unknown as Hass;
+    const c = await mount(
+      {
+        type: "custom:sauna-card",
+        integration: "manual",
+        entity_map: {
+          thermostat: "climate.diy",
+          door: "binary_sensor.door",
+          power: "switch.power",
+          light: "switch.light",
+        },
+      },
+      hass,
+    );
+    const chips = Array.from(
+      c.shadowRoot!.querySelectorAll(".chips:not(.presets) .chip"),
+    ) as HTMLButtonElement[];
+    const byLabel = (t: string) =>
+      chips.find((b) => b.textContent!.trim().includes(t));
+    expect(byLabel("Power")!.disabled).toBe(true);
+    expect(byLabel("Light")!.disabled).toBe(false);
+    document.body.removeChild(c);
+  });
+});

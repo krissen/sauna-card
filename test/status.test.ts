@@ -9,6 +9,7 @@ const tr = (k: string): string => k;
 const base: SaunaState = {
   integration: "harvia_sauna",
   deviceId: "d",
+  serviceDeviceId: "d",
   available: true,
   status: "heating",
   entities: {},
@@ -108,17 +109,19 @@ describe("status item catalog", () => {
   // The card opens more-info via def.entityKey → s.entities[key]. Every item
   // that maps to a real entity must point at a key the adapter actually
   // resolves (HARVIA_ENTITIES); a typo would silently make a readout dead.
-  it("maps every non-derived item to a resolvable entity key", () => {
+  it("maps every item to a resolvable entity key", () => {
     const valid = new Set(Object.keys(HARVIA_ENTITIES));
     for (const k of BADGE_ITEM_KEYS) {
       const ek = BADGE_ITEMS[k].entityKey;
-      if (k === "eta") continue; // derived value, no backing entity
       expect(ek, `${k} should have an entityKey`).toBeTruthy();
       expect(valid.has(ek as string), `${k} → ${ek} unknown`).toBe(true);
     }
   });
 
-  it("leaves derived items (eta) without an entityKey", () => {
-    expect(BADGE_ITEMS.eta.entityKey).toBeUndefined();
+  // eta prefers the integration's live time_to_ready sensor (clickable → more-info)
+  // and falls back to a local trend estimate when that sensor is absent; the
+  // fallback simply has no entity to resolve, so the readout stays non-clickable.
+  it("points eta at the live time_to_ready sensor", () => {
+    expect(BADGE_ITEMS.eta.entityKey).toBe("timeToReady");
   });
 });

@@ -40,6 +40,7 @@ export type BadgeItemKey =
   | "current_temp"
   | "target_temp"
   | "eta"
+  | "ready_at"
   | "humidity"
   | "target_humidity"
   | "temp_trend"
@@ -48,10 +49,16 @@ export type BadgeItemKey =
   | "power"
   | "energy"
   | "sessions"
+  | "sessions_week"
   | "last_session_duration"
   | "last_session_max_temp"
+  | "last_session_energy"
+  | "records"
+  | "record_max_temp"
+  | "record_duration"
   | "aroma_level"
   | "wifi"
+  | "cloud_connection"
   | "door"
   | "heating"
   | "steam"
@@ -63,6 +70,8 @@ export type BadgeItemKey =
   | "dehumidifier"
   | "auto_light"
   | "auto_fan"
+  | "ambilight"
+  | "planned_start"
   | "heater_power_actual"
   | "main_sensor_temp"
   | "ext_sensor_temp"
@@ -87,6 +96,7 @@ export const BADGE_ITEM_KEYS: BadgeItemKey[] = [
   "current_temp",
   "target_temp",
   "eta",
+  "ready_at",
   "humidity",
   "target_humidity",
   "temp_trend",
@@ -95,10 +105,16 @@ export const BADGE_ITEM_KEYS: BadgeItemKey[] = [
   "power",
   "energy",
   "sessions",
+  "sessions_week",
   "last_session_duration",
   "last_session_max_temp",
+  "last_session_energy",
+  "records",
+  "record_max_temp",
+  "record_duration",
   "aroma_level",
   "wifi",
+  "cloud_connection",
   "door",
   "heating",
   "steam",
@@ -110,6 +126,8 @@ export const BADGE_ITEM_KEYS: BadgeItemKey[] = [
   "dehumidifier",
   "auto_light",
   "auto_fan",
+  "ambilight",
+  "planned_start",
   "heater_power_actual",
   "main_sensor_temp",
   "ext_sensor_temp",
@@ -224,6 +242,23 @@ function strVal(get: Get<string>): (s: SaunaState) => ItemValue | null {
   };
 }
 
+/** A short local clock time (HH:mm) from an ISO timestamp; null when absent or
+ * unparseable. Uses the runtime locale, matching how HA renders nearby times. */
+function isoTimeVal(get: Get<string>): (s: SaunaState) => ItemValue | null {
+  return (s) => {
+    const iso = get(s);
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return {
+      text: d.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+  };
+}
+
 export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
   status: {
     icon: (s) => STATUS_ICON[s.status],
@@ -250,8 +285,16 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
   eta: {
     icon: () => "mdi:timer-sand",
     labelKey: "label.eta",
-    // Derived from the temperature trend, no backing entity → non-clickable.
     value: minutesVal((s) => s.readyEtaMinutes),
+    // Clickable when the integration's live `time_to_ready` sensor backs it; the
+    // local-trend fallback has no entity, so more-info simply won't resolve.
+    entityKey: "timeToReady",
+  },
+  ready_at: {
+    icon: () => "mdi:clock-check-outline",
+    labelKey: "label.ready_at",
+    value: isoTimeVal((s) => s.readyAtIso),
+    entityKey: "readyAt",
   },
   humidity: {
     icon: () => "mdi:water-percent",
@@ -313,6 +356,12 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     value: numVal((s) => s.sessionsToday),
     entityKey: "sessionsToday",
   },
+  sessions_week: {
+    icon: () => "mdi:calendar-week",
+    labelKey: "label.sessions_week",
+    value: numVal((s) => s.sessionsWeek),
+    entityKey: "sessionsWeek",
+  },
   last_session_duration: {
     icon: () => "mdi:history",
     labelKey: "label.last_session",
@@ -324,6 +373,30 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     labelKey: "label.last_session_max_temp",
     value: (s) => temp(s.lastSessionMaxTemp),
     entityKey: "lastSessionMaxTemp",
+  },
+  last_session_energy: {
+    icon: () => "mdi:lightning-bolt-outline",
+    labelKey: "label.last_session_energy",
+    value: numVal((s) => s.lastSessionEnergy, "kWh", 1),
+    entityKey: "lastSessionEnergy",
+  },
+  records: {
+    icon: () => "mdi:trophy-outline",
+    labelKey: "label.records",
+    value: numVal((s) => s.recordsTotal),
+    entityKey: "records",
+  },
+  record_max_temp: {
+    icon: () => "mdi:thermometer-high",
+    labelKey: "label.record_max_temp",
+    value: (s) => temp(s.recordMaxTemp),
+    entityKey: "records",
+  },
+  record_duration: {
+    icon: () => "mdi:timer-star-outline",
+    labelKey: "label.record_duration",
+    value: minutesVal((s) => s.recordDurationMin),
+    entityKey: "records",
   },
   aroma_level: {
     icon: () => "mdi:scent",
@@ -337,6 +410,22 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     labelKey: "label.wifi",
     value: numVal((s) => s.wifiRssi, "dBm"),
     entityKey: "wifi",
+  },
+  cloud_connection: {
+    icon: (s) =>
+      s.cloudConnected === false
+        ? "mdi:cloud-off-outline"
+        : "mdi:cloud-outline",
+    labelKey: "label.cloud_connection",
+    value: (s, tr) =>
+      s.cloudConnected === undefined
+        ? null
+        : {
+            text: tr(
+              s.cloudConnected ? "common.connected" : "common.disconnected",
+            ),
+          },
+    entityKey: "cloudConnection",
   },
   door: {
     // Neutral icon when the door state is unknown, so an absent sensor doesn't
@@ -389,6 +478,13 @@ export const BADGE_ITEMS: Record<BadgeItemKey, BadgeItemDef> = {
     "control.auto_fan",
     "autoFan",
   ),
+  ambilight: switchItem("ambilight", "mdi:palette", "control.ambilight"),
+  planned_start: {
+    icon: () => "mdi:clock-start",
+    labelKey: "label.planned_start",
+    value: isoTimeVal((s) => s.plannedStartIso),
+    entityKey: "plannedStart",
+  },
   heater_power_actual: {
     icon: () => "mdi:flash-outline",
     labelKey: "label.heater_power",

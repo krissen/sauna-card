@@ -43,7 +43,7 @@ export function str(
 }
 
 /** A numeric attribute of an entity (e.g. a climate entity's current_temperature). */
-function attrNum(
+export function attrNum(
   hass: Hass,
   entityId: string | undefined,
   attr: string,
@@ -82,9 +82,14 @@ export function deriveStatus(
   heatingActive: boolean | undefined,
   currentTemp: number | undefined,
   targetTemp: number | undefined,
+  ready?: boolean,
 ): SaunaStatus {
   if (powerOn === false) return "off";
   if (powerOn === undefined) return "unknown";
+  // The integration's latched ready flag is authoritative when present — it
+  // stays "ready" for the rest of the session even while the heater cycles to
+  // hold temperature.
+  if (ready === true) return "ready";
   if (heatingActive) return "heating";
   if (currentTemp !== undefined && targetTemp !== undefined) {
     return currentTemp >= targetTemp - 2 ? "ready" : "idle";
@@ -106,6 +111,7 @@ const SWITCH_KEYS: Array<[entityKey: string, switchKey: string]> = [
   ["dehumidifier", "dehumidifier"],
   ["autoLight", "auto_light"],
   ["autoFan", "auto_fan"],
+  ["ambilight", "ambilight"],
 ];
 
 /**
@@ -180,13 +186,18 @@ export function buildSaunaState(
       : climateHeating(hass, e.thermostat);
   const tempTrend = n("tempTrend", e.tempTrend);
 
-  // Ready ETA: estimate from the temperature trend (current → target at the
-  // current °C/min). We deliberately do NOT use the integration's heat_up_time
-  // sensor — despite the name it is a static heat-up estimate (it reads the same
-  // value even while the sauna is off), not a live countdown, so showing it as
-  // "ready in X" never decreases and misleads.
+  // Ready ETA. Prefer the integration's live `time_to_ready` sensor (v2.7.0): a
+  // genuine countdown that decreases as the sauna heats. We still do NOT use
+  // `heat_up_time` — despite the name it is a static estimate (it reads the same
+  // value even while the sauna is off). When `time_to_ready` is absent (Harvia
+  // sensor disabled, or the manual adapter) fall back to a local estimate from
+  // the temperature trend (current → target at the current °C/min).
+  const timeToReady = n("timeToReady", e.timeToReady);
   let readyEtaMinutes: number | undefined;
-  if (
+  if (timeToReady !== undefined && timeToReady > 0) {
+    readyEtaMinutes = Math.round(timeToReady);
+  } else if (
+    timeToReady === undefined &&
     heatingActive &&
     currentTemp !== undefined &&
     targetTemp !== undefined &&
@@ -197,6 +208,23 @@ export function buildSaunaState(
     readyEtaMinutes = Math.ceil((targetTemp - currentTemp) / tempTrend);
   }
 
+  // Climate presets surface as attributes on the thermostat. Filter out HA's
+  // "none" pseudo-preset; an active preset of "none" means none is applied.
+  const presetAttr = e.thermostat
+    ? hass.states[e.thermostat]?.attributes
+    : undefined;
+  const rawPresets = presetAttr?.preset_modes;
+  const presetModes = Array.isArray(rawPresets)
+    ? (rawPresets as unknown[]).filter(
+        (p): p is string => typeof p === "string" && p !== "none",
+      )
+    : undefined;
+  const rawActivePreset = presetAttr?.preset_mode;
+  const activePreset =
+    typeof rawActivePreset === "string" && rawActivePreset !== "none"
+      ? rawActivePreset
+      : undefined;
+
   // Auxiliary switch states, by logical key (omitting any that are absent).
   const switches: Record<string, boolean> = {};
   for (const [entityKey, switchKey] of SWITCH_KEYS) {
@@ -204,20 +232,51 @@ export function buildSaunaState(
     if (on !== undefined) switches[switchKey] = on;
   }
 
+  const ready = b("ready", e.ready);
+
   return {
     integration,
     deviceId,
+    // Defaults to the registry id; the Harvia adapter overrides this with the
+    // cloud id its services require.
+    serviceDeviceId: deviceId,
     model,
     available: Object.keys(e).length > 0,
-    status: deriveStatus(powerOn, heatingActive, currentTemp, targetTemp),
+    status: deriveStatus(
+      powerOn,
+      heatingActive,
+      currentTemp,
+      targetTemp,
+      ready,
+    ),
     currentTemp,
     targetTemp,
     humidity: n("humidity", e.humidity),
     remainingMinutes: n("remainingTime", e.remainingTime),
     readyEtaMinutes,
+    ready,
+    readyAtIso: s("readyAt", e.readyAt),
     power: n("powerSensor", e.powerSensor),
     energy: n("energy", e.energy),
     sessionsToday: n("sessionsToday", e.sessionsToday),
+    sessionsWeek: n("sessionsWeek", e.sessionsWeek),
+    lastSessionEnergy: n("lastSessionEnergy", e.lastSessionEnergy),
+    recordsTotal: n("records", e.records),
+    recordMaxTemp: attr("recordMaxTemp", e.records, "hottest_session_c"),
+    recordDurationMin: attr(
+      "recordDurationMin",
+      e.records,
+      "longest_session_min",
+    ),
+    cloudConnected: b("cloudConnection", e.cloudConnection),
+    presetModes,
+    activePreset,
+    nextSessionIso: s("nextSession", e.nextSession),
+    plannedStartIso: s("plannedStart", e.plannedStart),
+    preheatCalibrated:
+      e.plannedStart !== undefined
+        ? hass.states[e.plannedStart]?.attributes?.model_calibrated === true
+        : undefined,
     tempTrend,
     wifiRssi: n("wifi", e.wifi),
     doorOpen: b("door", e.door),

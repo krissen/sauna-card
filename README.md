@@ -32,13 +32,20 @@ The companion **badge**, in several appearances:
 
 - **Show and control in one card** — current/target temperature with a stepper,
   start/stop a session, and toggle power, light, fan and steamer.
+- **Climate presets and smart preheat** — one-tap **preset chips** (when the
+  integration has presets configured), and an optional **"ready by" scheduler**
+  that starts the heater so the sauna is hot when you want it.
+- **Door-aware start** — an open door disables starting (lock indicator, dimmed
+  controls) since the heater refuses to start with the door open; stopping is
+  never blocked.
 - **Three theme-first layouts** — `status-dashboard` (default), `thermostat-hero`
   (a 270° dial) and `compact` — all styled with Home Assistant CSS variables, no
   hard-coded colours.
 - **Configure what each layout shows.** Pick from **every** value the integration
-  exposes (44 of them): temperatures, humidity, remaining time, power, energy,
-  sessions, door/heating/steam, the auxiliary switches, and diagnostics. Each
-  layout keeps its own selection.
+  exposes (53 of them): temperatures, humidity, remaining time, power, energy,
+  sessions (today/week), session records, door/heating/steam, cloud connection,
+  ready time, the auxiliary switches, and diagnostics. Each layout keeps its own
+  selection.
 - **Reorderable tiles** (dashboard/thermostat) and **left/middle/right slots**
   (compact), edited in the visual editor — drag or ▲▼, add/remove, reset.
 - **A companion badge** for dashboard badge rows, with the same value catalog and

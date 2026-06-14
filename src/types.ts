@@ -22,6 +22,10 @@ export interface HassDevice {
   name_by_user?: string | null;
   model?: string | null;
   manufacturer?: string | null;
+  /** Integration identifiers, as `[domain, id]` pairs. For Harvia this carries
+   * the cloud device id the `harvia_sauna.*` services expect (distinct from the
+   * HA device-registry `id`). */
+  identifiers?: Array<[string, string]>;
 }
 
 /** A websocket command message; `type` plus arbitrary command-specific fields. */
@@ -55,9 +59,10 @@ export type SaunaLayout = "status-dashboard" | "thermostat-hero" | "compact";
 export type ControlsMode = "none" | "power" | "power+temp";
 
 /**
- * What the card does when the mapped "remote control allowed" entity is off and
- * the sauna is off (so a start is what's blocked). The status pill shows a lock
- * in every case; the difference is how the controls react.
+ * What the card does when remote start is disallowed and the sauna is off (so a
+ * start is what's blocked) — i.e. the mapped "remote control allowed" entity is
+ * off, or the door is open (the heater refuses to start with the door open). The
+ * status pill shows a lock in every case; the difference is how the controls react.
  */
 export type RemoteOffAction =
   | "none" // ignore (default)
@@ -88,9 +93,16 @@ export interface SaunaCardConfig {
   compact_slots?: { left?: string; mid?: string; right?: string };
   /** Interactive controls shown across layouts (default "power+temp"). */
   controls?: ControlsMode;
-  /** What to do when the mapped "remote control allowed" entity is off (and the
-   * sauna is off, so a start is what's blocked). The status pill shows a lock in
-   * every non-"none" case. Default "none". */
+  /** Show climate-preset chips when the thermostat exposes presets. Default on;
+   * has no effect when the integration has no presets configured. */
+  show_presets?: boolean;
+  /** Show the smart-preheat scheduling control (v2.8.0). Default off — it is an
+   * advanced feature and requires the integration's preheat opt-in. */
+  show_preheat?: boolean;
+  /** What to do when remote start is disallowed and the sauna is off (so a start
+   * is what's blocked): the mapped "remote control allowed" entity is off, or the
+   * door is open. The status pill shows a lock in every non-"none" case. Default
+   * "disable_start". */
   remote_off_action?: RemoteOffAction;
   /** Show the rising temperature curve while heating (default on). */
   show_heatup_graph?: boolean;
@@ -172,7 +184,12 @@ export interface SaunaBadgeConfig {
  */
 export interface SaunaState {
   integration: string;
+  /** HA device-registry id — used for naming and more-info context. */
   deviceId: string;
+  /** Device id passed to the integration's own services (e.g. `harvia_sauna`).
+   * For Harvia this is the cloud id from the device identifiers, which differs
+   * from `deviceId`; defaults to `deviceId` when there's no distinct one. */
+  serviceDeviceId: string;
   /** e.g. "xenio" | "fenix" — when the adapter can tell. */
   model?: string;
   available: boolean;
@@ -181,11 +198,26 @@ export interface SaunaState {
   targetTemp?: number;
   humidity?: number;
   remainingMinutes?: number;
-  /** Estimated minutes until ready, derived from the temperature trend. */
+  /** Minutes until ready. Prefers the integration's live `time_to_ready` sensor;
+   * falls back to a local estimate derived from the temperature trend. */
   readyEtaMinutes?: number;
+  /** Latched per-session "ready" flag from the integration (v2.7.0), when mapped. */
+  ready?: boolean;
+  /** Timestamp (ISO) the sauna is expected to be ready (v2.7.0). */
+  readyAtIso?: string;
   power?: number;
   energy?: number;
   sessionsToday?: number;
+  /** Sessions so far this ISO week (v2.8.0). */
+  sessionsWeek?: number;
+  /** Energy used by the most recent session (kWh, v2.8.0). */
+  lastSessionEnergy?: number;
+  /** Lifetime session count and its hottest/longest records (v2.8.0). */
+  recordsTotal?: number;
+  recordMaxTemp?: number;
+  recordDurationMin?: number;
+  /** Cloud / push-connection status (v2.8.0). */
+  cloudConnected?: boolean;
   tempTrend?: number;
   wifiRssi?: number;
   doorOpen?: boolean;
@@ -224,6 +256,15 @@ export interface SaunaState {
   remoteAllowed?: boolean;
   safetyRelay?: boolean;
   screenLock?: boolean;
+  /** Climate presets (v2.8.0): selectable names and the active one. The "none"
+   * pseudo-preset is filtered out — `activePreset` is undefined when none is set. */
+  presetModes?: string[];
+  activePreset?: string;
+  /** Smart preheat (v2.8.0): the scheduled "ready by" time and the computed
+   * heater start, both ISO, plus whether the heating model has calibrated. */
+  nextSessionIso?: string;
+  plannedStartIso?: string;
+  preheatCalibrated?: boolean;
   /** On/off state of each switch, by logical key — the main `power` switch plus
    * the auxiliaries (light, fan, steamer, aroma, dehumidifier, auto_light, …). */
   switches?: Record<string, boolean>;

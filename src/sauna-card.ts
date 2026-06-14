@@ -43,6 +43,9 @@ import {
   toggleSwitch,
   setTargetTemperature,
   setActive,
+  setPresetMode,
+  scheduleReadyAt,
+  cancelPreheat,
   MIN_TEMP,
   MAX_TEMP,
 } from "./controls";
@@ -305,6 +308,14 @@ export class SaunaCard extends LitElement {
     return this._config.controls ?? "power+temp";
   }
 
+  private get _showPresets(): boolean {
+    return this._config.show_presets !== false;
+  }
+
+  private get _showPreheat(): boolean {
+    return this._config.show_preheat === true;
+  }
+
   private get _debug(): boolean {
     return this._config.debug === true;
   }
@@ -317,15 +328,18 @@ export class SaunaCard extends LitElement {
   }
 
   /**
-   * True when a remote-off action should engage: the option is set, the mapped
-   * "remote control allowed" entity is explicitly off, and the sauna is off (so
-   * a start is what's blocked — stopping a running sauna is never blocked).
+   * True when a remote-off action should engage: the option is set, a start is
+   * what's blocked (the sauna is off — stopping a running sauna is never
+   * blocked), and remote start is actually disallowed. The latter is true when
+   * the mapped "remote control allowed" entity reads off OR the door is open —
+   * the heater physically refuses to start with the door open, so it gets the
+   * same treatment (lock pill, dimmed/locked/hidden controls) as a remote block.
    */
   private _remoteBlocked(s: SaunaState): boolean {
     return (
       this._remoteAction !== "none" &&
-      s.remoteAllowed === false &&
-      !this._powerOn(s)
+      !this._powerOn(s) &&
+      (s.remoteAllowed === false || s.doorOpen === true)
     );
   }
 
@@ -361,6 +375,28 @@ export class SaunaCard extends LitElement {
     return this._controls === "none" || this._controlsHidden(s)
       ? nothing
       : this._cta(s);
+  }
+
+  /** Preset chips, when enabled, controls are on, and the thermostat exposes
+   * presets. Hidden by a hide_controls remote-off action like the other controls. */
+  private _presetChipsIf(s: SaunaState): TemplateResult | typeof nothing {
+    return this._controls === "none" ||
+      this._controlsHidden(s) ||
+      !this._showPresets ||
+      !s.presetModes?.length
+      ? nothing
+      : this._presetChips(s);
+  }
+
+  /** Smart-preheat control, only when explicitly enabled and the integration
+   * exposes the schedule entity. Hidden by a hide_controls remote-off action. */
+  private _preheatIf(s: SaunaState): TemplateResult | typeof nothing {
+    return this._controls === "none" ||
+      this._controlsHidden(s) ||
+      !this._showPreheat ||
+      s.entities.nextSession === undefined
+      ? nothing
+      : this._preheat(s);
   }
 
   /** Temperature control: the stepper when enabled, else a static target. A
@@ -484,6 +520,25 @@ export class SaunaCard extends LitElement {
   private _toggle(s: SaunaState, key: string): void {
     const id = s.entities[key];
     if (id && this.hass) toggleSwitch(this.hass, id, this._debug);
+  }
+
+  private _setPreset(s: SaunaState, preset: string): void {
+    if (this.hass) setPresetMode(this.hass, s, preset, this._debug);
+  }
+
+  private _onSchedulePreheat(s: SaunaState, ev: Event): void {
+    const input = ev.target as HTMLInputElement;
+    const value = input.value;
+    if (!value || !this.hass) return;
+    // datetime-local yields a local "YYYY-MM-DDTHH:mm" with no zone; pass it
+    // through a Date so the service receives an unambiguous ISO timestamp.
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return;
+    scheduleReadyAt(this.hass, s, { ready_at: d.toISOString() }, this._debug);
+  }
+
+  private _onCancelPreheat(s: SaunaState): void {
+    if (this.hass) cancelPreheat(this.hass, s, this._debug);
   }
 
   private _step(s: SaunaState, delta: number): void {
@@ -984,12 +1039,19 @@ export class SaunaCard extends LitElement {
     // requires the sauna to be off). hide_controls removes the button instead.
     const remoteBlocked = this._remoteBlocked(s);
     const unavailable = !ctlId || entityUnavailable(ctlState) || remoteBlocked;
+    // Reason on hover: prefer the door message (more actionable) when the door is
+    // what's open, else the generic remote-not-allowed message.
+    const title = remoteBlocked
+      ? this._t(
+          s.doorOpen ? "warn.cannot_start_door" : "warn.remote_not_allowed",
+        )
+      : nothing;
     return html`<div class="cta">
       <button
         type="button"
         class="btn ${on ? "" : "primary"}"
         ?disabled=${unavailable}
-        title=${remoteBlocked ? this._t("warn.remote_not_allowed") : nothing}
+        title=${title}
         @click=${() => this._setActive(s, !on)}
       >
         ${on ? this._t("action.turn_off") : this._t("action.start_session")}
@@ -1049,30 +1111,119 @@ export class SaunaCard extends LitElement {
   private _controlChips(s: SaunaState): TemplateResult {
     // A lock / compact_locked remote action greys every chip out.
     const locked = this._controlsLocked(s);
+    // The power chip toggles the heater on/off — turning it on IS a start, so it
+    // must respect the same block as the start button (e.g. an open door). The
+    // auxiliary chips (light, fan, steamer) stay usable under disable_start.
+    const startBlocked = this._remoteBlocked(s);
     return html`<div class="chips">
       ${CONTROLS.filter((c) => s.entities[c.key]).map((c) => {
         const st = this.hass?.states[s.entities[c.key]]?.state;
         const unavailable = entityUnavailable(st);
         const on = st === "on";
+        const blocked = c.key === "power" && startBlocked;
         const label = this._t(c.labelKey);
         const stateText = this._t(
           unavailable ? "common.unavailable" : on ? "common.on" : "common.off",
         );
+        const title = blocked
+          ? this._t(
+              s.doorOpen ? "warn.cannot_start_door" : "warn.remote_not_allowed",
+            )
+          : `${label}: ${stateText}`;
         // State is exposed in text (aria-label), not by colour alone (a11y).
         // Interactive toggle (homeassistant.toggle); keyboard-operable.
         const toggle = () => this._toggle(s, c.key);
         return html`<button
           type="button"
           class="chip ${on ? "on" : ""} ${unavailable ? "unavailable" : ""}"
-          ?disabled=${unavailable || locked}
+          ?disabled=${unavailable || locked || blocked}
           aria-pressed=${on}
           aria-label="${label}: ${stateText}"
-          title="${label}: ${stateText}"
+          title="${title}"
           @click=${toggle}
         >
           <ha-icon icon=${c.icon}></ha-icon>${label}
         </button>`;
       })}
+    </div>`;
+  }
+
+  /** Preset chips: one per configured preset, the active one highlighted.
+   * Applying a preset only sets temperature/duration; it never starts the heater. */
+  private _presetChips(s: SaunaState): TemplateResult {
+    const locked = this._controlsLocked(s);
+    return html`<div class="chips presets">
+      ${(s.presetModes ?? []).map((preset) => {
+        const on = s.activePreset === preset;
+        return html`<button
+          type="button"
+          class="chip ${on ? "on" : ""}"
+          ?disabled=${locked}
+          aria-pressed=${on}
+          title=${preset}
+          @click=${() => this._setPreset(s, preset)}
+        >
+          <ha-icon icon="mdi:playlist-star"></ha-icon>${preset}
+        </button>`;
+      })}
+    </div>`;
+  }
+
+  /** Smart-preheat control: when nothing is scheduled, a "ready by" time picker;
+   * when scheduled, the target time, computed start, calibration note and a
+   * cancel button. */
+  private _preheat(s: SaunaState): TemplateResult {
+    const locked = this._controlsLocked(s);
+    const scheduled = !!s.nextSessionIso;
+    const fmt = (iso?: string): string => {
+      if (!iso) return "";
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime())
+        ? ""
+        : d.toLocaleString(undefined, {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+    };
+    return html`<div class="preheat">
+      <div class="preheat-head">
+        <ha-icon icon="mdi:clock-start"></ha-icon>
+        <span>${this._t("preheat.title")}</span>
+      </div>
+      ${scheduled
+        ? html`<div class="preheat-info">
+            <span
+              >${this._t("label.preheat_ready_by")}:
+              ${fmt(s.nextSessionIso)}</span
+            >
+            ${s.plannedStartIso
+              ? html`<span
+                  >${this._t("label.preheat_starts")}:
+                  ${fmt(s.plannedStartIso)}</span
+                >`
+              : nothing}
+            ${s.preheatCalibrated === false
+              ? html`<span class="preheat-cal"
+                  >${this._t("label.preheat_calibrating")}</span
+                >`
+              : nothing}
+            <button
+              type="button"
+              class="btn"
+              ?disabled=${locked}
+              @click=${() => this._onCancelPreheat(s)}
+            >
+              ${this._t("action.cancel_preheat")}
+            </button>
+          </div>`
+        : html`<div class="preheat-info">
+            <input
+              type="datetime-local"
+              ?disabled=${locked}
+              aria-label=${this._t("action.schedule_preheat")}
+              @change=${(ev: Event) => this._onSchedulePreheat(s, ev)}
+            />
+          </div>`}
     </div>`;
   }
 
@@ -1354,7 +1505,8 @@ export class SaunaCard extends LitElement {
           s,
           this._config.dashboard_tiles ?? DEFAULT_DASHBOARD_TILES,
         )}
-        ${this._chips(s)} ${this._ctaIf(s)}
+        ${this._presetChipsIf(s)} ${this._chips(s)} ${this._preheatIf(s)}
+        ${this._ctaIf(s)}
       </div>
     </ha-card>`;
   }
@@ -1416,7 +1568,8 @@ export class SaunaCard extends LitElement {
         ${this._controls === "power+temp" && !this._controlsHidden(s)
           ? this._tempStepper(s)
           : nothing}
-        ${this._tilesRow(s, this._config.hero_items ?? [])} ${this._chips(s)}
+        ${this._tilesRow(s, this._config.hero_items ?? [])}
+        ${this._presetChipsIf(s)} ${this._chips(s)} ${this._preheatIf(s)}
         ${this._ctaIf(s)}
       </div>
     </ha-card>`;
@@ -1486,7 +1639,8 @@ export class SaunaCard extends LitElement {
                 : nothing}
               ${this._cta(s)}
             </div>
-            ${this._controlChips(s)}`}
+            ${this._presetChipsIf(s)} ${this._controlChips(s)}
+            ${this._preheatIf(s)}`}
       ${this._doorWarning(s)} ${this._notices()}
     </ha-card>`;
   }
@@ -1802,6 +1956,52 @@ export class SaunaCard extends LitElement {
     }
     .chip ha-icon {
       --mdc-icon-size: 18px;
+    }
+    .preheat {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 12px;
+      border: 1px solid var(--divider-color);
+      border-radius: 12px;
+    }
+    .preheat-head {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+    }
+    .preheat-head ha-icon {
+      --mdc-icon-size: 18px;
+    }
+    .preheat-info {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+    }
+    .preheat-info .btn {
+      flex: 0 0 auto;
+      padding: 6px 12px;
+    }
+    .preheat-cal {
+      color: var(--secondary-text-color);
+      font-style: italic;
+    }
+    .preheat-info input[type="datetime-local"] {
+      flex: 1;
+      min-width: 0;
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      color-scheme: light dark;
     }
     .dial {
       position: relative;
