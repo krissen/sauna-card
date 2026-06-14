@@ -7,6 +7,8 @@ The card and badge auto-detect the Harvia device, so most options are optional.
 - [Layouts](#layouts)
 - [Choosing what to show](#choosing-what-to-show) — tiles, slots, the value catalog
 - [Controls](#controls)
+- [Presets](#presets)
+- [Smart preheat](#smart-preheat)
 - [Badge options](#badge-options)
 - [Advanced](#advanced) — version banner, debug logging
 - [Examples](#examples)
@@ -22,6 +24,8 @@ The card and badge auto-detect the Harvia device, so most options are optional.
 | `entity_map` | `object` | *(none)* | `manual` source only: logical key → entity ID. See [Manual mapping](#manual-mapping). |
 | `layout` | `string` | `status-dashboard` | `status-dashboard`, `thermostat-hero`, or `compact`. |
 | `controls` | `string` | `power+temp` | Interactive controls: `none`, `power`, or `power+temp`. See [Controls](#controls). |
+| `show_presets` | `boolean` | `true` | Show preset chips when the thermostat exposes climate presets. No effect when the integration has no presets configured. See [Presets](#presets). |
+| `show_preheat` | `boolean` | `false` | Show the smart-preheat scheduling control. Requires the integration's preheat opt-in. See [Smart preheat](#smart-preheat). |
 | `remote_off_action` | `string` | `disable_start` | What the card does while the mapped "remote control allowed" entity is off (and the sauna is off, so a start is what's blocked). See [Remote-off action](#remote-off-action). |
 | `language` | `string` | *(HA locale)* | Locale override (`sv`, `fi`, `en`, `de`, …). |
 | `tap_more_info` | `boolean` | `true` | Tap a read-only value (tile, slot, the big temperature, the status badge) to open Home Assistant's more-info dialog for its entity. Interactive controls are unaffected. |
@@ -108,20 +112,23 @@ Default `dashboard_tiles`: `humidity`, `power`, `energy`, `remaining`, `door`,
 |-----|-------|
 | `status` | Overall status (off / heating / ready / idle) |
 | `current_temp` · `target_temp` | Current / target temperature |
-| `eta` | Estimated time until ready |
+| `eta` | Estimated time until ready (the integration's live `time_to_ready`, falling back to a local trend estimate) |
+| `ready_at` | Clock time the sauna is expected to be ready |
 | `humidity` · `target_humidity` | Humidity / target humidity |
 | `temp_trend` | Temperature change per minute |
 | `remaining` · `session_length` | Remaining time / configured session length |
 | `power` · `energy` | Power draw (W) / energy (kWh) |
-| `sessions` | Sessions today |
-| `last_session_duration` · `last_session_max_temp` | Previous session duration / peak temp |
+| `sessions` · `sessions_week` | Sessions today / this week |
+| `last_session_duration` · `last_session_max_temp` · `last_session_energy` | Previous session duration / peak temp / energy (kWh) |
+| `records` · `record_max_temp` · `record_duration` | Lifetime record count / hottest session / longest session |
 | `aroma_level` | Aroma intensity (%) |
-| `wifi` | Wi-Fi signal (dBm) |
+| `wifi` · `cloud_connection` | Wi-Fi signal (dBm) / cloud connection state |
 | `door` · `heating` · `steam` | Door, heating element, steam state |
-| `power_switch` · `light` · `fan` · `steamer` · `aroma` · `dehumidifier` · `auto_light` · `auto_fan` | On/off of each switch |
+| `power_switch` · `light` · `fan` · `steamer` · `aroma` · `dehumidifier` · `auto_light` · `auto_fan` · `ambilight` | On/off of each switch |
 | `heater_power_actual` | Actual heater output (W) |
 | `main_sensor_temp` · `ext_sensor_temp` · `panel_temp` | Probe temperatures |
 | `status_codes` · `active_profile` | Raw status codes / active profile |
+| `planned_start` | Computed heater start time for an active smart-preheat schedule |
 | `heat_on_counter` · `steam_on_counter` · `ph1_relay_counter` · `ph2_relay_counter` · `ph3_relay_counter` | Lifetime cycle/relay counters |
 | `total_hours` · `total_bathing_hours` · `total_sessions` | Lifetime totals |
 | `remote_allowed` · `safety_relay` · `screen_lock` | Diagnostic binaries |
@@ -138,6 +145,35 @@ Default `dashboard_tiles`: `humidity`, `power`, `energy`, `remaining`, `door`,
 
 On `compact`, any value other than `none` adds a controls row (so the compact
 layout becomes interactive).
+
+## Presets
+
+When the Harvia integration has **climate presets** configured (v2.8.0+), the
+card shows a chip per preset. Tapping one applies that preset's temperature and
+duration — it does **not** start the heater (matching the integration's
+explicit-control design). The active preset is highlighted.
+
+Presets are on by default; set `show_presets: false` to hide the chips. They never
+appear when the integration has no presets configured, so the option is a no-op
+in that case. Presets follow the same `controls` and remote-off gating as the
+other interactive controls.
+
+## Smart preheat
+
+The integration's **smart preheat** (v2.8.0+) starts the heater so the sauna is
+ready by a time you choose, using a learned heat-up model. Set
+`show_preheat: true` to add the scheduling control:
+
+- **Not scheduled** — a "ready by" time picker. Picking a time schedules the
+  preheat (`harvia_sauna.ready_at`).
+- **Scheduled** — the target time, the computed heater start, a note while the
+  heating model is still learning, and a **Cancel** button
+  (`harvia_sauna.cancel_preheat`).
+
+It is off by default because it depends on the integration's preheat opt-in. When
+the integration doesn't expose the schedule entity, the control stays hidden even
+if enabled. The computed start time is also available as the `planned_start`
+value in the [catalog](#value-catalog).
 
 ## Remote-off action
 

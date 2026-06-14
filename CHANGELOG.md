@@ -18,6 +18,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   active).
 
 ### Added
+- **ha-harvia-sauna v2.8.0 support.** New value-catalog items for the statistics
+  and connectivity sensors (`sessions_week`, `last_session_energy`, `records`
+  with `record_max_temp`/`record_duration`, `cloud_connection`, `ready_at`,
+  `planned_start`) and the `ambilight` switch. The ready-ETA now prefers the
+  integration's live `time_to_ready` sensor and the latched `ready` binary sensor,
+  falling back to the local temperature-trend estimate when those aren't available.
+- **Climate presets** (`show_presets`, default on). When the integration exposes
+  climate presets, the card shows a chip per preset; tapping one applies its
+  temperature and duration without starting the heater. Hidden automatically when
+  no presets are configured.
+- **Smart preheat** (`show_preheat`, default off). A scheduling control that
+  starts the heater so the sauna is ready by a chosen time
+  (`harvia_sauna.ready_at` / `cancel_preheat`), showing the computed start time and
+  the heating model's calibration state.
 - **Remote-off action** (`remote_off_action`, default `disable_start`). Choose
   what the card does while the mapped "remote control allowed" entity is off (and
   the sauna is off, so a start is what's blocked): `disable_start` (disable just
