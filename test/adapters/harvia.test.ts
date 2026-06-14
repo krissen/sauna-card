@@ -208,12 +208,52 @@ describe("harvia adapter readState", () => {
     expect(s!.status).toBe("idle");
   });
 
-  it("derives 'off' when power is off", () => {
+  it("derives 'off' only when genuinely off (no heating, no draw)", () => {
     const s = harviaAdapter.readState(
-      makeHass({ "switch.bastu_strom": "off" }),
+      makeHass({
+        "switch.bastu_strom": "off",
+        "binary_sensor.bastu_uppvarmning_aktiv": "off",
+        "sensor.bastu_effekt": "0",
+      }),
       {
         type: "custom:sauna-card",
       },
+    );
+    expect(s!.status).toBe("off");
+    expect(s!.powerOn).toBe(false);
+  });
+
+  it("treats an app-started session (heating without power switch) as on", () => {
+    // Harvia app start leaves switch.power off, but heat_on + draw are live.
+    const s = harviaAdapter.readState(
+      makeHass({ "switch.bastu_strom": "off" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.status).toBe("heating");
+    expect(s!.powerOn).toBe(true);
+  });
+
+  it("treats real power draw as on even when heat_on is off", () => {
+    const s = harviaAdapter.readState(
+      makeHass({
+        "switch.bastu_strom": "off",
+        "binary_sensor.bastu_uppvarmning_aktiv": "off",
+        "sensor.bastu_effekt": "3000",
+        "sensor.bastu_temperatur": "40",
+      }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.status).toBe("idle");
+  });
+
+  it("stays off when power draw is below the threshold", () => {
+    const s = harviaAdapter.readState(
+      makeHass({
+        "switch.bastu_strom": "off",
+        "binary_sensor.bastu_uppvarmning_aktiv": "off",
+        "sensor.bastu_effekt": "10",
+      }),
+      { type: "custom:sauna-card" },
     );
     expect(s!.status).toBe("off");
   });

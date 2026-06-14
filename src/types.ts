@@ -194,6 +194,11 @@ export interface SaunaState {
   model?: string;
   available: boolean;
   status: SaunaStatus;
+  /** Authoritative on/off for the session, derived from every reliable signal
+   * (power switch ∨ climate mode ∨ heat_on ∨ real power draw). The single source
+   * of truth all UI reads — a Harvia-app-started session leaves switch.power off
+   * yet still reads on here. undefined when no signal is available ("unknown"). */
+  powerOn?: boolean;
   currentTemp?: number;
   targetTemp?: number;
   humidity?: number;
