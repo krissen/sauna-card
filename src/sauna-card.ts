@@ -53,6 +53,7 @@ import { fireMoreInfo } from "./utils/more-info";
 import {
   RunningLatch,
   SESSION_STOPPED_EVENT,
+  sessionKey,
   type SessionStoppedDetail,
 } from "./running-latch";
 import { logVersionBanner, dlog } from "./log";
@@ -581,9 +582,9 @@ export class SaunaCard extends LitElement {
   // dispatches the event). An app-started stop may produce no hass change, so
   // each surface needs the push to release its own latch.
   private _onSessionStopped = (e: Event): void => {
-    const deviceId = (e as CustomEvent<SessionStoppedDetail>).detail?.deviceId;
+    const key = (e as CustomEvent<SessionStoppedDetail>).detail?.key;
     const cur = this._rawState();
-    if (!cur || cur.serviceDeviceId !== deviceId) return;
+    if (!cur || sessionKey(cur) !== key) return;
     this._runningLatch.notifyStopped();
     this._reflectLatchRelease();
   };
@@ -1032,7 +1033,7 @@ export class SaunaCard extends LitElement {
       const release = () =>
         window.dispatchEvent(
           new CustomEvent(SESSION_STOPPED_EVENT, {
-            detail: { deviceId: s.serviceDeviceId },
+            detail: { key: sessionKey(s) },
           }),
         );
       if (result) void result.then((ok) => ok && release());

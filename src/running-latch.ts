@@ -2,15 +2,28 @@ import type { SaunaState } from "./types";
 
 /**
  * Window event a card dispatches when an explicit stop succeeds, so other
- * surfaces for the same device (a sauna-badge, another card) can release their
+ * surfaces for the same session (a sauna-badge, another card) can release their
  * own hold latch at once — they own a separate latch and, for an app-started
- * session, may see no hass change to observe the stop. `detail.deviceId` is the
- * SaunaState.serviceDeviceId of the stopped session.
+ * session, may see no hass change to observe the stop. `detail.key` is a
+ * sessionKey() identifying the stopped session.
  */
 export const SESSION_STOPPED_EVENT = "sauna-card-session-stopped";
 
 export interface SessionStoppedDetail {
-  deviceId: string;
+  key: string;
+}
+
+/**
+ * A stable identifier for the controlled session, used to match stop broadcasts
+ * across surfaces. serviceDeviceId alone isn't enough: the manual adapter
+ * defaults it to "manual" for every card, so two manually mapped saunas would
+ * collide. Disambiguate by the controlled entity (power, else thermostat) — what
+ * actually differs between manual saunas. For real device ids (Harvia's cloud
+ * id) the prefix is already unique and the suffix is just consistent.
+ */
+export function sessionKey(s: SaunaState): string {
+  const entity = s.entities?.power ?? s.entities?.thermostat ?? "";
+  return `${s.serviceDeviceId}|${entity}`;
 }
 
 // During the steady-state hold at target temperature the heater PID-cycles, so a

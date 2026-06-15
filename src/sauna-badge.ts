@@ -29,6 +29,7 @@ import { fireMoreInfo } from "./utils/more-info";
 import {
   RunningLatch,
   SESSION_STOPPED_EVENT,
+  sessionKey,
   type SessionStoppedDetail,
 } from "./running-latch";
 import { logVersionBanner, dlog } from "./log";
@@ -218,9 +219,9 @@ export class SaunaBadge extends LitElement {
   // badge has no stop control and, for an app-started session, may see no hass
   // change to notice the stop, so without this it would show on until the grace.
   private _onSessionStopped = (e: Event): void => {
-    const deviceId = (e as CustomEvent<SessionStoppedDetail>).detail?.deviceId;
+    const key = (e as CustomEvent<SessionStoppedDetail>).detail?.key;
     const cur = this._rawState();
-    if (!cur || cur.serviceDeviceId !== deviceId) return;
+    if (!cur || sessionKey(cur) !== key) return;
     this._runningLatch.notifyStopped();
     this.requestUpdate();
   };

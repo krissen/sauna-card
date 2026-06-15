@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { SaunaState } from "../src/types";
-import { RunningLatch } from "../src/running-latch";
+import { RunningLatch, sessionKey } from "../src/running-latch";
 
 const T0 = 1_700_000_000_000;
 
@@ -364,6 +364,22 @@ describe("RunningLatch", () => {
     const latch = new RunningLatch();
     latch.advance(null);
     expect(latch.apply(null)).toBe(null);
+  });
+
+  it("sessionKey distinguishes manual saunas sharing serviceDeviceId", () => {
+    // The manual adapter defaults every card's serviceDeviceId to "manual"; the
+    // controlled entity must keep their stop keys distinct.
+    const a = makeState({
+      serviceDeviceId: "manual",
+      entities: { power: "switch.sauna_a" },
+    });
+    const b = makeState({
+      serviceDeviceId: "manual",
+      entities: { power: "switch.sauna_b" },
+    });
+    expect(sessionKey(a)).not.toBe(sessionKey(b));
+    // The same session keys equal itself.
+    expect(sessionKey(a)).toBe(sessionKey(makeState({ ...a })));
   });
 
   it("fires onExpire at the grace window so a quiet hold still releases", () => {

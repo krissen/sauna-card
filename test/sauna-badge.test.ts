@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { nothing } from "lit";
 import { SaunaBadge } from "../src/sauna-badge";
-import { SESSION_STOPPED_EVENT } from "../src/running-latch";
+import { SESSION_STOPPED_EVENT, sessionKey } from "../src/running-latch";
+import type { SaunaState } from "../src/types";
 import type {
   Hass,
   HassEntityState,
@@ -254,22 +255,22 @@ describe("sauna-badge hold-phase latch", () => {
       await b.updateComplete;
       expect(powerOn(b)).toBe(true);
 
-      const devId = (
-        b as unknown as { _rawState(): { serviceDeviceId: string } }
-      )._rawState().serviceDeviceId;
+      const key = sessionKey(
+        (b as unknown as { _rawState(): SaunaState })._rawState(),
+      );
 
-      // A stop for a different device must not release this badge.
+      // A stop for a different session must not release this badge.
       window.dispatchEvent(
         new CustomEvent(SESSION_STOPPED_EVENT, {
-          detail: { deviceId: "some-other-device" },
+          detail: { key: "some-other-session" },
         }),
       );
       await b.updateComplete;
       expect(powerOn(b)).toBe(true);
 
-      // A stop for this device releases it, with no hass update.
+      // A stop for this session releases it, with no hass update.
       window.dispatchEvent(
-        new CustomEvent(SESSION_STOPPED_EVENT, { detail: { deviceId: devId } }),
+        new CustomEvent(SESSION_STOPPED_EVENT, { detail: { key } }),
       );
       await b.updateComplete;
       expect(powerOn(b)).toBe(false);
