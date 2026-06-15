@@ -50,6 +50,7 @@ import {
   MAX_TEMP,
 } from "./controls";
 import { fireMoreInfo } from "./utils/more-info";
+import { RunningLatch } from "./running-latch";
 import { logVersionBanner, dlog } from "./log";
 
 const TEMP_STEP = 5;
@@ -185,6 +186,12 @@ export class SaunaCard extends LitElement {
   // off-episode from the recorder (so we attempt it once, not every update).
   // Reset when the sauna is powered on again.
   private _cooldownReconstructAttempted = false;
+
+  // Hold-phase running latch: bridges the quiet PID gaps of an app-started
+  // session (every raw on/off signal drops out between pulses) so the card
+  // doesn't blip to off mid-session. Advanced once per hass update from the raw
+  // state in willUpdate; applied (read-only) in _state().
+  private _runningLatch = new RunningLatch();
 
   // Set once the version banner has been printed, so re-renders don't spam it.
   private _versionLogged = false;
@@ -422,7 +429,9 @@ export class SaunaCard extends LitElement {
     return detectLang(this.hass, this._config.language);
   }
 
-  private _state(): SaunaState | null {
+  // Raw derived state, straight from the adapter (no hold-phase latch). Used to
+  // advance the latch; everything else reads the latched _state() below.
+  private _rawState(): SaunaState | null {
     if (!this.hass) return null;
     const adapter = pickIntegration(this.hass, this._config.integration);
     if (!adapter) {
@@ -432,6 +441,12 @@ export class SaunaCard extends LitElement {
     const state = adapter.readState(this.hass, this._config);
     dlog(this._debug, `state via ${adapter.id}`, state);
     return state;
+  }
+
+  // The state all rendering and tracking reads: raw state corrected by the
+  // hold-phase latch (read-only, so it's safe to call many times per update).
+  private _state(): SaunaState | null {
+    return this._runningLatch.apply(this._rawState());
   }
 
   // Arrow field so it stays bound when passed as a callback (e.g. to a catalog
@@ -582,7 +597,11 @@ export class SaunaCard extends LitElement {
   // this beat is on screen the same beat — no one-frame lag and no extra render.
   protected override willUpdate(changed: PropertyValues): void {
     if (!changed.has("hass") || !this.hass) return;
-    this._trackGraph(this._state());
+    // Advance the hold-phase latch once per update from the raw state, before
+    // anything (graph, render) consumes the latched _state().
+    const raw = this._rawState();
+    this._runningLatch.advance(raw);
+    this._trackGraph(this._runningLatch.apply(raw));
   }
 
   // Drive the graph phase model and per-phase sample buffers. Kept independent of

@@ -1742,3 +1742,128 @@ describe("app-started session (Harvia app: switch.power off, heater running)", (
     document.body.removeChild(c);
   });
 });
+
+describe("app-started hold phase (PID gaps must not blip the card to off)", () => {
+  // Steady-state hold of an app-started session: switch.power off, climate off,
+  // ready latch off. The heater PID-cycles, so between pulses heat_on and the
+  // power-draw sensor also fall to off/0 — every raw on/off signal goes quiet
+  // while the sauna sits at target. The hold-phase latch bridges those gaps.
+  const TARGET = 90;
+  const reg: Array<[string, string]> = [
+    ["switch.p", "power"],
+    ["binary_sensor.h", "heat_on"],
+    ["sensor.e", "power"],
+    ["sensor.cur", "current_temperature"],
+    ["sensor.tgt", "target_temperature"],
+  ];
+  const entities: Record<string, unknown> = {};
+  for (const [id, tk] of reg) {
+    entities[id] = {
+      entity_id: id,
+      platform: "harvia_sauna",
+      translation_key: tk,
+      device_id: "d1",
+    };
+  }
+  // heat: a PID pulse (on, drawing) vs a gap (off, 0W). cur: current temp.
+  const mk = (heat: boolean, cur: number): Hass =>
+    ({
+      states: {
+        "switch.p": { entity_id: "switch.p", state: "off", attributes: {} },
+        "binary_sensor.h": {
+          entity_id: "binary_sensor.h",
+          state: heat ? "on" : "off",
+          attributes: {},
+        },
+        "sensor.e": {
+          entity_id: "sensor.e",
+          state: heat ? "6800" : "0",
+          attributes: {},
+        },
+        "sensor.cur": {
+          entity_id: "sensor.cur",
+          state: String(cur),
+          attributes: {},
+        },
+        "sensor.tgt": {
+          entity_id: "sensor.tgt",
+          state: String(TARGET),
+          attributes: {},
+        },
+      },
+      entities,
+      devices: { d1: { id: "d1", name: "Bastu" } },
+    }) as unknown as Hass;
+
+  async function mountHolding(): Promise<SaunaCard> {
+    // First beat: a pulse at target arms the latch.
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card" });
+    document.body.appendChild(card);
+    card.hass = mk(true, TARGET);
+    await card.updateComplete;
+    return card;
+  }
+
+  const powerOn = (c: SaunaCard) =>
+    (c as unknown as { _state(): { powerOn?: boolean } })._state().powerOn;
+  const status = (c: SaunaCard) =>
+    (c as unknown as { _state(): { status?: string } })._state().status;
+
+  it("stays on through a quiet PID gap while holding at target", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding();
+      expect(powerOn(c)).toBe(true);
+
+      // A minute later: heat_on off, 0 W, still at target — a PID gap.
+      vi.advanceTimersByTime(60_000);
+      c.hass = mk(false, TARGET);
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(true);
+      expect(status(c)).toBe("ready");
+      const cta = c.shadowRoot!.querySelector(
+        ".cta button",
+      ) as HTMLButtonElement;
+      expect(cta.textContent!.trim()).toBe("Turn off");
+
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns to off once the gap outlasts the grace window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding();
+      // Quiet for longer than the 10-min grace, still warm.
+      vi.advanceTimersByTime(11 * 60_000);
+      c.hass = mk(false, TARGET);
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      expect(status(c)).toBe("off");
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns to off immediately on a real cool-down within the grace window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding();
+      // A minute later but the temperature has fallen well below target.
+      vi.advanceTimersByTime(60_000);
+      c.hass = mk(false, TARGET - 8);
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
