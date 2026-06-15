@@ -124,6 +124,9 @@ export class RunningLatch {
     if (delay <= 0) return;
     this.wakeTimer = window.setTimeout(() => {
       this.wakeTimer = undefined;
+      // Grace elapsed — release here, not via a re-arming advance(). The host's
+      // callback then only re-renders (and re-reads the now-released state).
+      this.until = undefined;
       this.onExpire!();
     }, delay);
   }

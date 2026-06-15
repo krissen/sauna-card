@@ -1810,6 +1810,8 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
     (c as unknown as { _state(): { powerOn?: boolean } })._state().powerOn;
   const status = (c: SaunaCard) =>
     (c as unknown as { _state(): { status?: string } })._state().status;
+  const prevStatus = (c: SaunaCard) =>
+    (c as unknown as { _prevStatus?: string })._prevStatus;
 
   it("stays on through a quiet PID gap while holding at target", async () => {
     vi.useFakeTimers();
@@ -1862,6 +1864,29 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
       c.hass = mk(false, TARGET - 8);
       await c.updateComplete;
       expect(powerOn(c)).toBe(false);
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("advances the graph to off when the grace expires on a quiet hold", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding(); // pulse arms the latch
+      vi.advanceTimersByTime(60_000);
+      c.hass = mk(false, TARGET); // gap: latch holds, status "ready"
+      await c.updateComplete;
+      expect(prevStatus(c)).toBe("ready");
+
+      // Go quiet: no further hass updates. The wake timer fires at the grace and
+      // must advance the graph past the held → off edge, not just the power flag.
+      vi.advanceTimersByTime(10 * 60_000);
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      expect(prevStatus(c)).toBe("off");
+
       document.body.removeChild(c);
     } finally {
       vi.useRealTimers();

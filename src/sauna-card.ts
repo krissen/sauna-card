@@ -190,9 +190,10 @@ export class SaunaCard extends LitElement {
   // Hold-phase running latch: bridges the quiet PID gaps of an app-started
   // session (every raw on/off signal drops out between pulses) so the card
   // doesn't blip to off mid-session. Advanced once per hass update from the raw
-  // state in willUpdate; applied (read-only) in _state(). The requestUpdate
-  // callback lets it re-render at the grace expiry even if no hass update lands.
-  private _runningLatch = new RunningLatch(() => this.requestUpdate());
+  // state in willUpdate; applied (read-only) in _state(). The wake callback
+  // re-renders (and re-advances the graph) at the grace expiry even if no hass
+  // update lands.
+  private _runningLatch = new RunningLatch(() => this._onLatchWake());
 
   // Set once the version banner has been printed, so re-renders don't spam it.
   private _versionLogged = false;
@@ -599,11 +600,26 @@ export class SaunaCard extends LitElement {
   // this beat is on screen the same beat — no one-frame lag and no extra render.
   protected override willUpdate(changed: PropertyValues): void {
     if (!changed.has("hass") || !this.hass) return;
-    // Advance the hold-phase latch once per update from the raw state, before
-    // anything (graph, render) consumes the latched _state().
+    this._advanceLatchAndGraph();
+  }
+
+  // Advance the hold-phase latch once from the raw state, then drive the graph
+  // with the latched state — before anything (graph, render) consumes _state().
+  private _advanceLatchAndGraph(): void {
     const raw = this._rawState();
     this._runningLatch.advance(raw);
     this._trackGraph(this._runningLatch.apply(raw));
+  }
+
+  // The latch's grace expiry fires here (no hass change); the latch has already
+  // released itself. Re-run the graph with the now-released state so it sees the
+  // held → off transition (cooldown anchor/history), not just the power flag —
+  // willUpdate skips that work on a non-hass update. Don't advance() here: that
+  // could re-arm from a still-running last sample instead of releasing.
+  private _onLatchWake(): void {
+    if (!this.hass) return;
+    this._trackGraph(this._runningLatch.apply(this._rawState()));
+    this.requestUpdate();
   }
 
   // Drive the graph phase model and per-phase sample buffers. Kept independent of
