@@ -1926,6 +1926,43 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
     }
   });
 
+  it("keeps the latch on when the stop service call fails", async () => {
+    // callService rejects → the stop did not take; the heater may still be
+    // running, so the latch must stay armed rather than show a false off.
+    const rejectingHass = (heat: boolean): Hass =>
+      ({
+        ...(mk(heat, TARGET) as unknown as Record<string, unknown>),
+        callService: () => Promise.reject(new Error("backend down")),
+      }) as unknown as Hass;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = new SaunaCard();
+      c.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(c);
+      c.hass = rejectingHass(true); // pulse arms the latch
+      await c.updateComplete;
+      vi.advanceTimersByTime(60_000);
+      c.hass = rejectingHass(false); // gap: latch bridges → on
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(true);
+
+      const cta = c.shadowRoot!.querySelector(
+        ".cta button",
+      ) as HTMLButtonElement;
+      cta.click(); // stop attempt — rejects
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      await c.updateComplete;
+      // Stop failed → still shown as running.
+      expect(powerOn(c)).toBe(true);
+
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not latch a switch-controlled session: an explicit off reads off at once", async () => {
     // switch.power on (card/switch-started), at target. Turning it off while
     // still warm must read off immediately — the latch only scopes to the

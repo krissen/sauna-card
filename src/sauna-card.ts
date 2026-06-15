@@ -996,20 +996,18 @@ export class SaunaCard extends LitElement {
       this._debug,
     );
     if (!active) {
-      // Release the hold-phase latch only once the stop has actually been
-      // dispatched and settled — not before. After an app-started session is
-      // stopped, the raw state (switch off, still warm) looks exactly like a PID
-      // gap, so notifyStopped() drops the latch and re-renders (the stop itself
-      // may produce no hass change, and notifyStopped only mutates the
-      // non-reactive latch). If no service was dispatched (result undefined), we
-      // can't stop the session, so leave the latch; and a stop that doesn't take
-      // (the heater keeps pulsing) re-arms naturally once the brief post-stop
-      // suppression lapses.
+      // Release the hold-phase latch only once the stop has actually succeeded —
+      // not before, and not on failure. After an app-started session is stopped,
+      // the raw state (switch off, still warm) looks exactly like a PID gap, so
+      // notifyStopped() drops the latch and re-renders (the stop itself may
+      // produce no hass change, and notifyStopped only mutates the non-reactive
+      // latch). A rejected or undispatched stop leaves the latch armed: the
+      // session may still be running, and showing it off would hide the failure.
       const release = () => {
         this._runningLatch.notifyStopped();
         this._reflectLatchRelease();
       };
-      if (result) void result.then(release);
+      if (result) void result.then((ok) => ok && release());
     }
   }
 
