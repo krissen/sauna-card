@@ -82,19 +82,24 @@ export class RunningLatch {
         s.currentTemp >= s.targetTemp - HOLD_NEAR_TARGET_C;
 
       if (s.powerOn === true) {
-        // A genuine running signal. Arm/refresh only while holding near target,
-        // AND only when no explicit switch/climate is holding the session on
-        // (switchPower !== true). A switch-controlled session has an authoritative
-        // off and must not be latched — otherwise turning it off while still warm
-        // would read on until the grace expires. This scopes the latch to the
-        // app-started case (switch off throughout), the only one with PID gaps to
-        // bridge. Heat-up is excluded too: it isn't near target. After an
-        // explicit stop, arming is briefly suppressed so a stale pulse can't
-        // re-latch the just-ended session.
-        const armBlocked =
-          this.armBlockedUntil !== undefined && now < this.armBlockedUntil;
-        if (nearTarget && s.switchPower !== true && !armBlocked) {
-          this.until = now + HOLD_GRACE_MS;
+        if (s.switchPower === true) {
+          // An explicit switch/climate is now in control — it has an
+          // authoritative off, so drop any latch armed earlier (e.g. while the
+          // same session was app-started). Without this, turning that switch off
+          // while still warm would enter the off path with a stale `until` and
+          // read on until the grace expired — the switch-controlled case the
+          // arm gate is meant to avoid.
+          this.until = undefined;
+        } else {
+          // A genuine running signal with no explicit switch holding it on. Arm/
+          // refresh only while holding near target — this scopes the latch to the
+          // app-started case (switch off throughout), the only one with PID gaps
+          // to bridge. Heat-up is excluded too: it isn't near target. After an
+          // explicit stop, arming is briefly suppressed so a stale pulse can't
+          // re-latch the just-ended session.
+          const armBlocked =
+            this.armBlockedUntil !== undefined && now < this.armBlockedUntil;
+          if (nearTarget && !armBlocked) this.until = now + HOLD_GRACE_MS;
         }
       } else if (this.until !== undefined) {
         // Raw signal says off/undefined. Keep the latch unless it has expired or

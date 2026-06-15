@@ -206,6 +206,45 @@ describe("RunningLatch", () => {
     expect(latch.apply(gap3)!.powerOn).toBe(true);
   });
 
+  it("drops an app-started latch once an explicit switch takes over", () => {
+    const latch = new RunningLatch();
+    // App-started hold arms the latch (switch off, running near target).
+    latch.advance(
+      makeState({
+        powerOn: true,
+        switchPower: false,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
+    );
+
+    // The explicit switch is turned on mid-session: it now controls the session.
+    vi.advanceTimersByTime(60_000);
+    latch.advance(
+      makeState({
+        powerOn: true,
+        switchPower: true,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
+    );
+
+    // Turning that switch off while still warm must read off at once — the stale
+    // app-started latch must not bridge a switch-controlled off.
+    vi.advanceTimersByTime(60_000);
+    const off = makeState({
+      powerOn: false,
+      switchPower: false,
+      status: "off",
+      currentTemp: 90,
+      targetTemp: 90,
+    });
+    latch.advance(off);
+    expect(latch.apply(off)!.powerOn).toBe(false);
+  });
+
   it("resets when the target changes", () => {
     const latch = new RunningLatch();
     latch.advance(
