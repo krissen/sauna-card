@@ -1908,8 +1908,10 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
       expect(powerOn(c)).toBe(true);
 
       // Tap Turn off. The raw states are already off/quiet, so the stop produces
-      // NO further hass update — the release must still reflect immediately.
+      // NO further hass update — the release (deferred until the stop call
+      // settles) must still reflect. Flush the microtasks then the render.
       cta.click();
+      for (let i = 0; i < 5; i++) await Promise.resolve();
       await c.updateComplete;
       expect(powerOn(c)).toBe(false);
       expect(status(c)).toBe("off");

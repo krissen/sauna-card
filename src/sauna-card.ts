@@ -972,16 +972,6 @@ export class SaunaCard extends LitElement {
     // its notice.
     this._clearStartTimer();
     this._startFailed = undefined;
-    if (!active) {
-      // Release the hold-phase latch now: after an app-started session is
-      // stopped here, the raw state (switch off, still warm) looks exactly like
-      // a PID gap, so without this the card would keep reporting on/"Turn off"
-      // until the grace expired. The stop may produce no further hass change
-      // (states already off), and notifyStopped() only mutates the non-reactive
-      // latch, so reflect the release explicitly to re-render now.
-      this._runningLatch.notifyStopped();
-      this._reflectLatchRelease();
-    }
     if (active) {
       // The proactive door notice is part of an actual start attempt only (not
       // shown for an idle sauna resting with the door open): if the door is open
@@ -999,12 +989,28 @@ export class SaunaCard extends LitElement {
       }, START_GRACE_MS);
     }
     // Honour an in-flight stepper adjustment when starting a session.
-    setActive(
+    const result = setActive(
       this.hass,
       { ...s, targetTemp: this._effectiveTarget(s) },
       active,
       this._debug,
     );
+    if (!active) {
+      // Release the hold-phase latch only once the stop has actually been
+      // dispatched and settled — not before. After an app-started session is
+      // stopped, the raw state (switch off, still warm) looks exactly like a PID
+      // gap, so notifyStopped() drops the latch and re-renders (the stop itself
+      // may produce no hass change, and notifyStopped only mutates the
+      // non-reactive latch). If no service was dispatched (result undefined), we
+      // can't stop the session, so leave the latch; and a stop that doesn't take
+      // (the heater keeps pulsing) re-arms naturally once the brief post-stop
+      // suppression lapses.
+      const release = () => {
+        this._runningLatch.notifyStopped();
+        this._reflectLatchRelease();
+      };
+      if (result) void result.then(release);
+    }
   }
 
   /** Best-known reason a start was refused, as an i18n key. */
