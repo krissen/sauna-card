@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { nothing } from "lit";
 import { SaunaBadge } from "../src/sauna-badge";
+import { SESSION_STOPPED_EVENT } from "../src/running-latch";
 import type {
   Hass,
   HassEntityState,
@@ -230,6 +231,46 @@ describe("sauna-badge hold-phase latch", () => {
 
       vi.advanceTimersByTime(11 * 60_000);
       b.hass = hold(false);
+      await b.updateComplete;
+      expect(powerOn(b)).toBe(false);
+
+      document.body.removeChild(b);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("releases when a card stops this device's session", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const b = new SaunaBadge();
+      b.setConfig({ type: "custom:sauna-badge" });
+      document.body.appendChild(b);
+      b.hass = hold(true); // arm
+      await b.updateComplete;
+      vi.advanceTimersByTime(60_000);
+      b.hass = hold(false); // hold → on
+      await b.updateComplete;
+      expect(powerOn(b)).toBe(true);
+
+      const devId = (
+        b as unknown as { _rawState(): { serviceDeviceId: string } }
+      )._rawState().serviceDeviceId;
+
+      // A stop for a different device must not release this badge.
+      window.dispatchEvent(
+        new CustomEvent(SESSION_STOPPED_EVENT, {
+          detail: { deviceId: "some-other-device" },
+        }),
+      );
+      await b.updateComplete;
+      expect(powerOn(b)).toBe(true);
+
+      // A stop for this device releases it, with no hass update.
+      window.dispatchEvent(
+        new CustomEvent(SESSION_STOPPED_EVENT, { detail: { deviceId: devId } }),
+      );
       await b.updateComplete;
       expect(powerOn(b)).toBe(false);
 

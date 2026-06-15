@@ -50,7 +50,7 @@ import {
   MAX_TEMP,
 } from "./controls";
 import { fireMoreInfo } from "./utils/more-info";
-import { RunningLatch } from "./running-latch";
+import { RunningLatch, SESSION_STOPPED_EVENT } from "./running-latch";
 import { logVersionBanner, dlog } from "./log";
 
 const TEMP_STEP = 5;
@@ -1006,6 +1006,14 @@ export class SaunaCard extends LitElement {
       const release = () => {
         this._runningLatch.notifyStopped();
         this._reflectLatchRelease();
+        // Tell other surfaces for this device (a sauna-badge, another card) so
+        // they release their own latch — they may see no hass change to notice
+        // the stop. Their serviceDeviceId resolves to the same id.
+        window.dispatchEvent(
+          new CustomEvent(SESSION_STOPPED_EVENT, {
+            detail: { deviceId: s.serviceDeviceId },
+          }),
+        );
       };
       if (result) void result.then((ok) => ok && release());
     }

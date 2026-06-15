@@ -26,7 +26,11 @@ import {
 } from "./status";
 import { detectLang, t } from "./i18n";
 import { fireMoreInfo } from "./utils/more-info";
-import { RunningLatch } from "./running-latch";
+import {
+  RunningLatch,
+  SESSION_STOPPED_EVENT,
+  type SessionStoppedDetail,
+} from "./running-latch";
 import { logVersionBanner, dlog } from "./log";
 
 const CONTENTS: BadgeContent[] = ["primary", "single", "row"];
@@ -210,7 +214,24 @@ export class SaunaBadge extends LitElement {
   private _t = (key: string, vars?: Record<string, string | number>): string =>
     t(key, this._lang, vars);
 
+  // Release the badge's own latch when a card stops this device's session: the
+  // badge has no stop control and, for an app-started session, may see no hass
+  // change to notice the stop, so without this it would show on until the grace.
+  private _onSessionStopped = (e: Event): void => {
+    const deviceId = (e as CustomEvent<SessionStoppedDetail>).detail?.deviceId;
+    const cur = this._rawState();
+    if (!cur || cur.serviceDeviceId !== deviceId) return;
+    this._runningLatch.notifyStopped();
+    this.requestUpdate();
+  };
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener(SESSION_STOPPED_EVENT, this._onSessionStopped);
+  }
+
   override disconnectedCallback(): void {
+    window.removeEventListener(SESSION_STOPPED_EVENT, this._onSessionStopped);
     this._runningLatch.dispose();
     super.disconnectedCallback();
   }

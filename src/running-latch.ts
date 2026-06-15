@@ -1,5 +1,18 @@
 import type { SaunaState } from "./types";
 
+/**
+ * Window event a card dispatches when an explicit stop succeeds, so other
+ * surfaces for the same device (a sauna-badge, another card) can release their
+ * own hold latch at once — they own a separate latch and, for an app-started
+ * session, may see no hass change to observe the stop. `detail.deviceId` is the
+ * SaunaState.serviceDeviceId of the stopped session.
+ */
+export const SESSION_STOPPED_EVENT = "sauna-card-session-stopped";
+
+export interface SessionStoppedDetail {
+  deviceId: string;
+}
+
 // During the steady-state hold at target temperature the heater PID-cycles, so a
 // session started from the Harvia app — which leaves switch.power, climate mode
 // and the per-session `ready` latch all off — has *every* on/off signal go quiet
