@@ -1,4 +1,11 @@
-import { LitElement, html, css, nothing, type TemplateResult } from "lit";
+import {
+  LitElement,
+  html,
+  css,
+  nothing,
+  type TemplateResult,
+  type PropertyValues,
+} from "lit";
 import { property, state } from "lit/decorators.js";
 import type {
   Hass,
@@ -19,6 +26,7 @@ import {
 } from "./status";
 import { detectLang, t } from "./i18n";
 import { fireMoreInfo } from "./utils/more-info";
+import { RunningLatch } from "./running-latch";
 import { logVersionBanner, dlog } from "./log";
 
 const CONTENTS: BadgeContent[] = ["primary", "single", "row"];
@@ -83,6 +91,11 @@ export class SaunaBadge extends LitElement {
   @property({ attribute: false }) hass?: Hass;
 
   @state() private _config: SaunaBadgeConfig = { type: "custom:sauna-badge" };
+
+  // Hold-phase running latch: bridges the quiet PID gaps of an app-started
+  // session so the badge doesn't blip to off mid-session (same flicker the card
+  // fixes). Advanced once per hass update in willUpdate; applied in _state().
+  private _runningLatch = new RunningLatch();
 
   // Set once the version banner has been printed, so re-renders don't spam it.
   private _versionLogged = false;
@@ -195,7 +208,15 @@ export class SaunaBadge extends LitElement {
   private _t = (key: string, vars?: Record<string, string | number>): string =>
     t(key, this._lang, vars);
 
-  private _state(): SaunaState | null {
+  // Advance the hold-phase latch once per hass update, from the raw state,
+  // before render consumes the latched _state().
+  protected override willUpdate(changed: PropertyValues): void {
+    if (!changed.has("hass") || !this.hass) return;
+    this._runningLatch.advance(this._rawState());
+  }
+
+  // Raw derived state, straight from the adapter (no hold-phase latch).
+  private _rawState(): SaunaState | null {
     if (!this.hass) return null;
     const adapter = pickIntegration(this.hass, this._config.integration);
     if (!adapter) {
@@ -205,6 +226,11 @@ export class SaunaBadge extends LitElement {
     const state = adapter.readState(this.hass, this._config);
     dlog(this._debug, `state via ${adapter.id}`, state);
     return state;
+  }
+
+  // The state render reads: raw state corrected by the hold-phase latch.
+  private _state(): SaunaState | null {
+    return this._runningLatch.apply(this._rawState());
   }
 
   private _units(s: SaunaState): Unit[] {

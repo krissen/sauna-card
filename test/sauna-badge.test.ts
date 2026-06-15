@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { nothing } from "lit";
 import { SaunaBadge } from "../src/sauna-badge";
 import type {
@@ -175,5 +175,67 @@ describe("sauna-badge", () => {
       items: ["energy", "sessions"],
     }).render();
     expect(out).not.toBe(nothing);
+  });
+});
+
+describe("sauna-badge hold-phase latch", () => {
+  // The badge derives on/off via the same buildSaunaState as the card, so it
+  // flickers identically during an app-started hold phase. Same latch, mounted
+  // so willUpdate (which advances it) actually fires.
+  // A PID pulse (heat on, drawing) vs a gap (heat off, 0 W) while at target,
+  // with the switch and climate off (app-started).
+  const hold = (heat: boolean): Hass =>
+    makeHass({
+      "climate.bastu_termostat": "off",
+      "switch.bastu_strom": "off",
+      "binary_sensor.bastu_uppvarmning_aktiv": heat ? "on" : "off",
+      "sensor.bastu_effekt": heat ? "6000" : "0",
+      "sensor.bastu_temperatur": "90",
+      "sensor.bastu_maltemperatur": "90",
+    });
+
+  const powerOn = (b: SaunaBadge) =>
+    (b as unknown as { _state(): { powerOn?: boolean } })._state().powerOn;
+
+  it("stays on through a quiet PID gap at target", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const b = new SaunaBadge();
+      b.setConfig({ type: "custom:sauna-badge" });
+      document.body.appendChild(b);
+      b.hass = hold(true); // pulse arms the latch
+      await b.updateComplete;
+
+      vi.advanceTimersByTime(60_000);
+      b.hass = hold(false); // gap: every raw signal quiet
+      await b.updateComplete;
+      expect(powerOn(b)).toBe(true);
+
+      document.body.removeChild(b);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns to off once the gap outlasts the grace window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const b = new SaunaBadge();
+      b.setConfig({ type: "custom:sauna-badge" });
+      document.body.appendChild(b);
+      b.hass = hold(true);
+      await b.updateComplete;
+
+      vi.advanceTimersByTime(11 * 60_000);
+      b.hass = hold(false);
+      await b.updateComplete;
+      expect(powerOn(b)).toBe(false);
+
+      document.body.removeChild(b);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
