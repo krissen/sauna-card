@@ -22,8 +22,14 @@ export interface SessionStoppedDetail {
  * id) the prefix is already unique and the suffix is just consistent.
  */
 export function sessionKey(s: SaunaState): string {
-  const entity = s.entities?.power ?? s.entities?.thermostat ?? "";
-  return `${s.serviceDeviceId}|${entity}`;
+  return `${s.serviceDeviceId}|${controlledEntity(s)}`;
+}
+
+/** The entity the card actually drives on/off (power, else thermostat). Used to
+ * tell two manually mapped saunas apart, which share serviceDeviceId/deviceId
+ * "manual". "" when neither is mapped (then there's no stop control anyway). */
+function controlledEntity(s: SaunaState): string {
+  return s.entities?.power ?? s.entities?.thermostat ?? "";
 }
 
 // During the steady-state hold at target temperature the heater PID-cycles, so a
@@ -71,10 +77,15 @@ const STOP_ARM_SUPPRESS_MS = 60_000;
 export class RunningLatch {
   /** Epoch ms until which the hold latch is trusted; undefined when disarmed. */
   private until?: number;
-  /** Context key (`deviceId|targetTemp`); a change resets the latch. */
+  /** Context key (device | controlled entity | target); a change resets the
+   * latch. The controlled entity is included so swapping a manual card's
+   * entity_map (same "manual" device + target) still resets it. */
   private ctx?: string;
   /** Epoch ms before which arming is blocked, after an explicit user stop. */
   private armBlockedUntil?: number;
+  /** switchPower from the previous sample, to detect an external switch-off
+   * (true → false) and not mistake its stale running pulse for an app start. */
+  private prevSwitchPower?: boolean;
   /** One-shot timer that fires onExpire at `until`, so the UI re-renders and
    * releases even if no hass update arrives in the meantime. */
   private wakeTimer?: number;
@@ -94,11 +105,14 @@ export class RunningLatch {
    */
   advance(s: SaunaState | null): void {
     const now = Date.now();
-    const ctx = s ? `${s.deviceId}|${s.targetTemp ?? ""}` : undefined;
+    const ctx = s
+      ? `${s.deviceId}|${controlledEntity(s)}|${s.targetTemp ?? ""}`
+      : undefined;
     if (ctx !== this.ctx) {
       this.ctx = ctx;
       this.until = undefined;
       this.armBlockedUntil = undefined;
+      this.prevSwitchPower = undefined;
     }
 
     if (s) {
@@ -117,14 +131,22 @@ export class RunningLatch {
           // arm gate is meant to avoid.
           this.until = undefined;
         } else if (s.switchPower === false) {
+          // An external switch-off (physical switch, another control) can briefly
+          // read switchPower false while a stale heat_on/draw pulse still reads
+          // running. The previous sample's switchPower being true marks that
+          // transition — suppress arming through the stale-pulse tail, as after
+          // an explicit stop. A genuine app-started session is false throughout,
+          // so prevSwitchPower is never true for it and this never fires.
+          if (this.prevSwitchPower === true) {
+            this.armBlockedUntil = now + STOP_ARM_SUPPRESS_MS;
+          }
           // App-started: the switch/climate is known-off yet the heater is
           // running. Arm/refresh only while holding near target — the only case
           // with PID gaps to bridge. Heat-up is excluded too: it isn't near
-          // target. After an explicit stop, arming is briefly suppressed so a
-          // stale pulse can't re-latch the just-ended session. We require a known
-          // false (not merely "not true"): an undefined switchPower means the
-          // control is unavailable/unmapped, which we must not treat as
-          // app-started — arming then could mask an outage or a real stop.
+          // target. We require a known false (not merely "not true"): an
+          // undefined switchPower means the control is unavailable/unmapped,
+          // which we must not treat as app-started — arming then could mask an
+          // outage or a real stop.
           const armBlocked =
             this.armBlockedUntil !== undefined && now < this.armBlockedUntil;
           if (nearTarget && !armBlocked) this.until = now + HOLD_GRACE_MS;
@@ -141,6 +163,7 @@ export class RunningLatch {
           s.currentTemp < s.targetTemp - HOLD_COOLDOWN_BAND_C;
         if (now >= this.until || coolingDown) this.until = undefined;
       }
+      this.prevSwitchPower = s.switchPower;
     }
 
     this.scheduleWake();

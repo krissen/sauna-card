@@ -299,6 +299,76 @@ describe("RunningLatch", () => {
     expect(latch.apply(newTarget)!.powerOn).toBe(false);
   });
 
+  it("resets when the controlled entity changes (manual entity_map swap)", () => {
+    const latch = new RunningLatch();
+    // Manual sauna A: shared "manual" device id, armed at target.
+    latch.advance(
+      makeState({
+        serviceDeviceId: "manual",
+        deviceId: "manual",
+        entities: { power: "switch.sauna_a" },
+        powerOn: true,
+        switchPower: false,
+        currentTemp: 90,
+        targetTemp: 90,
+        status: "ready",
+      }),
+    );
+
+    // The card is re-pointed to sauna B (same "manual" id, same target, off).
+    vi.advanceTimersByTime(60_000);
+    const b = makeState({
+      serviceDeviceId: "manual",
+      deviceId: "manual",
+      entities: { power: "switch.sauna_b" },
+      powerOn: false,
+      switchPower: false,
+      currentTemp: 90,
+      targetTemp: 90,
+      status: "off",
+    });
+    latch.advance(b);
+    expect(latch.apply(b)!.powerOn).toBe(false);
+  });
+
+  it("does not latch a stale pulse right after an external switch-off", () => {
+    const latch = new RunningLatch();
+    // Switch-controlled and running at target.
+    latch.advance(
+      makeState({
+        powerOn: true,
+        switchPower: true,
+        currentTemp: 90,
+        targetTemp: 90,
+        status: "ready",
+      }),
+    );
+
+    // Switch turned off elsewhere; a stale heat pulse still reads running.
+    vi.advanceTimersByTime(60_000);
+    latch.advance(
+      makeState({
+        powerOn: true,
+        switchPower: false,
+        currentTemp: 90,
+        targetTemp: 90,
+        status: "ready",
+      }),
+    );
+
+    // The next genuinely quiet sample must not be masked as on.
+    vi.advanceTimersByTime(60_000);
+    const off = makeState({
+      powerOn: false,
+      switchPower: false,
+      currentTemp: 90,
+      targetTemp: 90,
+      status: "off",
+    });
+    latch.advance(off);
+    expect(latch.apply(off)!.powerOn).toBe(false);
+  });
+
   it("resets when the device changes", () => {
     const latch = new RunningLatch();
     latch.advance(
