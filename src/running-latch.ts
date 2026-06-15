@@ -103,17 +103,21 @@ export class RunningLatch {
           // read on until the grace expired — the switch-controlled case the
           // arm gate is meant to avoid.
           this.until = undefined;
-        } else {
-          // A genuine running signal with no explicit switch holding it on. Arm/
-          // refresh only while holding near target — this scopes the latch to the
-          // app-started case (switch off throughout), the only one with PID gaps
-          // to bridge. Heat-up is excluded too: it isn't near target. After an
-          // explicit stop, arming is briefly suppressed so a stale pulse can't
-          // re-latch the just-ended session.
+        } else if (s.switchPower === false) {
+          // App-started: the switch/climate is known-off yet the heater is
+          // running. Arm/refresh only while holding near target — the only case
+          // with PID gaps to bridge. Heat-up is excluded too: it isn't near
+          // target. After an explicit stop, arming is briefly suppressed so a
+          // stale pulse can't re-latch the just-ended session. We require a known
+          // false (not merely "not true"): an undefined switchPower means the
+          // control is unavailable/unmapped, which we must not treat as
+          // app-started — arming then could mask an outage or a real stop.
           const armBlocked =
             this.armBlockedUntil !== undefined && now < this.armBlockedUntil;
           if (nearTarget && !armBlocked) this.until = now + HOLD_GRACE_MS;
         }
+        // switchPower === undefined: control unknown/unmapped — neither arm nor
+        // clear; any existing latch simply runs out its grace.
       } else if (this.until !== undefined) {
         // Raw signal says off/undefined. Keep the latch unless it has expired or
         // the temperature shows a real cool-down (or temps are unknown — can't

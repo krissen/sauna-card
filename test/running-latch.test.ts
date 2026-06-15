@@ -5,7 +5,9 @@ import { RunningLatch } from "../src/running-latch";
 const T0 = 1_700_000_000_000;
 
 // Minimal SaunaState — only the fields the latch reads (deviceId, targetTemp,
-// currentTemp, powerOn, status). The rest is filler to satisfy the type.
+// currentTemp, powerOn, switchPower, status). switchPower defaults to false (the
+// app-started case these tests model: switch known-off); switch-controlled cases
+// override it to true. The rest is filler to satisfy the type.
 function makeState(p: Partial<SaunaState>): SaunaState {
   return {
     integration: "harvia",
@@ -13,6 +15,7 @@ function makeState(p: Partial<SaunaState>): SaunaState {
     serviceDeviceId: "dev1",
     available: true,
     status: "off",
+    switchPower: false,
     entities: {},
     switches: {},
     ...p,
@@ -204,6 +207,34 @@ describe("RunningLatch", () => {
     });
     latch.advance(gap3);
     expect(latch.apply(gap3)!.powerOn).toBe(true);
+  });
+
+  it("does not arm when the control state is unavailable (switchPower undefined)", () => {
+    const latch = new RunningLatch();
+    // Control entity unknown: a running pulse near target, but switchPower is
+    // undefined (not a known-off app-started session).
+    latch.advance(
+      makeState({
+        powerOn: true,
+        switchPower: undefined,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
+    );
+
+    // A following quiet/unknown sample must not be masked as on/ready — that
+    // would hide an outage or a real switch-controlled off.
+    vi.advanceTimersByTime(60_000);
+    const quiet = makeState({
+      powerOn: undefined,
+      switchPower: undefined,
+      status: "unknown",
+      currentTemp: 90,
+      targetTemp: 90,
+    });
+    latch.advance(quiet);
+    expect(latch.apply(quiet)!.powerOn).not.toBe(true);
   });
 
   it("drops an app-started latch once an explicit switch takes over", () => {
