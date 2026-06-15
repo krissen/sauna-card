@@ -215,10 +215,13 @@ export class SaunaBadge extends LitElement {
     super.disconnectedCallback();
   }
 
-  // Advance the hold-phase latch once per hass update, from the raw state,
-  // before render consumes the latched _state().
+  // Advance the hold-phase latch once per update, from the raw state, before
+  // render consumes the latched _state(). Also on a config change: re-pointing
+  // device_id / integration / entity_map selects a different raw state, and the
+  // old device's armed latch must not be applied to it (the latch's context key
+  // resets itself once advance() sees the new state).
   protected override willUpdate(changed: PropertyValues): void {
-    if (!changed.has("hass") || !this.hass) return;
+    if ((!changed.has("hass") && !changed.has("_config")) || !this.hass) return;
     this._runningLatch.advance(this._rawState());
   }
 

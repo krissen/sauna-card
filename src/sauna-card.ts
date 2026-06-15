@@ -599,7 +599,11 @@ export class SaunaCard extends LitElement {
   // Drive the graph buffers BEFORE render (not in updated()), so a sample added
   // this beat is on screen the same beat — no one-frame lag and no extra render.
   protected override willUpdate(changed: PropertyValues): void {
-    if (!changed.has("hass") || !this.hass) return;
+    // Also advance on a config change: re-pointing device_id / integration /
+    // entity_map selects a different raw state, and without advancing here the
+    // old device's armed latch would be applied to it (stale "ready"/on). The
+    // latch's context key resets itself once advance() sees the new state.
+    if ((!changed.has("hass") && !changed.has("_config")) || !this.hass) return;
     this._advanceLatchAndGraph();
   }
 

@@ -1967,4 +1967,79 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
       vi.useRealTimers();
     }
   });
+
+  it("resets the latch when the config points at a different device", async () => {
+    // Two devices: d1 app-started and holding (arms the latch), d2 off but still
+    // warm. Re-pointing device_id to d2 must not apply d1's armed latch to d2.
+    const twoDeviceHass = (): Hass => {
+      const reg2: Array<[string, string, string]> = [
+        ["switch.p1", "power", "d1"],
+        ["binary_sensor.h1", "heat_on", "d1"],
+        ["sensor.e1", "power", "d1"],
+        ["sensor.cur1", "current_temperature", "d1"],
+        ["sensor.tgt1", "target_temperature", "d1"],
+        ["switch.p2", "power", "d2"],
+        ["binary_sensor.h2", "heat_on", "d2"],
+        ["sensor.e2", "power", "d2"],
+        ["sensor.cur2", "current_temperature", "d2"],
+        ["sensor.tgt2", "target_temperature", "d2"],
+      ];
+      const ent: Record<string, unknown> = {};
+      for (const [id, tk, dev] of reg2) {
+        ent[id] = {
+          entity_id: id,
+          platform: "harvia_sauna",
+          translation_key: tk,
+          device_id: dev,
+        };
+      }
+      const st: Record<string, [string]> = {
+        // d1: app-started pulse at target (running, switch off)
+        "switch.p1": ["off"],
+        "binary_sensor.h1": ["on"],
+        "sensor.e1": ["6800"],
+        "sensor.cur1": [String(TARGET)],
+        "sensor.tgt1": [String(TARGET)],
+        // d2: off, but still warm
+        "switch.p2": ["off"],
+        "binary_sensor.h2": ["off"],
+        "sensor.e2": ["0"],
+        "sensor.cur2": [String(TARGET)],
+        "sensor.tgt2": [String(TARGET)],
+      };
+      const states: Record<string, unknown> = {};
+      for (const [id, [state]] of Object.entries(st)) {
+        states[id] = { entity_id: id, state, attributes: {} };
+      }
+      return {
+        states,
+        entities: ent,
+        devices: {
+          d1: { id: "d1", name: "Bastu 1" },
+          d2: { id: "d2", name: "Bastu 2" },
+        },
+        callService: () => Promise.resolve(),
+      } as unknown as Hass;
+    };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = new SaunaCard();
+      c.setConfig({ type: "custom:sauna-card", device_id: "d1" });
+      document.body.appendChild(c);
+      c.hass = twoDeviceHass();
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(true); // d1 latched
+
+      // Re-point to d2 (off) without any new hass update.
+      vi.advanceTimersByTime(60_000);
+      c.setConfig({ type: "custom:sauna-card", device_id: "d2" });
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false); // d1's latch must not carry to d2
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
