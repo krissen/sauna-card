@@ -41,7 +41,12 @@ describe("RunningLatch", () => {
 
     // A PID gap a minute later: every raw signal quiet → powerOn false.
     vi.advanceTimersByTime(60_000);
-    const gap = makeState({ powerOn: false, status: "off", currentTemp: 90, targetTemp: 90 });
+    const gap = makeState({
+      powerOn: false,
+      status: "off",
+      currentTemp: 90,
+      targetTemp: 90,
+    });
     latch.advance(gap);
     const out = latch.apply(gap);
     expect(out!.powerOn).toBe(true);
@@ -51,12 +56,22 @@ describe("RunningLatch", () => {
   it("releases after the grace window elapses (sustained off)", () => {
     const latch = new RunningLatch();
     latch.advance(
-      makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+      makeState({
+        powerOn: true,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
     );
 
     // Quiet, still warm, but well past the 10-min grace.
     vi.advanceTimersByTime(11 * 60_000);
-    const late = makeState({ powerOn: false, status: "off", currentTemp: 90, targetTemp: 90 });
+    const late = makeState({
+      powerOn: false,
+      status: "off",
+      currentTemp: 90,
+      targetTemp: 90,
+    });
     latch.advance(late);
     const out = latch.apply(late);
     expect(out!.powerOn).toBe(false);
@@ -66,12 +81,22 @@ describe("RunningLatch", () => {
   it("releases immediately on a real cool-down even within grace", () => {
     const latch = new RunningLatch();
     latch.advance(
-      makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+      makeState({
+        powerOn: true,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
     );
 
     // A minute later (within grace) but temp has dropped > 5 °C below target.
     vi.advanceTimersByTime(60_000);
-    const cooling = makeState({ powerOn: false, status: "off", currentTemp: 84, targetTemp: 90 });
+    const cooling = makeState({
+      powerOn: false,
+      status: "off",
+      currentTemp: 84,
+      targetTemp: 90,
+    });
     latch.advance(cooling);
     const out = latch.apply(cooling);
     expect(out!.powerOn).toBe(false);
@@ -81,11 +106,21 @@ describe("RunningLatch", () => {
     const latch = new RunningLatch();
     // Running, but still climbing — 10 °C below target.
     latch.advance(
-      makeState({ powerOn: true, status: "heating", currentTemp: 80, targetTemp: 90 }),
+      makeState({
+        powerOn: true,
+        status: "heating",
+        currentTemp: 80,
+        targetTemp: 90,
+      }),
     );
 
     vi.advanceTimersByTime(60_000);
-    const gap = makeState({ powerOn: false, status: "off", currentTemp: 80, targetTemp: 90 });
+    const gap = makeState({
+      powerOn: false,
+      status: "off",
+      currentTemp: 80,
+      targetTemp: 90,
+    });
     latch.advance(gap);
     expect(latch.apply(gap)!.powerOn).toBe(false);
   });
@@ -174,7 +209,12 @@ describe("RunningLatch", () => {
   it("resets when the target changes", () => {
     const latch = new RunningLatch();
     latch.advance(
-      makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+      makeState({
+        powerOn: true,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
     );
 
     // New target → fresh context; the prior arm must not carry over.
@@ -192,7 +232,12 @@ describe("RunningLatch", () => {
   it("resets when the device changes", () => {
     const latch = new RunningLatch();
     latch.advance(
-      makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+      makeState({
+        powerOn: true,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
     );
 
     vi.advanceTimersByTime(60_000);
@@ -214,10 +259,20 @@ describe("RunningLatch", () => {
     // the grace, so a gap after the last pulse still reads on.
     for (let i = 0; i < 6; i++) {
       latch.advance(
-        makeState({ powerOn: true, status: "ready", currentTemp: target, targetTemp: target }),
+        makeState({
+          powerOn: true,
+          status: "ready",
+          currentTemp: target,
+          targetTemp: target,
+        }),
       );
       vi.advanceTimersByTime(3 * 60_000);
-      const gap = makeState({ powerOn: false, status: "off", currentTemp: target, targetTemp: target });
+      const gap = makeState({
+        powerOn: false,
+        status: "off",
+        currentTemp: target,
+        targetTemp: target,
+      });
       latch.advance(gap);
       expect(latch.apply(gap)!.powerOn).toBe(true);
     }
@@ -225,7 +280,12 @@ describe("RunningLatch", () => {
 
   it("passes a genuinely running state through unchanged", () => {
     const latch = new RunningLatch();
-    const running = makeState({ powerOn: true, status: "heating", currentTemp: 70, targetTemp: 90 });
+    const running = makeState({
+      powerOn: true,
+      status: "heating",
+      currentTemp: 70,
+      targetTemp: 90,
+    });
     latch.advance(running);
     expect(latch.apply(running)).toBe(running);
   });
@@ -240,7 +300,12 @@ describe("RunningLatch", () => {
     const onExpire = vi.fn();
     const latch = new RunningLatch(onExpire);
     latch.advance(
-      makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+      makeState({
+        powerOn: true,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
     );
     // No further advance() (no hass update); the timer must still fire at grace.
     expect(onExpire).not.toHaveBeenCalled();
@@ -249,7 +314,12 @@ describe("RunningLatch", () => {
 
     // And by then apply() reports off, so the re-render the callback triggers
     // would show the released state.
-    const quiet = makeState({ powerOn: false, status: "off", currentTemp: 90, targetTemp: 90 });
+    const quiet = makeState({
+      powerOn: false,
+      status: "off",
+      currentTemp: 90,
+      targetTemp: 90,
+    });
     expect(latch.apply(quiet)!.powerOn).toBe(false);
   });
 
@@ -258,7 +328,12 @@ describe("RunningLatch", () => {
     const latch = new RunningLatch(onExpire);
     const pulse = () =>
       latch.advance(
-        makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+        makeState({
+          powerOn: true,
+          status: "ready",
+          currentTemp: 90,
+          targetTemp: 90,
+        }),
       );
     pulse();
     vi.advanceTimersByTime(5 * 60_000);
@@ -273,7 +348,12 @@ describe("RunningLatch", () => {
     const onExpire = vi.fn();
     const latch = new RunningLatch(onExpire);
     latch.advance(
-      makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+      makeState({
+        powerOn: true,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
     );
     latch.dispose();
     vi.advanceTimersByTime(20 * 60_000);
