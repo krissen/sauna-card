@@ -190,8 +190,9 @@ export class SaunaCard extends LitElement {
   // Hold-phase running latch: bridges the quiet PID gaps of an app-started
   // session (every raw on/off signal drops out between pulses) so the card
   // doesn't blip to off mid-session. Advanced once per hass update from the raw
-  // state in willUpdate; applied (read-only) in _state().
-  private _runningLatch = new RunningLatch();
+  // state in willUpdate; applied (read-only) in _state(). The requestUpdate
+  // callback lets it re-render at the grace expiry even if no hass update lands.
+  private _runningLatch = new RunningLatch(() => this.requestUpdate());
 
   // Set once the version banner has been printed, so re-renders don't spam it.
   private _versionLogged = false;
@@ -572,6 +573,7 @@ export class SaunaCard extends LitElement {
 
   override disconnectedCallback(): void {
     this._clearStartTimer();
+    this._runningLatch.dispose();
     super.disconnectedCallback();
   }
 

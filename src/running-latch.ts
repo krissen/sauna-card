@@ -41,6 +41,18 @@ export class RunningLatch {
   private until?: number;
   /** Context key (`deviceId|targetTemp`); a change resets the latch. */
   private ctx?: string;
+  /** One-shot timer that fires onExpire at `until`, so the UI re-renders and
+   * releases even if no hass update arrives in the meantime. */
+  private wakeTimer?: number;
+
+  /**
+   * @param onExpire optional callback (e.g. the host's requestUpdate) invoked
+   *   when the grace window elapses, so a quiet hold (no further hass updates
+   *   after a shutoff while still warm) still drops to off at the grace, not
+   *   whenever the next unrelated update happens. Omit it (tests) for a passive
+   *   latch with no timers.
+   */
+  constructor(private readonly onExpire?: () => void) {}
 
   /**
    * Advance the latch. Call exactly once per hass update, with the raw state
@@ -53,30 +65,56 @@ export class RunningLatch {
       this.ctx = ctx;
       this.until = undefined;
     }
-    if (!s) return;
 
-    const nearTarget =
-      s.currentTemp !== undefined &&
-      s.targetTemp !== undefined &&
-      s.currentTemp >= s.targetTemp - HOLD_NEAR_TARGET_C;
+    if (s) {
+      const nearTarget =
+        s.currentTemp !== undefined &&
+        s.targetTemp !== undefined &&
+        s.currentTemp >= s.targetTemp - HOLD_NEAR_TARGET_C;
 
-    if (s.powerOn === true) {
-      // A genuine running signal. Arm/refresh only while holding near target —
-      // during heat-up the signals are continuous and need no bridging, and we
-      // don't want to arm before the session has reached temperature.
-      if (nearTarget) this.until = now + HOLD_GRACE_MS;
-      return;
+      if (s.powerOn === true) {
+        // A genuine running signal. Arm/refresh only while holding near target —
+        // during heat-up the signals are continuous and need no bridging, and we
+        // don't want to arm before the session has reached temperature.
+        if (nearTarget) this.until = now + HOLD_GRACE_MS;
+      } else if (this.until !== undefined) {
+        // Raw signal says off/undefined. Keep the latch unless it has expired or
+        // the temperature shows a real cool-down (or temps are unknown — can't
+        // confirm a hold, so don't keep pretending it's on).
+        const coolingDown =
+          s.currentTemp === undefined ||
+          s.targetTemp === undefined ||
+          s.currentTemp < s.targetTemp - HOLD_COOLDOWN_BAND_C;
+        if (now >= this.until || coolingDown) this.until = undefined;
+      }
     }
 
-    // Raw signal says off/undefined. Keep the latch unless it has expired or the
-    // temperature shows a real cool-down (or temps are unknown — can't confirm a
-    // hold, so don't keep pretending it's on).
+    this.scheduleWake();
+  }
+
+  // Re-arm the one-shot wake at the current expiry. apply() is time-based, so a
+  // bare re-render at `until` releases the latch without needing a hass update.
+  private scheduleWake(): void {
+    if (!this.onExpire) return;
+    if (this.wakeTimer !== undefined) {
+      window.clearTimeout(this.wakeTimer);
+      this.wakeTimer = undefined;
+    }
     if (this.until === undefined) return;
-    const coolingDown =
-      s.currentTemp === undefined ||
-      s.targetTemp === undefined ||
-      s.currentTemp < s.targetTemp - HOLD_COOLDOWN_BAND_C;
-    if (now >= this.until || coolingDown) this.until = undefined;
+    const delay = this.until - Date.now();
+    if (delay <= 0) return;
+    this.wakeTimer = window.setTimeout(() => {
+      this.wakeTimer = undefined;
+      this.onExpire!();
+    }, delay);
+  }
+
+  /** Cancel any pending wake timer. Call from the host's disconnectedCallback. */
+  dispose(): void {
+    if (this.wakeTimer !== undefined) {
+      window.clearTimeout(this.wakeTimer);
+      this.wakeTimer = undefined;
+    }
   }
 
   /**

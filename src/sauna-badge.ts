@@ -95,7 +95,9 @@ export class SaunaBadge extends LitElement {
   // Hold-phase running latch: bridges the quiet PID gaps of an app-started
   // session so the badge doesn't blip to off mid-session (same flicker the card
   // fixes). Advanced once per hass update in willUpdate; applied in _state().
-  private _runningLatch = new RunningLatch();
+  // The requestUpdate callback re-renders at the grace expiry even if no hass
+  // update lands.
+  private _runningLatch = new RunningLatch(() => this.requestUpdate());
 
   // Set once the version banner has been printed, so re-renders don't spam it.
   private _versionLogged = false;
@@ -207,6 +209,11 @@ export class SaunaBadge extends LitElement {
 
   private _t = (key: string, vars?: Record<string, string | number>): string =>
     t(key, this._lang, vars);
+
+  override disconnectedCallback(): void {
+    this._runningLatch.dispose();
+    super.disconnectedCallback();
+  }
 
   // Advance the hold-phase latch once per hass update, from the raw state,
   // before render consumes the latched _state().

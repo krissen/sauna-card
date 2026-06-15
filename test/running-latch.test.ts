@@ -154,4 +154,48 @@ describe("RunningLatch", () => {
     latch.advance(null);
     expect(latch.apply(null)).toBe(null);
   });
+
+  it("fires onExpire at the grace window so a quiet hold still releases", () => {
+    const onExpire = vi.fn();
+    const latch = new RunningLatch(onExpire);
+    latch.advance(
+      makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+    );
+    // No further advance() (no hass update); the timer must still fire at grace.
+    expect(onExpire).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(10 * 60_000);
+    expect(onExpire).toHaveBeenCalledTimes(1);
+
+    // And by then apply() reports off, so the re-render the callback triggers
+    // would show the released state.
+    const quiet = makeState({ powerOn: false, status: "off", currentTemp: 90, targetTemp: 90 });
+    expect(latch.apply(quiet)!.powerOn).toBe(false);
+  });
+
+  it("reschedules a single wake across refreshes (no pile-up)", () => {
+    const onExpire = vi.fn();
+    const latch = new RunningLatch(onExpire);
+    const pulse = () =>
+      latch.advance(
+        makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+      );
+    pulse();
+    vi.advanceTimersByTime(5 * 60_000);
+    pulse(); // refresh: old timer cleared, new one at now+grace
+    vi.advanceTimersByTime(5 * 60_000); // 5 min after the refresh — not yet expired
+    expect(onExpire).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(5 * 60_000); // now grace from the refresh has elapsed
+    expect(onExpire).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispose cancels a pending wake", () => {
+    const onExpire = vi.fn();
+    const latch = new RunningLatch(onExpire);
+    latch.advance(
+      makeState({ powerOn: true, status: "ready", currentTemp: 90, targetTemp: 90 }),
+    );
+    latch.dispose();
+    vi.advanceTimersByTime(20 * 60_000);
+    expect(onExpire).not.toHaveBeenCalled();
+  });
 });
