@@ -8,6 +8,11 @@ import { dlog } from "../log";
 
 const UNAVAILABLE = new Set(["unavailable", "unknown", "none", ""]);
 
+// A sauna heater draws kilowatts while running and ≈0 W in standby, so any
+// non-trivial draw is firm evidence the sauna is on. The low threshold only
+// guards against sensor noise — it is not a meaningful "is it heating" cutoff.
+const POWER_DRAW_ON_W = 50;
+
 /** Numeric entity state, or undefined when absent/unavailable/non-numeric. */
 export function num(
   hass: Hass,
@@ -178,12 +183,30 @@ export function buildSaunaState(
     e.targetTemperature !== undefined
       ? n("targetTemperature", e.targetTemperature)
       : attr("targetTemperature", e.thermostat, "temperature");
-  const powerOn =
-    e.power !== undefined ? b("power", e.power) : climateOn(hass, e.thermostat);
   const heatingActive =
     e.heating !== undefined
       ? b("heating", e.heating)
       : climateHeating(hass, e.thermostat);
+  const powerDraw = n("powerSensor", e.powerSensor);
+  const ready = b("ready", e.ready);
+  // A session started from the Harvia app does not flip switch.power, yet the
+  // heater still signals it is running, so reading the switch alone shows such a
+  // session as off/cooling. Treat signs of actual operation as authoritative: the
+  // heater is heating (heat_on / hvac_action), drawing real power, or the
+  // integration's per-session ready latch is set. We deliberately do NOT treat
+  // the climate *mode* as such an override — a mapped power switch is an explicit
+  // physical cutoff that wins over climate intent (and is already the on/off
+  // source when no switch is mapped). switchPower stays true | false | undefined;
+  // only a positive running signal forces true — a genuine off (switch off, not
+  // heating, no draw, not ready) still yields false → "off", and no signals at
+  // all stays undefined.
+  const switchPower =
+    e.power !== undefined ? b("power", e.power) : climateOn(hass, e.thermostat);
+  const runningSignal =
+    heatingActive === true ||
+    ready === true ||
+    (powerDraw !== undefined && powerDraw > POWER_DRAW_ON_W);
+  const powerOn = runningSignal ? true : switchPower;
   const tempTrend = n("tempTrend", e.tempTrend);
 
   // Ready ETA. Prefer the integration's live `time_to_ready` sensor (v2.7.0): a
@@ -232,8 +255,6 @@ export function buildSaunaState(
     if (on !== undefined) switches[switchKey] = on;
   }
 
-  const ready = b("ready", e.ready);
-
   return {
     integration,
     deviceId,
@@ -242,6 +263,7 @@ export function buildSaunaState(
     serviceDeviceId: deviceId,
     model,
     available: Object.keys(e).length > 0,
+    powerOn,
     status: deriveStatus(
       powerOn,
       heatingActive,
@@ -256,7 +278,7 @@ export function buildSaunaState(
     readyEtaMinutes,
     ready,
     readyAtIso: s("readyAt", e.readyAt),
-    power: n("powerSensor", e.powerSensor),
+    power: powerDraw,
     energy: n("energy", e.energy),
     sessionsToday: n("sessionsToday", e.sessionsToday),
     sessionsWeek: n("sessionsWeek", e.sessionsWeek),

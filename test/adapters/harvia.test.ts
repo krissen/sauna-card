@@ -208,12 +208,73 @@ describe("harvia adapter readState", () => {
     expect(s!.status).toBe("idle");
   });
 
-  it("derives 'off' when power is off", () => {
+  it("derives 'off' only when genuinely off (no heating, draw or ready)", () => {
+    // switch.power is authoritative when present: heat_on, draw and ready are all
+    // off here, so the off switch wins (the climate fixture default is irrelevant).
     const s = harviaAdapter.readState(
-      makeHass({ "switch.bastu_strom": "off" }),
+      makeHass({
+        "switch.bastu_strom": "off",
+        "binary_sensor.bastu_uppvarmning_aktiv": "off",
+        "sensor.bastu_effekt": "0",
+      }),
       {
         type: "custom:sauna-card",
       },
+    );
+    expect(s!.status).toBe("off");
+    expect(s!.powerOn).toBe(false);
+  });
+
+  it("treats an app-started session (heating without power switch) as on", () => {
+    // Harvia app start leaves switch.power off, but heat_on + draw are live —
+    // those alone must read as a running, heating session.
+    const s = harviaAdapter.readState(
+      makeHass({ "switch.bastu_strom": "off" }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.status).toBe("heating");
+    expect(s!.powerOn).toBe(true);
+  });
+
+  it("treats the per-session ready latch as on even without a switch signal", () => {
+    // Holding at temperature: heat_on + draw have cycled off and the switch is
+    // off, but the integration's ready latch is set — still a running session.
+    const s = harviaAdapter.readState(
+      makeHass({
+        "switch.bastu_strom": "off",
+        "binary_sensor.bastu_uppvarmning_aktiv": "off",
+        "sensor.bastu_effekt": "0",
+        "binary_sensor.bastu_klar": "on",
+        "sensor.bastu_temperatur": "90",
+      }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.powerOn).toBe(true);
+    expect(s!.status).toBe("ready");
+  });
+
+  it("treats real power draw as on even when heat_on is off", () => {
+    // Isolate the draw signal: switch and heat_on off, only draw is live.
+    const s = harviaAdapter.readState(
+      makeHass({
+        "switch.bastu_strom": "off",
+        "binary_sensor.bastu_uppvarmning_aktiv": "off",
+        "sensor.bastu_effekt": "3000",
+        "sensor.bastu_temperatur": "40",
+      }),
+      { type: "custom:sauna-card" },
+    );
+    expect(s!.status).toBe("idle");
+  });
+
+  it("stays off when power draw is below the threshold", () => {
+    const s = harviaAdapter.readState(
+      makeHass({
+        "switch.bastu_strom": "off",
+        "binary_sensor.bastu_uppvarmning_aktiv": "off",
+        "sensor.bastu_effekt": "10",
+      }),
+      { type: "custom:sauna-card" },
     );
     expect(s!.status).toBe("off");
   });

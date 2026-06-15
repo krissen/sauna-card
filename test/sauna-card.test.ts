@@ -1645,3 +1645,100 @@ describe("door open blocks start (reuses the remote-off treatment)", () => {
     document.body.removeChild(c);
   });
 });
+
+describe("app-started session (Harvia app: switch.power off, heater running)", () => {
+  // The defining trait of an app-started session: the power switch stays off,
+  // yet heat_on + real power draw report a running heater. Every on/off-facing
+  // control must read the derived truth, not the raw switch.
+  function appSessionHass(): {
+    hass: Hass;
+    calls: Array<[string, string, Record<string, unknown>]>;
+  } {
+    const calls: Array<[string, string, Record<string, unknown>]> = [];
+    const reg: Array<[string, string, string]> = [
+      ["switch.p", "power", "off"],
+      ["binary_sensor.h", "heat_on", "on"],
+      ["sensor.e", "power", "6800"],
+      ["climate.t", "thermostat", "off"],
+    ];
+    const states: Record<string, unknown> = {};
+    const entities: Record<string, unknown> = {};
+    for (const [id, tk, st] of reg) {
+      states[id] = { entity_id: id, state: st, attributes: {} };
+      entities[id] = {
+        entity_id: id,
+        platform: "harvia_sauna",
+        translation_key: tk,
+        device_id: "d1",
+      };
+    }
+    const hass = {
+      states,
+      entities,
+      devices: { d1: { id: "d1", name: "Bastu" } },
+      callService: (
+        domain: string,
+        service: string,
+        data: Record<string, unknown>,
+      ) => {
+        calls.push([domain, service, data]);
+        return Promise.resolve();
+      },
+    } as unknown as Hass;
+    return { hass, calls };
+  }
+
+  async function mount(hass: Hass): Promise<SaunaCard> {
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card" });
+    document.body.appendChild(card);
+    card.hass = hass;
+    await card.updateComplete;
+    return card;
+  }
+
+  const powerChip = (c: SaunaCard) =>
+    Array.from(
+      c.shadowRoot!.querySelectorAll(".chips:not(.presets) .chip"),
+    ).find((b) =>
+      b.textContent!.trim().includes("Power"),
+    ) as HTMLButtonElement | null;
+
+  it("derives the session as on (powerOn) despite switch.power being off", async () => {
+    const { hass } = appSessionHass();
+    const c = await mount(hass);
+    const priv = c as unknown as { _state(): { powerOn?: boolean } };
+    expect(priv._state().powerOn).toBe(true);
+    document.body.removeChild(c);
+  });
+
+  it("the CTA offers to turn off, not to start", async () => {
+    const { hass } = appSessionHass();
+    const c = await mount(hass);
+    const cta = c.shadowRoot!.querySelector(".cta button") as HTMLButtonElement;
+    expect(cta.textContent!.trim()).toBe("Turn off");
+    document.body.removeChild(c);
+  });
+
+  it("marks the power chip as on", async () => {
+    const { hass } = appSessionHass();
+    const c = await mount(hass);
+    const chip = powerChip(c)!;
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    expect(chip.classList.contains("on")).toBe(true);
+    document.body.removeChild(c);
+  });
+
+  it("stops the session via set_session (not a raw switch toggle) when the power chip is tapped", async () => {
+    const { hass, calls } = appSessionHass();
+    const c = await mount(hass);
+    powerChip(c)!.click();
+    const setSession = calls.find(([, service]) => service === "set_session");
+    expect(setSession).toBeTruthy();
+    expect(setSession![0]).toBe("harvia_sauna");
+    expect(setSession![2].active).toBe(false);
+    // It must NOT fall back to a raw homeassistant.toggle of switch.power.
+    expect(calls.some(([, service]) => service === "toggle")).toBe(false);
+    document.body.removeChild(c);
+  });
+});

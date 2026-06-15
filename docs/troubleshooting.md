@@ -44,6 +44,27 @@ Items **hide when their entity is missing, unavailable or disabled**.
 Some values also only have data in certain states — e.g. `remaining`/`eta` while
 a session is running, `last_session_*` after the first session.
 
+### The sauna is on but the card shows it as off or cooling down
+
+Starting the sauna **from the Harvia app** (rather than from the card) leaves the
+integration's power switch off and its session timers at zero — only the
+`heat_on` binary sensor and the power-draw sensor reflect the running heater. The
+card reads those, so a session started anywhere shows as **heating**, the button
+becomes a **stop** (and stops the session), and the power chip reads **on**.
+
+If an older card version still shows such a session as off or drawing a cool-down
+curve, update the card; a hard refresh clears a stale cached bundle.
+
+### "Ready in N min" / remaining time isn't shown
+
+The card shows a live "ready in N min" while heating. It prefers the
+integration's `time_to_ready` sensor; when that has no value — it stays
+*unknown* for app-started sessions — it falls back to estimating from the
+**temperature trend**. That `temp_trend` sensor is **disabled by default** by the
+integration, so enable it (Settings → Devices & services → the *Temperature
+trend* entity → ⚙ → *Enabled*) for the estimate to appear. Without either source
+the remaining-time tile hides rather than showing a misleading `0 min`.
+
 ### The card or badge doesn't appear in the picker
 
 Make sure the dashboard **resource** is registered (HACS does this automatically;
