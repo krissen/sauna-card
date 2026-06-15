@@ -188,16 +188,23 @@ export function buildSaunaState(
       ? b("heating", e.heating)
       : climateHeating(hass, e.thermostat);
   const powerDraw = n("powerSensor", e.powerSensor);
+  const ready = b("ready", e.ready);
   // A session started from the Harvia app does not flip switch.power, yet the
-  // heater still reports heat_on + real power draw. Treat those as authoritative
-  // evidence the sauna is on, otherwise an app-started session shows as
-  // off/cooling. switchPower stays true | false | undefined; only a positive
-  // running signal forces true — a genuine off (switch off, not heating, no
-  // draw) still yields false → "off", and no signals at all stays undefined.
+  // heater still signals it is running, so reading the switch alone shows such a
+  // session as off/cooling. Treat signs of actual operation as authoritative: the
+  // heater is heating (heat_on / hvac_action), drawing real power, or the
+  // integration's per-session ready latch is set. We deliberately do NOT treat
+  // the climate *mode* as such an override — a mapped power switch is an explicit
+  // physical cutoff that wins over climate intent (and is already the on/off
+  // source when no switch is mapped). switchPower stays true | false | undefined;
+  // only a positive running signal forces true — a genuine off (switch off, not
+  // heating, no draw, not ready) still yields false → "off", and no signals at
+  // all stays undefined.
   const switchPower =
     e.power !== undefined ? b("power", e.power) : climateOn(hass, e.thermostat);
   const runningSignal =
     heatingActive === true ||
+    ready === true ||
     (powerDraw !== undefined && powerDraw > POWER_DRAW_ON_W);
   const powerOn = runningSignal ? true : switchPower;
   const tempTrend = n("tempTrend", e.tempTrend);
@@ -247,8 +254,6 @@ export function buildSaunaState(
     const on = b(entityKey, e[entityKey]);
     if (on !== undefined) switches[switchKey] = on;
   }
-
-  const ready = b("ready", e.ready);
 
   return {
     integration,
