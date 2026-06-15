@@ -50,7 +50,11 @@ import {
   MAX_TEMP,
 } from "./controls";
 import { fireMoreInfo } from "./utils/more-info";
-import { RunningLatch, SESSION_STOPPED_EVENT } from "./running-latch";
+import {
+  RunningLatch,
+  SESSION_STOPPED_EVENT,
+  type SessionStoppedDetail,
+} from "./running-latch";
 import { logVersionBanner, dlog } from "./log";
 
 const TEMP_STEP = 5;
@@ -572,7 +576,25 @@ export class SaunaCard extends LitElement {
     setTargetTemperature(this.hass, s, next, this._debug);
   }
 
+  // Release this card's latch when any surface stops this device's session —
+  // another card or a badge for the same device, or this card's own stop (which
+  // dispatches the event). An app-started stop may produce no hass change, so
+  // each surface needs the push to release its own latch.
+  private _onSessionStopped = (e: Event): void => {
+    const deviceId = (e as CustomEvent<SessionStoppedDetail>).detail?.deviceId;
+    const cur = this._rawState();
+    if (!cur || cur.serviceDeviceId !== deviceId) return;
+    this._runningLatch.notifyStopped();
+    this._reflectLatchRelease();
+  };
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener(SESSION_STOPPED_EVENT, this._onSessionStopped);
+  }
+
   override disconnectedCallback(): void {
+    window.removeEventListener(SESSION_STOPPED_EVENT, this._onSessionStopped);
     this._clearStartTimer();
     this._runningLatch.dispose();
     super.disconnectedCallback();
@@ -1003,18 +1025,16 @@ export class SaunaCard extends LitElement {
       // produce no hass change, and notifyStopped only mutates the non-reactive
       // latch). A rejected or undispatched stop leaves the latch armed: the
       // session may still be running, and showing it off would hide the failure.
-      const release = () => {
-        this._runningLatch.notifyStopped();
-        this._reflectLatchRelease();
-        // Tell other surfaces for this device (a sauna-badge, another card) so
-        // they release their own latch — they may see no hass change to notice
-        // the stop. Their serviceDeviceId resolves to the same id.
+      // Announce the stop for every surface of this device — this card, another
+      // card, a badge — so each releases its own latch (an app-started stop may
+      // produce no hass change to observe). This card's own _onSessionStopped
+      // listener handles it too, so the release path is unified here.
+      const release = () =>
         window.dispatchEvent(
           new CustomEvent(SESSION_STOPPED_EVENT, {
             detail: { deviceId: s.serviceDeviceId },
           }),
         );
-      };
       if (result) void result.then((ok) => ok && release());
     }
   }

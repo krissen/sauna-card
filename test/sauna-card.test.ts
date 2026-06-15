@@ -1926,6 +1926,41 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
     }
   });
 
+  it("releases a second card for the same device when one card stops", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const a = await mountHolding(); // card A armed
+      const b = new SaunaCard();
+      b.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(b);
+      b.hass = mk(true, TARGET); // arm card B for the same device
+      await b.updateComplete;
+
+      vi.advanceTimersByTime(60_000);
+      a.hass = mk(false, TARGET); // both into a holding gap → on
+      b.hass = mk(false, TARGET);
+      await a.updateComplete;
+      await b.updateComplete;
+      expect(powerOn(a)).toBe(true);
+      expect(powerOn(b)).toBe(true);
+
+      // Stop from card A. Card B sees no relevant hass change but must release
+      // via the dispatched stop event.
+      (a.shadowRoot!.querySelector(".cta button") as HTMLButtonElement).click();
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      await a.updateComplete;
+      await b.updateComplete;
+      expect(powerOn(a)).toBe(false);
+      expect(powerOn(b)).toBe(false);
+
+      document.body.removeChild(a);
+      document.body.removeChild(b);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the latch on when the stop service call fails", async () => {
     // callService rejects → the stop did not take; the heater may still be
     // running, so the latch must stay armed rather than show a false off.
