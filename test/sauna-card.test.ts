@@ -1893,24 +1893,30 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
     }
   });
 
-  it("clears the latch when the user taps Turn off during a hold", async () => {
+  it("clears the latch and re-renders at once when the user taps Turn off mid-gap", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(1_700_000_000_000));
     try {
-      const c = await mountHolding(); // app-started, latched at target
+      const c = await mountHolding(); // pulse arms the latch
+      vi.advanceTimersByTime(60_000);
+      c.hass = mk(false, TARGET); // gap: latch bridges → on, CTA "Turn off"
+      await c.updateComplete;
       const cta = c.shadowRoot!.querySelector(
         ".cta button",
       ) as HTMLButtonElement;
       expect(cta.textContent!.trim()).toBe("Turn off");
+      expect(powerOn(c)).toBe(true);
 
-      // User stops. The next raw state is a quiet gap (still warm) — identical to
-      // a PID gap — but the explicit stop must win.
+      // Tap Turn off. The raw states are already off/quiet, so the stop produces
+      // NO further hass update — the release must still reflect immediately.
       cta.click();
-      vi.advanceTimersByTime(60_000);
-      c.hass = mk(false, TARGET);
       await c.updateComplete;
       expect(powerOn(c)).toBe(false);
       expect(status(c)).toBe("off");
+      const cta2 = c.shadowRoot!.querySelector(
+        ".cta button",
+      ) as HTMLButtonElement;
+      expect(cta2.textContent!.trim()).not.toBe("Turn off");
 
       document.body.removeChild(c);
     } finally {

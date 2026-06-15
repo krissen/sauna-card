@@ -193,7 +193,7 @@ export class SaunaCard extends LitElement {
   // state in willUpdate; applied (read-only) in _state(). The wake callback
   // re-renders (and re-advances the graph) at the grace expiry even if no hass
   // update lands.
-  private _runningLatch = new RunningLatch(() => this._onLatchWake());
+  private _runningLatch = new RunningLatch(() => this._reflectLatchRelease());
 
   // Set once the version banner has been printed, so re-renders don't spam it.
   private _versionLogged = false;
@@ -615,12 +615,13 @@ export class SaunaCard extends LitElement {
     this._trackGraph(this._runningLatch.apply(raw));
   }
 
-  // The latch's grace expiry fires here (no hass change); the latch has already
-  // released itself. Re-run the graph with the now-released state so it sees the
-  // held → off transition (cooldown anchor/history), not just the power flag —
-  // willUpdate skips that work on a non-hass update. Don't advance() here: that
-  // could re-arm from a still-running last sample instead of releasing.
-  private _onLatchWake(): void {
+  // Reflect a latch release that happened outside an update cycle: the grace
+  // timer firing, or an explicit user stop. Both can occur with no hass change,
+  // so re-render AND re-run the graph with the now-released state (the held → off
+  // transition opens the cool-down anchor/history) — willUpdate skips that work
+  // on a non-hass update. Don't advance() here: that could re-arm from a
+  // still-running last sample instead of releasing.
+  private _reflectLatchRelease(): void {
     if (!this.hass) return;
     this._trackGraph(this._runningLatch.apply(this._rawState()));
     this.requestUpdate();
@@ -975,8 +976,11 @@ export class SaunaCard extends LitElement {
       // Release the hold-phase latch now: after an app-started session is
       // stopped here, the raw state (switch off, still warm) looks exactly like
       // a PID gap, so without this the card would keep reporting on/"Turn off"
-      // until the grace expired.
+      // until the grace expired. The stop may produce no further hass change
+      // (states already off), and notifyStopped() only mutates the non-reactive
+      // latch, so reflect the release explicitly to re-render now.
       this._runningLatch.notifyStopped();
+      this._reflectLatchRelease();
     }
     if (active) {
       // The proactive door notice is part of an actual start attempt only (not
