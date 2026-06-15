@@ -118,6 +118,59 @@ describe("RunningLatch", () => {
     expect(latch.apply(off)!.powerOn).toBe(false);
   });
 
+  it("releases on an explicit stop and suppresses a stale re-arming pulse", () => {
+    const latch = new RunningLatch();
+    const armed = () =>
+      makeState({
+        powerOn: true,
+        switchPower: false,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      });
+    latch.advance(armed()); // app-started hold, latched
+
+    // User stops. The post-stop gap (still warm, every signal quiet) must read
+    // off, not be bridged.
+    latch.notifyStopped();
+    const gap = makeState({
+      powerOn: false,
+      switchPower: false,
+      status: "off",
+      currentTemp: 90,
+      targetTemp: 90,
+    });
+    latch.advance(gap);
+    expect(latch.apply(gap)!.powerOn).toBe(false);
+
+    // A stale pulse a few seconds later must NOT re-latch the ended session.
+    vi.advanceTimersByTime(10_000);
+    latch.advance(armed());
+    const gap2 = makeState({
+      powerOn: false,
+      switchPower: false,
+      status: "off",
+      currentTemp: 90,
+      targetTemp: 90,
+    });
+    latch.advance(gap2);
+    expect(latch.apply(gap2)!.powerOn).toBe(false);
+
+    // Once the suppression window passes, a genuine new hold can arm again.
+    vi.advanceTimersByTime(60_000);
+    latch.advance(armed());
+    vi.advanceTimersByTime(60_000);
+    const gap3 = makeState({
+      powerOn: false,
+      switchPower: false,
+      status: "off",
+      currentTemp: 90,
+      targetTemp: 90,
+    });
+    latch.advance(gap3);
+    expect(latch.apply(gap3)!.powerOn).toBe(true);
+  });
+
   it("resets when the target changes", () => {
     const latch = new RunningLatch();
     latch.advance(

@@ -1793,6 +1793,7 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
       },
       entities,
       devices: { d1: { id: "d1", name: "Bastu" } },
+      callService: () => Promise.resolve(),
     }) as unknown as Hass;
 
   async function mountHolding(): Promise<SaunaCard> {
@@ -1861,6 +1862,31 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
       c.hass = mk(false, TARGET - 8);
       await c.updateComplete;
       expect(powerOn(c)).toBe(false);
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the latch when the user taps Turn off during a hold", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding(); // app-started, latched at target
+      const cta = c.shadowRoot!.querySelector(
+        ".cta button",
+      ) as HTMLButtonElement;
+      expect(cta.textContent!.trim()).toBe("Turn off");
+
+      // User stops. The next raw state is a quiet gap (still warm) — identical to
+      // a PID gap — but the explicit stop must win.
+      cta.click();
+      vi.advanceTimersByTime(60_000);
+      c.hass = mk(false, TARGET);
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      expect(status(c)).toBe("off");
+
       document.body.removeChild(c);
     } finally {
       vi.useRealTimers();

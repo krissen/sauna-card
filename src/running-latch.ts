@@ -31,6 +31,12 @@ const HOLD_COOLDOWN_BAND_C = 5;
  * further apart. Too long delays recognizing a genuine off while still warm. */
 const HOLD_GRACE_MS = 10 * 60_000;
 
+/** After an explicit user stop, block re-arming for this long. The post-stop
+ * raw state (app-started: switch off, still warm) looks like a PID gap, and a
+ * stale heat_on/draw pulse can still arrive a poll or two later (cloud lag);
+ * this stops such a pulse from re-latching a session the user just ended. */
+const STOP_ARM_SUPPRESS_MS = 60_000;
+
 /**
  * A per-component hold-phase running latch. Advance it once per hass update from
  * the *raw* derived state, then apply it (read-only, any number of times) to
@@ -41,6 +47,8 @@ export class RunningLatch {
   private until?: number;
   /** Context key (`deviceId|targetTemp`); a change resets the latch. */
   private ctx?: string;
+  /** Epoch ms before which arming is blocked, after an explicit user stop. */
+  private armBlockedUntil?: number;
   /** One-shot timer that fires onExpire at `until`, so the UI re-renders and
    * releases even if no hass update arrives in the meantime. */
   private wakeTimer?: number;
@@ -64,6 +72,7 @@ export class RunningLatch {
     if (ctx !== this.ctx) {
       this.ctx = ctx;
       this.until = undefined;
+      this.armBlockedUntil = undefined;
     }
 
     if (s) {
@@ -79,8 +88,14 @@ export class RunningLatch {
         // off and must not be latched — otherwise turning it off while still warm
         // would read on until the grace expires. This scopes the latch to the
         // app-started case (switch off throughout), the only one with PID gaps to
-        // bridge. Heat-up is excluded too: it isn't near target.
-        if (nearTarget && s.switchPower !== true) this.until = now + HOLD_GRACE_MS;
+        // bridge. Heat-up is excluded too: it isn't near target. After an
+        // explicit stop, arming is briefly suppressed so a stale pulse can't
+        // re-latch the just-ended session.
+        const armBlocked =
+          this.armBlockedUntil !== undefined && now < this.armBlockedUntil;
+        if (nearTarget && s.switchPower !== true && !armBlocked) {
+          this.until = now + HOLD_GRACE_MS;
+        }
       } else if (this.until !== undefined) {
         // Raw signal says off/undefined. Keep the latch unless it has expired or
         // the temperature shows a real cool-down (or temps are unknown — can't
@@ -111,6 +126,19 @@ export class RunningLatch {
       this.wakeTimer = undefined;
       this.onExpire!();
     }, delay);
+  }
+
+  /**
+   * Release the latch on an explicit user stop. The post-stop raw state is
+   * indistinguishable from a PID gap (app-started: switch off, still warm), so
+   * without this the latch would keep reporting on until the grace expired even
+   * though the user just stopped. Also suppresses re-arming briefly so a stale
+   * pulse can't re-latch the ended session.
+   */
+  notifyStopped(): void {
+    this.until = undefined;
+    this.armBlockedUntil = Date.now() + STOP_ARM_SUPPRESS_MS;
+    this.scheduleWake();
   }
 
   /** Cancel any pending wake timer. Call from the host's disconnectedCallback. */

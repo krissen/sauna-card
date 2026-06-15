@@ -951,6 +951,13 @@ export class SaunaCard extends LitElement {
     // its notice.
     this._clearStartTimer();
     this._startFailed = undefined;
+    if (!active) {
+      // Release the hold-phase latch now: after an app-started session is
+      // stopped here, the raw state (switch off, still warm) looks exactly like
+      // a PID gap, so without this the card would keep reporting on/"Turn off"
+      // until the grace expired.
+      this._runningLatch.notifyStopped();
+    }
     if (active) {
       // The proactive door notice is part of an actual start attempt only (not
       // shown for an idle sauna resting with the door open): if the door is open
