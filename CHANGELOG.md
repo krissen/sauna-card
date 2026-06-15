@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-15
+
 ### Changed
 - **Whole-session graph and cool-down robustness.** The whole-session two-tone
   arc (`cooldown_include_heatup`) is now **on by default**, so a session shows the
