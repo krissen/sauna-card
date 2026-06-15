@@ -1866,4 +1866,54 @@ describe("app-started hold phase (PID gaps must not blip the card to off)", () =
       vi.useRealTimers();
     }
   });
+
+  it("does not latch a switch-controlled session: an explicit off reads off at once", async () => {
+    // switch.power on (card/switch-started), at target. Turning it off while
+    // still warm must read off immediately — the latch only scopes to the
+    // app-started case (switch off throughout).
+    const swMk = (power: string, cur: number): Hass =>
+      ({
+        states: {
+          "switch.p": { entity_id: "switch.p", state: power, attributes: {} },
+          "binary_sensor.h": {
+            entity_id: "binary_sensor.h",
+            state: "off",
+            attributes: {},
+          },
+          "sensor.e": { entity_id: "sensor.e", state: "0", attributes: {} },
+          "sensor.cur": {
+            entity_id: "sensor.cur",
+            state: String(cur),
+            attributes: {},
+          },
+          "sensor.tgt": {
+            entity_id: "sensor.tgt",
+            state: String(TARGET),
+            attributes: {},
+          },
+        },
+        entities,
+        devices: { d1: { id: "d1", name: "Bastu" } },
+      }) as unknown as Hass;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = new SaunaCard();
+      c.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(c);
+      c.hass = swMk("on", TARGET); // running on the switch, at target
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(true);
+
+      vi.advanceTimersByTime(60_000);
+      c.hass = swMk("off", TARGET); // explicit off, still warm
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      expect(status(c)).toBe("off");
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

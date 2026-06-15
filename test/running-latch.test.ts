@@ -90,6 +90,34 @@ describe("RunningLatch", () => {
     expect(latch.apply(gap)!.powerOn).toBe(false);
   });
 
+  it("does not arm a switch-controlled session (explicit off stays immediate)", () => {
+    const latch = new RunningLatch();
+    // Card/switch-started: the switch holds it on, so switchPower is true at
+    // target. No PID gap to bridge — the latch must not arm.
+    latch.advance(
+      makeState({
+        powerOn: true,
+        switchPower: true,
+        status: "ready",
+        currentTemp: 90,
+        targetTemp: 90,
+      }),
+    );
+
+    // User turns it off while still warm: switch off, powerOn false, temp near
+    // target. Without the gate this would be masked for 10 min; it must read off.
+    vi.advanceTimersByTime(60_000);
+    const off = makeState({
+      powerOn: false,
+      switchPower: false,
+      status: "off",
+      currentTemp: 90,
+      targetTemp: 90,
+    });
+    latch.advance(off);
+    expect(latch.apply(off)!.powerOn).toBe(false);
+  });
+
   it("resets when the target changes", () => {
     const latch = new RunningLatch();
     latch.advance(

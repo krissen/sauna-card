@@ -73,10 +73,14 @@ export class RunningLatch {
         s.currentTemp >= s.targetTemp - HOLD_NEAR_TARGET_C;
 
       if (s.powerOn === true) {
-        // A genuine running signal. Arm/refresh only while holding near target —
-        // during heat-up the signals are continuous and need no bridging, and we
-        // don't want to arm before the session has reached temperature.
-        if (nearTarget) this.until = now + HOLD_GRACE_MS;
+        // A genuine running signal. Arm/refresh only while holding near target,
+        // AND only when no explicit switch/climate is holding the session on
+        // (switchPower !== true). A switch-controlled session has an authoritative
+        // off and must not be latched — otherwise turning it off while still warm
+        // would read on until the grace expires. This scopes the latch to the
+        // app-started case (switch off throughout), the only one with PID gaps to
+        // bridge. Heat-up is excluded too: it isn't near target.
+        if (nearTarget && s.switchPower !== true) this.until = now + HOLD_GRACE_MS;
       } else if (this.until !== undefined) {
         // Raw signal says off/undefined. Keep the latch unless it has expired or
         // the temperature shows a real cool-down (or temps are unknown — can't
