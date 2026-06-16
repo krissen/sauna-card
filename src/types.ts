@@ -199,6 +199,13 @@ export interface SaunaState {
    * of truth all UI reads — a Harvia-app-started session leaves switch.power off
    * yet still reads on here. undefined when no signal is available ("unknown"). */
   powerOn?: boolean;
+  /** Raw explicit on/off from the power switch (or climate mode when no switch
+   * is mapped), before the running-signal override that folds in heat_on / draw
+   * / ready. True means an explicit control is holding the session on; an
+   * app-started session reads false here even while running. Used to scope the
+   * hold-phase latch to the app-started case (a switch-controlled session has an
+   * authoritative off and must not be latched). undefined when none is mapped. */
+  switchPower?: boolean;
   currentTemp?: number;
   targetTemp?: number;
   humidity?: number;

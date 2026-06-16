@@ -264,6 +264,7 @@ export function buildSaunaState(
     model,
     available: Object.keys(e).length > 0,
     powerOn,
+    switchPower,
     status: deriveStatus(
       powerOn,
       heatingActive,

@@ -1742,3 +1742,384 @@ describe("app-started session (Harvia app: switch.power off, heater running)", (
     document.body.removeChild(c);
   });
 });
+
+describe("app-started hold phase (PID gaps must not blip the card to off)", () => {
+  // Steady-state hold of an app-started session: switch.power off, climate off,
+  // ready latch off. The heater PID-cycles, so between pulses heat_on and the
+  // power-draw sensor also fall to off/0 — every raw on/off signal goes quiet
+  // while the sauna sits at target. The hold-phase latch bridges those gaps.
+  const TARGET = 90;
+  const reg: Array<[string, string]> = [
+    ["switch.p", "power"],
+    ["binary_sensor.h", "heat_on"],
+    ["sensor.e", "power"],
+    ["sensor.cur", "current_temperature"],
+    ["sensor.tgt", "target_temperature"],
+  ];
+  const entities: Record<string, unknown> = {};
+  for (const [id, tk] of reg) {
+    entities[id] = {
+      entity_id: id,
+      platform: "harvia_sauna",
+      translation_key: tk,
+      device_id: "d1",
+    };
+  }
+  // heat: a PID pulse (on, drawing) vs a gap (off, 0W). cur: current temp.
+  const mk = (heat: boolean, cur: number): Hass =>
+    ({
+      states: {
+        "switch.p": { entity_id: "switch.p", state: "off", attributes: {} },
+        "binary_sensor.h": {
+          entity_id: "binary_sensor.h",
+          state: heat ? "on" : "off",
+          attributes: {},
+        },
+        "sensor.e": {
+          entity_id: "sensor.e",
+          state: heat ? "6800" : "0",
+          attributes: {},
+        },
+        "sensor.cur": {
+          entity_id: "sensor.cur",
+          state: String(cur),
+          attributes: {},
+        },
+        "sensor.tgt": {
+          entity_id: "sensor.tgt",
+          state: String(TARGET),
+          attributes: {},
+        },
+      },
+      entities,
+      devices: { d1: { id: "d1", name: "Bastu" } },
+      callService: () => Promise.resolve(),
+    }) as unknown as Hass;
+
+  async function mountHolding(): Promise<SaunaCard> {
+    // First beat: a pulse at target arms the latch.
+    const card = new SaunaCard();
+    card.setConfig({ type: "custom:sauna-card" });
+    document.body.appendChild(card);
+    card.hass = mk(true, TARGET);
+    await card.updateComplete;
+    return card;
+  }
+
+  const powerOn = (c: SaunaCard) =>
+    (c as unknown as { _state(): { powerOn?: boolean } })._state().powerOn;
+  const status = (c: SaunaCard) =>
+    (c as unknown as { _state(): { status?: string } })._state().status;
+  const prevStatus = (c: SaunaCard) =>
+    (c as unknown as { _prevStatus?: string })._prevStatus;
+
+  it("stays on through a quiet PID gap while holding at target", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding();
+      expect(powerOn(c)).toBe(true);
+
+      // A minute later: heat_on off, 0 W, still at target — a PID gap.
+      vi.advanceTimersByTime(60_000);
+      c.hass = mk(false, TARGET);
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(true);
+      expect(status(c)).toBe("ready");
+      const cta = c.shadowRoot!.querySelector(
+        ".cta button",
+      ) as HTMLButtonElement;
+      expect(cta.textContent!.trim()).toBe("Turn off");
+
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns to off once the gap outlasts the grace window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding();
+      // Quiet for longer than the 10-min grace, still warm.
+      vi.advanceTimersByTime(11 * 60_000);
+      c.hass = mk(false, TARGET);
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      expect(status(c)).toBe("off");
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns to off immediately on a real cool-down within the grace window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding();
+      // A minute later but the temperature has fallen well below target.
+      vi.advanceTimersByTime(60_000);
+      c.hass = mk(false, TARGET - 8);
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("advances the graph to off when the grace expires on a quiet hold", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding(); // pulse arms the latch
+      vi.advanceTimersByTime(60_000);
+      c.hass = mk(false, TARGET); // gap: latch holds, status "ready"
+      await c.updateComplete;
+      expect(prevStatus(c)).toBe("ready");
+
+      // Go quiet: no further hass updates. The wake timer fires at the grace and
+      // must advance the graph past the held → off edge, not just the power flag.
+      vi.advanceTimersByTime(10 * 60_000);
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      expect(prevStatus(c)).toBe("off");
+
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the latch and re-renders at once when the user taps Turn off mid-gap", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = await mountHolding(); // pulse arms the latch
+      vi.advanceTimersByTime(60_000);
+      c.hass = mk(false, TARGET); // gap: latch bridges → on, CTA "Turn off"
+      await c.updateComplete;
+      const cta = c.shadowRoot!.querySelector(
+        ".cta button",
+      ) as HTMLButtonElement;
+      expect(cta.textContent!.trim()).toBe("Turn off");
+      expect(powerOn(c)).toBe(true);
+
+      // Tap Turn off. The raw states are already off/quiet, so the stop produces
+      // NO further hass update — the release (deferred until the stop call
+      // settles) must still reflect. Flush the microtasks then the render.
+      cta.click();
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      expect(status(c)).toBe("off");
+      const cta2 = c.shadowRoot!.querySelector(
+        ".cta button",
+      ) as HTMLButtonElement;
+      expect(cta2.textContent!.trim()).not.toBe("Turn off");
+
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("releases a second card for the same device when one card stops", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const a = await mountHolding(); // card A armed
+      const b = new SaunaCard();
+      b.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(b);
+      b.hass = mk(true, TARGET); // arm card B for the same device
+      await b.updateComplete;
+
+      vi.advanceTimersByTime(60_000);
+      a.hass = mk(false, TARGET); // both into a holding gap → on
+      b.hass = mk(false, TARGET);
+      await a.updateComplete;
+      await b.updateComplete;
+      expect(powerOn(a)).toBe(true);
+      expect(powerOn(b)).toBe(true);
+
+      // Stop from card A. Card B sees no relevant hass change but must release
+      // via the dispatched stop event.
+      (a.shadowRoot!.querySelector(".cta button") as HTMLButtonElement).click();
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      await a.updateComplete;
+      await b.updateComplete;
+      expect(powerOn(a)).toBe(false);
+      expect(powerOn(b)).toBe(false);
+
+      document.body.removeChild(a);
+      document.body.removeChild(b);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the latch on when the stop service call fails", async () => {
+    // callService rejects → the stop did not take; the heater may still be
+    // running, so the latch must stay armed rather than show a false off.
+    const rejectingHass = (heat: boolean): Hass =>
+      ({
+        ...(mk(heat, TARGET) as unknown as Record<string, unknown>),
+        callService: () => Promise.reject(new Error("backend down")),
+      }) as unknown as Hass;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = new SaunaCard();
+      c.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(c);
+      c.hass = rejectingHass(true); // pulse arms the latch
+      await c.updateComplete;
+      vi.advanceTimersByTime(60_000);
+      c.hass = rejectingHass(false); // gap: latch bridges → on
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(true);
+
+      const cta = c.shadowRoot!.querySelector(
+        ".cta button",
+      ) as HTMLButtonElement;
+      cta.click(); // stop attempt — rejects
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      await c.updateComplete;
+      // Stop failed → still shown as running.
+      expect(powerOn(c)).toBe(true);
+
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not latch a switch-controlled session: an explicit off reads off at once", async () => {
+    // switch.power on (card/switch-started), at target. Turning it off while
+    // still warm must read off immediately — the latch only scopes to the
+    // app-started case (switch off throughout).
+    const swMk = (power: string, cur: number): Hass =>
+      ({
+        states: {
+          "switch.p": { entity_id: "switch.p", state: power, attributes: {} },
+          "binary_sensor.h": {
+            entity_id: "binary_sensor.h",
+            state: "off",
+            attributes: {},
+          },
+          "sensor.e": { entity_id: "sensor.e", state: "0", attributes: {} },
+          "sensor.cur": {
+            entity_id: "sensor.cur",
+            state: String(cur),
+            attributes: {},
+          },
+          "sensor.tgt": {
+            entity_id: "sensor.tgt",
+            state: String(TARGET),
+            attributes: {},
+          },
+        },
+        entities,
+        devices: { d1: { id: "d1", name: "Bastu" } },
+      }) as unknown as Hass;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = new SaunaCard();
+      c.setConfig({ type: "custom:sauna-card" });
+      document.body.appendChild(c);
+      c.hass = swMk("on", TARGET); // running on the switch, at target
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(true);
+
+      vi.advanceTimersByTime(60_000);
+      c.hass = swMk("off", TARGET); // explicit off, still warm
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false);
+      expect(status(c)).toBe("off");
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resets the latch when the config points at a different device", async () => {
+    // Two devices: d1 app-started and holding (arms the latch), d2 off but still
+    // warm. Re-pointing device_id to d2 must not apply d1's armed latch to d2.
+    const twoDeviceHass = (): Hass => {
+      const reg2: Array<[string, string, string]> = [
+        ["switch.p1", "power", "d1"],
+        ["binary_sensor.h1", "heat_on", "d1"],
+        ["sensor.e1", "power", "d1"],
+        ["sensor.cur1", "current_temperature", "d1"],
+        ["sensor.tgt1", "target_temperature", "d1"],
+        ["switch.p2", "power", "d2"],
+        ["binary_sensor.h2", "heat_on", "d2"],
+        ["sensor.e2", "power", "d2"],
+        ["sensor.cur2", "current_temperature", "d2"],
+        ["sensor.tgt2", "target_temperature", "d2"],
+      ];
+      const ent: Record<string, unknown> = {};
+      for (const [id, tk, dev] of reg2) {
+        ent[id] = {
+          entity_id: id,
+          platform: "harvia_sauna",
+          translation_key: tk,
+          device_id: dev,
+        };
+      }
+      const st: Record<string, [string]> = {
+        // d1: app-started pulse at target (running, switch off)
+        "switch.p1": ["off"],
+        "binary_sensor.h1": ["on"],
+        "sensor.e1": ["6800"],
+        "sensor.cur1": [String(TARGET)],
+        "sensor.tgt1": [String(TARGET)],
+        // d2: off, but still warm
+        "switch.p2": ["off"],
+        "binary_sensor.h2": ["off"],
+        "sensor.e2": ["0"],
+        "sensor.cur2": [String(TARGET)],
+        "sensor.tgt2": [String(TARGET)],
+      };
+      const states: Record<string, unknown> = {};
+      for (const [id, [state]] of Object.entries(st)) {
+        states[id] = { entity_id: id, state, attributes: {} };
+      }
+      return {
+        states,
+        entities: ent,
+        devices: {
+          d1: { id: "d1", name: "Bastu 1" },
+          d2: { id: "d2", name: "Bastu 2" },
+        },
+        callService: () => Promise.resolve(),
+      } as unknown as Hass;
+    };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1_700_000_000_000));
+    try {
+      const c = new SaunaCard();
+      c.setConfig({ type: "custom:sauna-card", device_id: "d1" });
+      document.body.appendChild(c);
+      c.hass = twoDeviceHass();
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(true); // d1 latched
+
+      // Re-point to d2 (off) without any new hass update.
+      vi.advanceTimersByTime(60_000);
+      c.setConfig({ type: "custom:sauna-card", device_id: "d2" });
+      await c.updateComplete;
+      expect(powerOn(c)).toBe(false); // d1's latch must not carry to d2
+      document.body.removeChild(c);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

@@ -50,6 +50,12 @@ import {
   MAX_TEMP,
 } from "./controls";
 import { fireMoreInfo } from "./utils/more-info";
+import {
+  RunningLatch,
+  SESSION_STOPPED_EVENT,
+  sessionKey,
+  type SessionStoppedDetail,
+} from "./running-latch";
 import { logVersionBanner, dlog } from "./log";
 
 const TEMP_STEP = 5;
@@ -185,6 +191,14 @@ export class SaunaCard extends LitElement {
   // off-episode from the recorder (so we attempt it once, not every update).
   // Reset when the sauna is powered on again.
   private _cooldownReconstructAttempted = false;
+
+  // Hold-phase running latch: bridges the quiet PID gaps of an app-started
+  // session (every raw on/off signal drops out between pulses) so the card
+  // doesn't blip to off mid-session. Advanced once per hass update from the raw
+  // state in willUpdate; applied (read-only) in _state(). The wake callback
+  // re-renders (and re-advances the graph) at the grace expiry even if no hass
+  // update lands.
+  private _runningLatch = new RunningLatch(() => this._reflectLatchRelease());
 
   // Set once the version banner has been printed, so re-renders don't spam it.
   private _versionLogged = false;
@@ -422,7 +436,9 @@ export class SaunaCard extends LitElement {
     return detectLang(this.hass, this._config.language);
   }
 
-  private _state(): SaunaState | null {
+  // Raw derived state, straight from the adapter (no hold-phase latch). Used to
+  // advance the latch; everything else reads the latched _state() below.
+  private _rawState(): SaunaState | null {
     if (!this.hass) return null;
     const adapter = pickIntegration(this.hass, this._config.integration);
     if (!adapter) {
@@ -432,6 +448,12 @@ export class SaunaCard extends LitElement {
     const state = adapter.readState(this.hass, this._config);
     dlog(this._debug, `state via ${adapter.id}`, state);
     return state;
+  }
+
+  // The state all rendering and tracking reads: raw state corrected by the
+  // hold-phase latch (read-only, so it's safe to call many times per update).
+  private _state(): SaunaState | null {
+    return this._runningLatch.apply(this._rawState());
   }
 
   // Arrow field so it stays bound when passed as a callback (e.g. to a catalog
@@ -555,8 +577,27 @@ export class SaunaCard extends LitElement {
     setTargetTemperature(this.hass, s, next, this._debug);
   }
 
+  // Release this card's latch when any surface stops this device's session —
+  // another card or a badge for the same device, or this card's own stop (which
+  // dispatches the event). An app-started stop may produce no hass change, so
+  // each surface needs the push to release its own latch.
+  private _onSessionStopped = (e: Event): void => {
+    const key = (e as CustomEvent<SessionStoppedDetail>).detail?.key;
+    const cur = this._rawState();
+    if (!cur || sessionKey(cur) !== key) return;
+    this._runningLatch.notifyStopped();
+    this._reflectLatchRelease();
+  };
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener(SESSION_STOPPED_EVENT, this._onSessionStopped);
+  }
+
   override disconnectedCallback(): void {
+    window.removeEventListener(SESSION_STOPPED_EVENT, this._onSessionStopped);
     this._clearStartTimer();
+    this._runningLatch.dispose();
     super.disconnectedCallback();
   }
 
@@ -581,8 +622,32 @@ export class SaunaCard extends LitElement {
   // Drive the graph buffers BEFORE render (not in updated()), so a sample added
   // this beat is on screen the same beat — no one-frame lag and no extra render.
   protected override willUpdate(changed: PropertyValues): void {
-    if (!changed.has("hass") || !this.hass) return;
-    this._trackGraph(this._state());
+    // Also advance on a config change: re-pointing device_id / integration /
+    // entity_map selects a different raw state, and without advancing here the
+    // old device's armed latch would be applied to it (stale "ready"/on). The
+    // latch's context key resets itself once advance() sees the new state.
+    if ((!changed.has("hass") && !changed.has("_config")) || !this.hass) return;
+    this._advanceLatchAndGraph();
+  }
+
+  // Advance the hold-phase latch once from the raw state, then drive the graph
+  // with the latched state — before anything (graph, render) consumes _state().
+  private _advanceLatchAndGraph(): void {
+    const raw = this._rawState();
+    this._runningLatch.advance(raw);
+    this._trackGraph(this._runningLatch.apply(raw));
+  }
+
+  // Reflect a latch release that happened outside an update cycle: the grace
+  // timer firing, or an explicit user stop. Both can occur with no hass change,
+  // so re-render AND re-run the graph with the now-released state (the held → off
+  // transition opens the cool-down anchor/history) — willUpdate skips that work
+  // on a non-hass update. Don't advance() here: that could re-arm from a
+  // still-running last sample instead of releasing.
+  private _reflectLatchRelease(): void {
+    if (!this.hass) return;
+    this._trackGraph(this._runningLatch.apply(this._rawState()));
+    this.requestUpdate();
   }
 
   // Drive the graph phase model and per-phase sample buffers. Kept independent of
@@ -947,12 +1012,32 @@ export class SaunaCard extends LitElement {
       }, START_GRACE_MS);
     }
     // Honour an in-flight stepper adjustment when starting a session.
-    setActive(
+    const result = setActive(
       this.hass,
       { ...s, targetTemp: this._effectiveTarget(s) },
       active,
       this._debug,
     );
+    if (!active) {
+      // Release the hold-phase latch only once the stop has actually succeeded —
+      // not before, and not on failure. After an app-started session is stopped,
+      // the raw state (switch off, still warm) looks exactly like a PID gap, so
+      // notifyStopped() drops the latch and re-renders (the stop itself may
+      // produce no hass change, and notifyStopped only mutates the non-reactive
+      // latch). A rejected or undispatched stop leaves the latch armed: the
+      // session may still be running, and showing it off would hide the failure.
+      // Announce the stop for every surface of this device — this card, another
+      // card, a badge — so each releases its own latch (an app-started stop may
+      // produce no hass change to observe). This card's own _onSessionStopped
+      // listener handles it too, so the release path is unified here.
+      const release = () =>
+        window.dispatchEvent(
+          new CustomEvent(SESSION_STOPPED_EVENT, {
+            detail: { key: sessionKey(s) },
+          }),
+        );
+      if (result) void result.then((ok) => ok && release());
+    }
   }
 
   /** Best-known reason a start was refused, as an i18n key. */
