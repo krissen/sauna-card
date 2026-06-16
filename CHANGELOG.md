@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-16
+
+### Fixed
+- **App-started sessions no longer flicker to off while holding temperature.**
+  Follow-up to the #33 heat-up fix. For a session started from the Harvia app the
+  integration leaves the power switch, climate mode and the per-session `ready`
+  latch off; during the steady-state hold the heater PID-cycles, so `heat_on` and
+  the power-draw sensor also drop to off/0 in the gaps between pulses. In those
+  gaps every signal the card derives on/off from is quiet, so the card (and badge)
+  could blip to **off** mid-session: the power chip flipped off, the graph started
+  a spurious cool-down, and the button offered to start a session already running.
+  A hold-phase running latch now bridges these brief quiet gaps once a session is
+  recognized as running near target, releasing on a sustained off (grace expiry),
+  a real cool-down, or an explicit stop. Stopping from the card, the app, or the
+  physical switch is reflected promptly, and a stop on one surface is mirrored to
+  the card and badge together.
+
 ## [0.3.0] - 2026-06-15
 
 ### Changed
