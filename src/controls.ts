@@ -13,18 +13,28 @@ function clampTemp(t: number): number {
  * without producing unhandled promise rejections. When `debug` is set, the call
  * (domain.service + payload) is logged before dispatch.
  */
+// Resolves true when the service call succeeds, false when it rejects (the
+// error is logged, never re-thrown, so callers don't get unhandled rejections).
+// undefined when no callService was available to dispatch. The boolean lets a
+// caller act on actual success — e.g. the card releases its hold latch only once
+// a stop has really gone through, not on a rejected/undispatched one.
 function call(
   hass: Hass,
   domain: string,
   service: string,
   data: Record<string, unknown>,
   debug = false,
-): Promise<unknown> | undefined {
+): Promise<boolean> | undefined {
   dlog(debug, `call ${domain}.${service}`, data);
   const result = hass.callService?.(domain, service, data);
-  return result?.catch((err: unknown) => {
-    console.error(`[sauna-card] ${domain}.${service} failed`, err);
-  });
+  if (result === undefined) return undefined;
+  return result.then(
+    () => true,
+    (err: unknown) => {
+      console.error(`[sauna-card] ${domain}.${service} failed`, err);
+      return false;
+    },
+  );
 }
 
 /**
@@ -36,7 +46,7 @@ export function toggleSwitch(
   hass: Hass,
   entityId: string,
   debug = false,
-): Promise<unknown> | undefined {
+): Promise<boolean> | undefined {
   return call(hass, "homeassistant", "toggle", { entity_id: entityId }, debug);
 }
 
@@ -46,7 +56,7 @@ export function setTargetTemperature(
   state: SaunaState,
   temperature: number,
   debug = false,
-): Promise<unknown> | undefined {
+): Promise<boolean> | undefined {
   const entityId = state.entities.thermostat;
   if (!entityId) return undefined;
   return call(
@@ -67,7 +77,7 @@ export function stepTargetTemperature(
   state: SaunaState,
   delta: number,
   debug = false,
-): Promise<unknown> | undefined {
+): Promise<boolean> | undefined {
   if (state.targetTemp === undefined) return undefined;
   return setTargetTemperature(hass, state, state.targetTemp + delta, debug);
 }
@@ -81,7 +91,7 @@ export function setPresetMode(
   state: SaunaState,
   preset: string,
   debug = false,
-): Promise<unknown> | undefined {
+): Promise<boolean> | undefined {
   const entityId = state.entities.thermostat;
   if (!entityId) return undefined;
   return call(
@@ -102,7 +112,7 @@ export function scheduleReadyAt(
   state: SaunaState,
   opts: { ready_at: string; target_temp?: number },
   debug = false,
-): Promise<unknown> | undefined {
+): Promise<boolean> | undefined {
   const data: Record<string, unknown> = {
     device_id: state.serviceDeviceId,
     ready_at: opts.ready_at,
@@ -117,7 +127,7 @@ export function cancelPreheat(
   hass: Hass,
   state: SaunaState,
   debug = false,
-): Promise<unknown> | undefined {
+): Promise<boolean> | undefined {
   return call(
     hass,
     "harvia_sauna",
@@ -136,7 +146,7 @@ export function setSession(
   state: SaunaState,
   opts: { target_temp?: number; duration?: number; active?: boolean },
   debug = false,
-): Promise<unknown> | undefined {
+): Promise<boolean> | undefined {
   const data: Record<string, unknown> = { device_id: state.serviceDeviceId };
   if (opts.target_temp !== undefined)
     data.target_temp = clampTemp(opts.target_temp);
@@ -156,7 +166,7 @@ export function setActive(
   state: SaunaState,
   active: boolean,
   debug = false,
-): Promise<unknown> | undefined {
+): Promise<boolean> | undefined {
   if (state.integration === "manual") {
     const power = state.entities.power;
     if (power) {
