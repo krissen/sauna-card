@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   graphPhase,
+  cooldownAnchorOnStop,
   isCooldownExpired,
   mergeHistory,
   COOLDOWN_MAX_MS,
@@ -50,6 +51,89 @@ describe("graphPhase", () => {
   it("prefers heatup over a lingering cooldown anchor", () => {
     const anchor: CooldownAnchor = { startedAt: 0, baselineTemp: 25 };
     expect(graphPhase("heating", 60, 90, anchor)).toBe("heatup");
+  });
+});
+
+describe("cooldownAnchorOnStop", () => {
+  const NOW = 5_000_000;
+  const DEFAULT = 25;
+
+  it("opens on a powered → off transition, baseline = session-start temp", () => {
+    const a = cooldownAnchorOnStop(
+      "heating",
+      "off",
+      22,
+      undefined,
+      DEFAULT,
+      NOW,
+    );
+    expect(a).toEqual({ startedAt: NOW, baselineTemp: 22 });
+  });
+
+  it("opens from ready and idle too (a hold or relay-off cycle counts as running)", () => {
+    expect(
+      cooldownAnchorOnStop("ready", "off", 22, undefined, DEFAULT, NOW),
+    ).not.toBeNull();
+    expect(
+      cooldownAnchorOnStop("idle", "off", 22, undefined, DEFAULT, NOW),
+    ).not.toBeNull();
+  });
+
+  it("prefers a configured cooldown target over the captured session-start temp", () => {
+    const a = cooldownAnchorOnStop("heating", "off", 22, 30, DEFAULT, NOW);
+    expect(a?.baselineTemp).toBe(30);
+  });
+
+  it("opens even when stopped below target — the live path does not gate on temp", () => {
+    // The 2026-06-21 session stopped at 72 °C with target 75. As long as a
+    // session-start temp was captured, the live path still opens a cooldown;
+    // it is only the recorder-reconstruction fallback that requires temp > target.
+    const a = cooldownAnchorOnStop(
+      "heating",
+      "off",
+      19,
+      undefined,
+      DEFAULT,
+      NOW,
+    );
+    expect(a).toEqual({ startedAt: NOW, baselineTemp: 19 });
+  });
+
+  it("opens nothing without a session-start temp (mid-session mount / reload)", () => {
+    // The reload reproduction: _sessionStartTemp is in-memory and lost on a
+    // mid-session reload, so the live path can't open an anchor — the recorder
+    // reconstruction must rebuild the window instead.
+    expect(
+      cooldownAnchorOnStop(
+        "heating",
+        "off",
+        undefined,
+        undefined,
+        DEFAULT,
+        NOW,
+      ),
+    ).toBeNull();
+  });
+
+  it("opens nothing when the previous state was not powered", () => {
+    expect(
+      cooldownAnchorOnStop("off", "off", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
+    expect(
+      cooldownAnchorOnStop("unknown", "off", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
+    expect(
+      cooldownAnchorOnStop(undefined, "off", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
+  });
+
+  it("opens nothing when the new state is not off", () => {
+    expect(
+      cooldownAnchorOnStop("heating", "ready", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
+    expect(
+      cooldownAnchorOnStop("heating", "idle", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
   });
 });
 
