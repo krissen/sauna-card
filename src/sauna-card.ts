@@ -21,6 +21,7 @@ import type {
 } from "./types";
 import {
   graphPhase,
+  cooldownAnchorOnStop,
   isCooldownExpired,
   mergeHistory,
   HEATUP_WINDOW_MS,
@@ -671,6 +672,9 @@ export class SaunaCard extends LitElement {
     ) {
       this._sessionStartTemp = s.currentTemp;
       this._sessionStartAt = now;
+      dlog(this._debug, "session start captured", {
+        startTemp: this._sessionStartTemp,
+      });
     }
 
     // Open a cooldown window when a running sauna is switched off. The previous
@@ -679,21 +683,34 @@ export class SaunaCard extends LitElement {
     // "off" (power off). We require a captured _sessionStartTemp, so this only
     // fires after a real heating session (the true pre-heat baseline) and never
     // on a mid-session mount, where we can't know how far the sauna has to cool.
-    if (
-      (prev === "heating" || prev === "ready" || prev === "idle") &&
-      status === "off" &&
-      this._sessionStartTemp !== undefined
-    ) {
-      // Baseline (temperature the room settles at): an explicit target wins,
-      // else the captured session-start (ambient) temp, else a generic default.
-      this._cooldownAnchor = {
-        startedAt: now,
-        baselineTemp:
-          this._config.cooldown_target_temp ??
-          this._sessionStartTemp ??
-          DEFAULT_COOLDOWN_TARGET,
-      };
+    const opened = cooldownAnchorOnStop(
+      prev,
+      status,
+      this._sessionStartTemp,
+      this._config.cooldown_target_temp,
+      DEFAULT_COOLDOWN_TARGET,
+      now,
+    );
+    if (opened) {
+      this._cooldownAnchor = opened;
       this._cooldownSamples = [];
+      dlog(this._debug, "cooldown anchor opened (live)", {
+        anchor: opened,
+        currentTemp: s?.currentTemp,
+        targetTemp: s?.targetTemp,
+      });
+    } else if (
+      (prev === "heating" || prev === "ready" || prev === "idle") &&
+      status === "off"
+    ) {
+      // A stop with no live anchor — typically a mid-session mount/reload lost
+      // _sessionStartTemp. The recorder-reconstruction path must rebuild it (and
+      // it only fires above target — see _maybeReconstructCooldown).
+      dlog(this._debug, "stop without live cooldown anchor", {
+        sessionStartTemp: this._sessionStartTemp,
+        currentTemp: s?.currentTemp,
+        targetTemp: s?.targetTemp,
+      });
     }
 
     // Close the cooldown window once the sauna is powered back on (an active
@@ -782,7 +799,13 @@ export class SaunaCard extends LitElement {
     if (this._config.show_cooldown_graph === false) return;
     const target = this._config.cooldown_target_temp ?? DEFAULT_COOLDOWN_TARGET;
     if (s.status !== "off") return;
-    if (s.currentTemp === undefined || s.currentTemp <= target) return;
+    if (s.currentTemp === undefined || s.currentTemp <= target) {
+      dlog(this._debug, "cooldown reconstruct skipped: not above target", {
+        currentTemp: s.currentTemp,
+        target,
+      });
+      return;
+    }
     if (!this.hass?.callWS) return;
     const switchId = s.entities.power;
     const tempId = s.entities.currentTemperature;
