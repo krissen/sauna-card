@@ -1967,8 +1967,14 @@ export class SaunaCard extends LitElement {
     }
     .chip.on {
       color: var(--primary-text-color);
-      border-color: var(--primary-color);
+      border-color: var(--sauna-heat-color);
+      /* Inset shadow over the 1px border reads as a ~2px ring without the
+         layout shift a 2px border would cause when toggling on/off. */
+      box-shadow: inset 0 0 0 1px var(--sauna-heat-color);
       background: var(--secondary-background-color);
+    }
+    .chip.on ha-icon {
+      color: var(--sauna-heat-color);
     }
     .chip {
       cursor: pointer;
