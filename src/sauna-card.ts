@@ -1967,8 +1967,14 @@ export class SaunaCard extends LitElement {
     }
     .chip.on {
       color: var(--primary-text-color);
-      border-color: var(--primary-color);
+      border-color: var(--sauna-heat-color);
+      /* Inset shadow over the 1px border reads as a ~2px ring without the
+         layout shift a 2px border would cause when toggling on/off. */
+      box-shadow: inset 0 0 0 1px var(--sauna-heat-color);
       background: var(--secondary-background-color);
+    }
+    .chip.on ha-icon {
+      color: var(--sauna-heat-color);
     }
     .chip {
       cursor: pointer;
@@ -2166,7 +2172,16 @@ export class SaunaCard extends LitElement {
       font-size: 1.1rem;
       color: var(--primary-text-color);
     }
-    /* status tint (from .status-heating/.status-ready) flows to icon + value */
+    /* Status tint colours the whole compact slot (icon + value). Set on the
+       container itself — the .status-heating/.status-ready utility classes share
+       specificity with .citem and lose to it (defined later), so the slot would
+       otherwise read grey mid-session. These two rules are more specific and win. */
+    .citem.status-heating {
+      color: var(--sauna-heat-color);
+    }
+    .citem.status-ready {
+      color: var(--success-color, #43a047);
+    }
     .citem.status-heating .cval,
     .citem.status-ready .cval {
       color: inherit;
