@@ -2172,7 +2172,16 @@ export class SaunaCard extends LitElement {
       font-size: 1.1rem;
       color: var(--primary-text-color);
     }
-    /* status tint (from .status-heating/.status-ready) flows to icon + value */
+    /* Status tint colours the whole compact slot (icon + value). Set on the
+       container itself — the .status-heating/.status-ready utility classes share
+       specificity with .citem and lose to it (defined later), so the slot would
+       otherwise read grey mid-session. These two rules are more specific and win. */
+    .citem.status-heating {
+      color: var(--sauna-heat-color);
+    }
+    .citem.status-ready {
+      color: var(--success-color, #43a047);
+    }
     .citem.status-heating .cval,
     .citem.status-ready .cval {
       color: inherit;
