@@ -59,13 +59,24 @@ describe("cooldownAnchorOnStop", () => {
   const DEFAULT = 25;
 
   it("opens on a powered → off transition, baseline = session-start temp", () => {
-    const a = cooldownAnchorOnStop("heating", "off", 22, undefined, DEFAULT, NOW);
+    const a = cooldownAnchorOnStop(
+      "heating",
+      "off",
+      22,
+      undefined,
+      DEFAULT,
+      NOW,
+    );
     expect(a).toEqual({ startedAt: NOW, baselineTemp: 22 });
   });
 
   it("opens from ready and idle too (a hold or relay-off cycle counts as running)", () => {
-    expect(cooldownAnchorOnStop("ready", "off", 22, undefined, DEFAULT, NOW)).not.toBeNull();
-    expect(cooldownAnchorOnStop("idle", "off", 22, undefined, DEFAULT, NOW)).not.toBeNull();
+    expect(
+      cooldownAnchorOnStop("ready", "off", 22, undefined, DEFAULT, NOW),
+    ).not.toBeNull();
+    expect(
+      cooldownAnchorOnStop("idle", "off", 22, undefined, DEFAULT, NOW),
+    ).not.toBeNull();
   });
 
   it("prefers a configured cooldown target over the captured session-start temp", () => {
@@ -77,7 +88,14 @@ describe("cooldownAnchorOnStop", () => {
     // The 2026-06-21 session stopped at 72 °C with target 75. As long as a
     // session-start temp was captured, the live path still opens a cooldown;
     // it is only the recorder-reconstruction fallback that requires temp > target.
-    const a = cooldownAnchorOnStop("heating", "off", 19, undefined, DEFAULT, NOW);
+    const a = cooldownAnchorOnStop(
+      "heating",
+      "off",
+      19,
+      undefined,
+      DEFAULT,
+      NOW,
+    );
     expect(a).toEqual({ startedAt: NOW, baselineTemp: 19 });
   });
 
@@ -85,18 +103,37 @@ describe("cooldownAnchorOnStop", () => {
     // The reload reproduction: _sessionStartTemp is in-memory and lost on a
     // mid-session reload, so the live path can't open an anchor — the recorder
     // reconstruction must rebuild the window instead.
-    expect(cooldownAnchorOnStop("heating", "off", undefined, undefined, DEFAULT, NOW)).toBeNull();
+    expect(
+      cooldownAnchorOnStop(
+        "heating",
+        "off",
+        undefined,
+        undefined,
+        DEFAULT,
+        NOW,
+      ),
+    ).toBeNull();
   });
 
   it("opens nothing when the previous state was not powered", () => {
-    expect(cooldownAnchorOnStop("off", "off", 22, undefined, DEFAULT, NOW)).toBeNull();
-    expect(cooldownAnchorOnStop("unknown", "off", 22, undefined, DEFAULT, NOW)).toBeNull();
-    expect(cooldownAnchorOnStop(undefined, "off", 22, undefined, DEFAULT, NOW)).toBeNull();
+    expect(
+      cooldownAnchorOnStop("off", "off", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
+    expect(
+      cooldownAnchorOnStop("unknown", "off", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
+    expect(
+      cooldownAnchorOnStop(undefined, "off", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
   });
 
   it("opens nothing when the new state is not off", () => {
-    expect(cooldownAnchorOnStop("heating", "ready", 22, undefined, DEFAULT, NOW)).toBeNull();
-    expect(cooldownAnchorOnStop("heating", "idle", 22, undefined, DEFAULT, NOW)).toBeNull();
+    expect(
+      cooldownAnchorOnStop("heating", "ready", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
+    expect(
+      cooldownAnchorOnStop("heating", "idle", 22, undefined, DEFAULT, NOW),
+    ).toBeNull();
   });
 });
 
