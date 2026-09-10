@@ -30,9 +30,15 @@ fi
 
 if command -v pipx >/dev/null 2>&1; then
 	# --backend pip: pipx's own uv-detection can pick an incompatible
-	# uv already on PATH (from an unrelated toolchain) and refuse to run;
-	# pip's ephemeral-venv path has no such conflict.
-	prek() { pipx run --backend pip --spec "prek==$prek_version" prek "$@"; }
+	# uv already on PATH (from an unrelated toolchain) and refuse to run.
+	# Older pipx (reported: 1.4.3) predates the --backend flag entirely
+	# and errors out on it ("unrecognized arguments"), so only pass it
+	# when this pipx's own --help advertises it.
+	if pipx run --help 2>&1 | grep -q -- '--backend'; then
+		prek() { pipx run --backend pip --spec "prek==$prek_version" prek "$@"; }
+	else
+		prek() { pipx run --spec "prek==$prek_version" prek "$@"; }
+	fi
 elif command -v uv >/dev/null 2>&1; then
 	prek() { uv tool run --from "prek==$prek_version" prek "$@"; }
 else

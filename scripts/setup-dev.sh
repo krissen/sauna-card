@@ -1,28 +1,37 @@
 #!/bin/sh
 # npm run setup — one-command contributor bootstrap for the local quality
-# gate. Wires .pre-commit-config.yaml into this clone's Git hooks by
-# running prek through `pipx run --spec prek==X.Y.Z` (or the uv
-# equivalent) instead of relying on a `prek` already on PATH.
+# gate. Wires .pre-commit-config.yaml into this clone's Git hooks.
 #
-# `pipx run --spec`/`uv tool run --from` always resolve the exact pinned
-# spec from their own cache, regardless of what else is installed or
-# where it sits on PATH. `prek install` embeds the absolute path it was
-# invoked from into the generated hook script, so the Git hook itself
-# execs that cached, version-pinned binary directly on every commit -- no
-# pipx/uv overhead per commit, only during this setup step.
+# Resolving the pinned version (`prek --version` below) always goes
+# through `pipx run --spec prek==X.Y.Z` (or the uv equivalent), never a
+# `prek` already on PATH -- that removes the "wrong version" class of bug
+# regardless of what else is installed or where it sits on PATH.
+#
+# Actually WIRING the hooks is different: `prek install` embeds the
+# absolute path it was invoked from into the generated hook script, so
+# pointing it at an ephemeral `pipx run`/`uv tool run` cache entry bakes a
+# path into .git/hooks/pre-commit that can silently stop existing later
+# (pipx documents its run-cache as pruned after as little as 14 days;
+# reported against this script). Once pruned, every commit fails with a
+# missing-executable error until `npm run setup` is re-run. So once a
+# hooks_path clone is confirmed (below), the pinned version is installed
+# *persistently* (`pipx install --force` / `uv tool install --force`,
+# not `run`) before `prek install` runs, so the embedded path survives.
 #
 # gitleaks has no such wrapper (a Go binary, not a Python package) and is
 # still expected to be a real installed binary on PATH.
 #
 # core.hooksPath handling: ANY custom hooks path means this clone's own
 # .git/hooks won't run (a maintainer-machine convention routes ALL repos
-# through one global dispatcher instead) -- hook installation is skipped
-# in that case, without trying to identify which dispatcher it is. The
-# prek/gitleaks checks above still run either way, since `npm run check`
-# needs them regardless of how hooks are wired.
+# through one global dispatcher instead) -- hook installation (and the
+# persistent install above) is skipped in that case, without trying to
+# identify which dispatcher it is. The prek/gitleaks checks above still
+# run either way, since `npm run check` needs them regardless of how
+# hooks are wired.
 #
 # Idempotent: safe to re-run any time (e.g. after .github/workflows/ci.yml
-# bumps the pinned prek version).
+# bumps the pinned prek version) -- `--force` re-pins the persistent
+# install to whatever version is current.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -38,11 +47,21 @@ fi
 
 if command -v pipx >/dev/null 2>&1; then
 	# --backend pip: pipx's own uv-detection can pick an incompatible
-	# uv already on PATH (from an unrelated toolchain) and refuse to run;
-	# pip's ephemeral-venv path has no such conflict.
-	prek() { pipx run --backend pip --spec "prek==$prek_version" prek "$@"; }
+	# uv already on PATH (from an unrelated toolchain) and refuse to run.
+	# Older pipx (reported: 1.4.3) predates the --backend flag entirely
+	# and errors out on it ("unrecognized arguments"), so only pass it
+	# when this pipx's own --help advertises it.
+	if pipx run --help 2>&1 | grep -q -- '--backend'; then
+		pipx_backend_flag="--backend pip"
+	else
+		pipx_backend_flag=""
+	fi
+	# shellcheck disable=SC2086 # intentional word-splitting: empty when unsupported
+	prek() { pipx run $pipx_backend_flag --spec "prek==$prek_version" prek "$@"; }
+	backend="pipx"
 elif command -v uv >/dev/null 2>&1; then
 	prek() { uv tool run --from "prek==$prek_version" prek "$@"; }
+	backend="uv"
 else
 	echo "missing: pipx or uv, needed to run the pinned prek==$prek_version"
 	echo "without depending on whatever else might be on PATH. Install one:"
@@ -76,7 +95,38 @@ if [ -n "$hooks_path" ]; then
 	exit 0
 fi
 
-prek install
-prek install --hook-type pre-push
+# Install the pinned version persistently before wiring hooks, so the
+# path `prek install` embeds in .git/hooks/{pre-commit,pre-push} outlives
+# pipx's/uv's ephemeral run-cache pruning (see the top-of-file comment).
+#
+# Resolve the shim's path explicitly (pipx/uv report their own bin dir)
+# rather than trusting `command -v prek` against the invoking shell's
+# PATH: a stale prek from some other install (e.g. a different version on
+# Homebrew) can sit earlier on PATH than pipx's/uv's bin dir, especially
+# right after a first-ever pipx/uv install before the shell has picked up
+# the PATH change -- `command -v` would then silently wire the hooks
+# against the wrong binary instead of the one just pinned.
+echo "installing prek==$prek_version persistently for the Git hooks ..."
+if [ "$backend" = "pipx" ]; then
+	# shellcheck disable=SC2086 # intentional word-splitting: empty when unsupported
+	pipx install --force $pipx_backend_flag "prek==$prek_version"
+	bin_dir=$(pipx environment --value PIPX_BIN_DIR 2>/dev/null || echo "$HOME/.local/bin")
+else
+	uv tool install --force --from "prek==$prek_version" prek
+	bin_dir=$(uv tool dir --bin 2>/dev/null || echo "$HOME/.local/bin")
+fi
+prek_bin="$bin_dir/prek"
+
+if [ ! -x "$prek_bin" ]; then
+	echo "installed prek==$prek_version but $prek_bin is missing or not"
+	echo "executable -- add $bin_dir to PATH, then re-run 'npm run setup'."
+	exit 1
+fi
+
+# From here on, use the resolved persistent binary directly (not the
+# ephemeral `prek` shell function defined above, and not a PATH lookup)
+# so the embedded hook path is the persistent one.
+"$prek_bin" install
+"$prek_bin" install --hook-type pre-push
 echo "OK: pre-commit/pre-push hooks installed from .pre-commit-config.yaml"
 echo "Run 'npm run check' any time to run the same gate CI does."
