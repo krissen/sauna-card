@@ -99,21 +99,28 @@ fi
 # path `prek install` embeds in .git/hooks/{pre-commit,pre-push} outlives
 # pipx's/uv's ephemeral run-cache pruning (see the top-of-file comment).
 #
-# Resolve the shim's path explicitly (pipx/uv report their own bin dir)
-# rather than trusting `command -v prek` against the invoking shell's
-# PATH: a stale prek from some other install (e.g. a different version on
-# Homebrew) can sit earlier on PATH than pipx's/uv's bin dir, especially
-# right after a first-ever pipx/uv install before the shell has picked up
-# the PATH change -- `command -v` would then silently wire the hooks
-# against the wrong binary instead of the one just pinned.
+# Installed into a VERSION-SCOPED location, not pipx's/uv's shared "prek"
+# app slot: that shared slot is a single global name, so a plain `pipx
+# install --force prek==X`/`uv tool install --force prek` for one repo
+# would silently overwrite the exact binary path already embedded in
+# every other repo's hooks the moment that other repo pins a different
+# prek version -- defeating the version pinning for whichever repo was
+# set up first. Scoping the install directory by $prek_version means two
+# repos pinning the same version safely share one binary, and two repos
+# pinning different versions each get their own, never overwriting the
+# other. `PIPX_HOME`/`PIPX_BIN_DIR` (pipx) and `UV_TOOL_DIR`/
+# `UV_TOOL_BIN_DIR` (uv) redirect the install without touching either
+# tool's shared/default namespace at all.
+persist_root="$HOME/.local/state/sauna-card-prek/$prek_version"
+bin_dir="$persist_root/bin"
 echo "installing prek==$prek_version persistently for the Git hooks ..."
 if [ "$backend" = "pipx" ]; then
 	# shellcheck disable=SC2086 # intentional word-splitting: empty when unsupported
-	pipx install --force $pipx_backend_flag "prek==$prek_version"
-	bin_dir=$(pipx environment --value PIPX_BIN_DIR 2>/dev/null || echo "$HOME/.local/bin")
+	PIPX_HOME="$persist_root/pipx" PIPX_BIN_DIR="$bin_dir" \
+		pipx install --force $pipx_backend_flag "prek==$prek_version"
 else
-	uv tool install --force --from "prek==$prek_version" prek
-	bin_dir=$(uv tool dir --bin 2>/dev/null || echo "$HOME/.local/bin")
+	UV_TOOL_DIR="$persist_root/uv-tools" UV_TOOL_BIN_DIR="$bin_dir" \
+		uv tool install --force --from "prek==$prek_version" prek
 fi
 prek_bin="$bin_dir/prek"
 
