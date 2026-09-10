@@ -13,7 +13,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "check": "sh scripts/check.sh",
+    "setup": "sh scripts/setup-dev.sh"
   },
   "dependencies": {
     "intl-messageformat": "^10.7.18",
