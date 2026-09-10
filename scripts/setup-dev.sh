@@ -73,14 +73,25 @@ fi
 echo "resolving prek==$prek_version ..."
 prek --version
 
-if command -v gitleaks >/dev/null 2>&1; then
-	echo "gitleaks already installed ($(gitleaks version 2>&1 | head -n1))"
-else
+if ! command -v gitleaks >/dev/null 2>&1; then
 	echo "missing: gitleaks. Install it, e.g.:"
 	echo "  brew install gitleaks"
 	echo "or download a release: https://github.com/gitleaks/gitleaks/releases"
 	exit 1
 fi
+# A legacy gitleaks (pre-v8 `detect`/`protect` CLI, no `dir` subcommand)
+# would report success here and then fail later, at `gitleaks dir .` in
+# scripts/check.sh, with an unknown-command error -- check for `dir`
+# explicitly rather than just presence on PATH.
+if ! gitleaks --help 2>&1 | grep -q '^ *dir '; then
+	echo "installed gitleaks is too old (no 'dir' subcommand -- needs v8+):"
+	echo "  $(gitleaks version 2>&1 | head -n1)"
+	echo "Upgrade it, e.g.:"
+	echo "  brew upgrade gitleaks"
+	echo "or download a current release: https://github.com/gitleaks/gitleaks/releases"
+	exit 1
+fi
+echo "gitleaks already installed ($(gitleaks version 2>&1 | head -n1))"
 
 hooks_path=$(git config --get core.hooksPath 2>/dev/null || true)
 if [ -n "$hooks_path" ]; then
