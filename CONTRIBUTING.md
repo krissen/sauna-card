@@ -69,12 +69,21 @@ depending on how your machine runs Git hooks:
   for any repo that opts in that way. `npm run setup` detects this case
   automatically and tells you which command to run.
 
-On an ordinary clone, `git commit --no-verify` skips the hooks
-`npm run setup` installed for one commit. `SKIP_PREK=1 git commit` only
-does something on a maintainer machine that routes hooks through a
-global `core.hooksPath` dispatcher (the `git config prek.enabled true`
-case above) — that dispatcher, not `prek` or Git itself, is what reads
-`SKIP_PREK`. Either way, the separate AI-attribution guard is unaffected.
+The escape hatch differs by clone, and the two must not be confused:
+
+- **Ordinary clone:** `git commit --no-verify` skips every hook
+  `npm run setup` installed, for one commit. To skip specific hooks
+  instead of all of them, set `SKIP=<hook-id>[,<hook-id>...]` or
+  `PREK_SKIP=<hook-id>[,<hook-id>...]` (both are read directly by
+  `prek`, comma-delimited, e.g. `SKIP=eslint,prettier git commit`) —
+  this works on any ordinary clone and needs no dispatcher.
+- **A maintainer machine routing hooks through a global
+  `core.hooksPath` dispatcher:** `SKIP_PREK=1 git commit` only does
+  something there (the `git config prek.enabled true` case above) —
+  that dispatcher, not `prek` or Git itself, is what reads
+  `SKIP_PREK`. It has no effect on an ordinary clone.
+
+Either way, the separate AI-attribution guard is unaffected.
 
 ## Commit Messages
 
