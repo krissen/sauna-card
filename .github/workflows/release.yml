@@ -37,6 +37,16 @@ jobs:
         env:
           PREK_HOME: ${{ runner.temp }}/prek
         run: pipx run --spec prek==0.5.2 prek run --all-files --show-diff-on-failure
+
+      # The gitleaks pre-commit hook above only scans the *staged* diff,
+      # which is empty here (no `git add` happens in this job) and would
+      # otherwise silently report zero findings -- exactly the gap this
+      # release gate exists to close for a commit that bypassed CI. Scan
+      # the full tree here too, same as ci.yml.
+      - name: Scan whole tree for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Quality gates (typecheck + test)
         run: |
           npm run typecheck
