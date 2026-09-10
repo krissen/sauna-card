@@ -26,7 +26,13 @@ repos:
       - id: check-json
         stages: [pre-commit]
       - id: check-added-large-files
-        args: ["--maxkb=1000"]
+        # --enforce-all: the hook otherwise limits itself to files staged
+        # for addition. In the CI/release checkouts prek runs against
+        # (nothing is staged there), that leaves the hook a silent no-op
+        # even though prek passes it every tracked file -- a contributor
+        # who bypasses local hooks could commit a file over the limit and
+        # both workflows would pass regardless.
+        args: ["--maxkb=1000", "--enforce-all"]
         stages: [pre-commit]
       - id: end-of-file-fixer
         exclude: "^dist/"
