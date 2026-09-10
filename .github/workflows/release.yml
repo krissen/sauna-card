@@ -11,6 +11,7 @@ jobs:
   release:
     name: Build, attach bundle and validate HACS
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
         with:
@@ -21,12 +22,34 @@ jobs:
           cache: "npm"
       - name: Install dependencies
         run: npm ci
+
+      # eslint runs as a prek hook against this node_modules (language:
+      # system), so it must exist before prek runs below.
+      - name: Cache prek hook environments
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/prek
+          key: prek-${{ runner.os }}-node22-${{ hashFiles('.pre-commit-config.yaml') }}
+
       # Re-run the same quality gates as CI so a release can never ship a broken
       # bundle, even if cut from a commit that bypassed CI.
-      - name: Quality gates
+      - name: Quality gates (prek)
+        env:
+          PREK_HOME: ${{ runner.temp }}/prek
+        run: pipx run --spec prek==0.5.2 prek run --all-files --show-diff-on-failure
+
+      # The gitleaks pre-commit hook above only scans the *staged* diff,
+      # which is empty here (no `git add` happens in this job) and would
+      # otherwise silently report zero findings -- exactly the gap this
+      # release gate exists to close for a commit that bypassed CI. Scan
+      # the full tree here too, same as ci.yml.
+      - name: Scan whole tree for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Quality gates (typecheck + test)
         run: |
           npm run typecheck
-          npm run lint
           npm run test
       - name: Build the bundle
         run: |
