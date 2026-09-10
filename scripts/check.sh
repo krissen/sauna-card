@@ -7,18 +7,27 @@
 #
 # Runs prek AND a standalone eslint/prettier check-mode pass on purpose:
 # `prek run --all-files` resolves its file list from git (tracked files),
-# so a newly written, still-untracked module is invisible to it. Worse,
-# prek's eslint/prettier hooks autofix and report "Passed" once the fix is
-# applied — a bare `prek run` can silently launder a lint error into a
-# green run. The explicit `eslint .` (no --fix) and `prettier --check .`
-# below scan the whole working tree in report-only mode and catch both
-# gaps; `gitleaks dir .` closes the same hole for the gitleaks hook (its
-# `--staged` default sees zero files when nothing is staged).
+# so a newly written, still-untracked module is invisible to it -- the
+# explicit `eslint .` (no --fix) and `prettier --check .` below scan the
+# whole working tree in report-only mode and catch that gap; `gitleaks
+# dir .` closes the same hole for the gitleaks hook (its `--staged`
+# default sees zero files when nothing is staged).
 #
-# prek runs through `pipx run --spec`/`uv tool run --from` (same as CI,
-# same as scripts/setup-dev.sh) rather than a `prek` on PATH -- see
-# setup-dev.sh for why: it removes the "wrong prek version" class of bug
-# regardless of what else happens to be installed or where.
+# This is not a workaround for autofix hiding failures on tracked files:
+# prek marks a hook "Failed" whenever it modifies a tracked file, so
+# autofix triggered by already-tracked content still surfaces as a
+# failure, never a silently laundered "Passed" (verified in
+# blink-cmp-bibtex). The gap above is strictly about untracked files.
+#
+# prek resolution: prefer the persistent binary scripts/setup-dev.sh
+# installs (see that script for why the version is pinned and the
+# install is persistent, not an ephemeral `pipx run`/`uv tool run`
+# cache entry) over a `prek` on PATH -- a contributor who ran
+# `npm run setup` gets the exact pinned version without CI's per-run
+# resolution cost. Falling back to `pipx run --spec`/`uv tool run
+# --from` (same as CI) when the persistent binary is absent still
+# removes the "wrong prek version" class of bug regardless of what else
+# happens to be installed or where.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -28,7 +37,12 @@ if [ -z "$prek_version" ]; then
 	exit 1
 fi
 
-if command -v pipx >/dev/null 2>&1; then
+persist_root="$HOME/.local/state/sauna-card-prek/$prek_version"
+persist_bin="$persist_root/bin/prek"
+
+if [ -x "$persist_bin" ]; then
+	prek() { "$persist_bin" "$@"; }
+elif command -v pipx >/dev/null 2>&1; then
 	# --backend pip: pipx's own uv-detection can pick an incompatible
 	# uv already on PATH (from an unrelated toolchain) and refuse to run.
 	# Older pipx (reported: 1.4.3) predates the --backend flag entirely
