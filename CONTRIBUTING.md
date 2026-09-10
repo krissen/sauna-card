@@ -69,8 +69,12 @@ depending on how your machine runs Git hooks:
   for any repo that opts in that way. `npm run setup` detects this case
   automatically and tells you which command to run.
 
-`SKIP_PREK=1 git commit` skips the lint stage for one commit without
-disabling the separate AI-attribution guard.
+On an ordinary clone, `git commit --no-verify` skips the hooks
+`npm run setup` installed for one commit. `SKIP_PREK=1 git commit` only
+does something on a maintainer machine that routes hooks through a
+global `core.hooksPath` dispatcher (the `git config prek.enabled true`
+case above) — that dispatcher, not `prek` or Git itself, is what reads
+`SKIP_PREK`. Either way, the separate AI-attribution guard is unaffected.
 
 ## Commit Messages
 
