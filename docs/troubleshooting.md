@@ -8,7 +8,7 @@ from [What to include when reporting a bug](#what-to-include-when-reporting-a-bu
 
 Most issues fall into a few categories — work through these first:
 
-1. **Check the running card version** and that it matches what HACS shows (see
+1. **Check the running card version** and that it matches what the Marketplace (or HACS) shows (see
    [Checking the version and opening the browser console](#checking-the-version-and-opening-the-browser-console)).
 2. **Hard-refresh the browser** to clear a stale cached bundle.
 3. **Test with a minimal config** to rule out a config problem.
@@ -67,7 +67,7 @@ the remaining-time tile hides rather than showing a misleading `0 min`.
 
 ### The card or badge doesn't appear in the picker
 
-Make sure the dashboard **resource** is registered (HACS does this automatically;
+Make sure the dashboard **resource** is registered (the Marketplace and HACS do this automatically;
 for a manual install see [installation](installation.md)) and reload the browser.
 A hard refresh clears a stale cached bundle.
 
@@ -96,7 +96,7 @@ page — you don't need to install anything.
      open the same dashboard in a desktop browser instead.
 3. Look for a line like `♨️ Sauna Card: version X.Y.Z`. This is the **actually
    running** version (a git tag, or a short commit hash off-tag). If it doesn't
-   match what HACS shows as installed, you have a cache problem — hard-refresh.
+   match what the Marketplace (or HACS) shows as installed, you have a cache problem — hard-refresh.
 
 The banner is on by default. The visual editor's **Advanced** section also shows
 the version; you can silence the banner with `show_version: false`.
@@ -120,7 +120,7 @@ mappings), and graph/session computation. See
 Including this up front lets us diagnose without rounds of back-and-forth:
 
 1. **Card version (required)** — the running version from the console, not what
-   HACS shows. See [above](#checking-the-version-and-opening-the-browser-console).
+   the Marketplace (or HACS) shows. See [above](#checking-the-version-and-opening-the-browser-console).
 2. **Environment (required)** — Home Assistant Core version (Settings → About);
    the **source** you use (Harvia integration + its version, or *manual mapping*);
    and your browser / platform.
@@ -165,5 +165,5 @@ with the diagnostics above.
 
 When testing a local build against a `www/`-served copy, Home Assistant serves
 the gzipped file — regenerate it after each build
-(`gzip -kf .../sauna-card.js`). This does **not** apply to a normal HACS install,
+(`gzip -kf .../sauna-card.js`). This does **not** apply to a normal Marketplace or HACS install,
 which serves the file as published.
