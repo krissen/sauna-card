@@ -4,6 +4,7 @@ import type { Hass, SaunaBadgeConfig } from "./types";
 import { BADGE_ITEM_KEYS, BADGE_ITEMS } from "./status";
 import { detectLang, t, SUPPORTED_LOCALES } from "./i18n";
 import { MANUAL_ENTITY_CATALOG } from "./adapters/manual";
+import { renderAdvancedToggles } from "./editor/advanced-toggles";
 
 interface SchemaItem {
   name: string;
@@ -314,26 +315,9 @@ export class SaunaBadgeEditor extends LitElement {
     return html`<details class="section advfold">
       <summary>${t("editor.advanced", lang)}</summary>
       <div class="hint">${t("editor.advanced_hint", lang)}</div>
-      <ha-formfield .label=${t("editor.show_version", lang)}>
-        <ha-switch
-          .checked=${cfg.show_version !== false}
-          @change=${(e: Event) =>
-            this._emit({
-              show_version: (e.target as HTMLInputElement).checked
-                ? undefined
-                : false,
-            })}
-        ></ha-switch>
-      </ha-formfield>
-      <ha-formfield .label=${t("editor.debug", lang)}>
-        <ha-switch
-          .checked=${cfg.debug === true}
-          @change=${(e: Event) =>
-            this._emit({
-              debug: (e.target as HTMLInputElement).checked || undefined,
-            })}
-        ></ha-switch>
-      </ha-formfield>
+      ${renderAdvancedToggles(this.hass, cfg, lang, (patch) =>
+        this._emit(patch),
+      )}
       <div class="version-info">
         ${t("editor.badge_version", lang)}: ${__VERSION__}
       </div>
@@ -391,7 +375,7 @@ export class SaunaBadgeEditor extends LitElement {
       padding: 2px 0;
       margin-bottom: 4px;
     }
-    .advfold ha-formfield {
+    .advfold ha-form {
       display: block;
       margin-top: 6px;
     }
