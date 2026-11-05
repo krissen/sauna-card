@@ -1,7 +1,6 @@
 # sauna-card
 
 [![License][license-shield]](LICENSE)
-[![hacs][hacsbadge]][hacs]
 [![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
 
 A Lovelace custom card **and badge** for Home Assistant that show and control
@@ -88,7 +87,17 @@ card at your own `climate`, `switch` and `sensor` entities. See
 
 ## Installation
 
-### HACS (recommended)
+### Marketplace (recommended, Home Assistant 2026.11+)
+
+[![Open your Home Assistant instance and open this repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=krissen&repository=sauna-card&category=plugin)
+
+1. Select the button above, or go to **Settings** → **Marketplace** → **Add from
+   link** and enter `krissen/sauna-card`. Adding a repository by link requires
+   connecting GitHub; the Marketplace asks for it.
+2. Open **sauna-card**, select **Install**, and confirm.
+3. Reload your browser.
+
+### HACS (Home Assistant 2026.10 and older)
 
 1. HACS → ⋮ → **Custom repositories**.
 2. Add `https://github.com/krissen/sauna-card` with category **Dashboard**.
@@ -185,7 +194,5 @@ developer documentation (the entry point for extending the card) lives in
 [MIT](LICENSE) © Kristian Niemi
 
 [license-shield]: https://img.shields.io/github/license/krissen/sauna-card.svg
-[hacs]: https://github.com/hacs/integration
-[hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg
 [buymecoffee]: https://coff.ee/krissen
 [buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg

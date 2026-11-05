@@ -61,6 +61,38 @@ export function graphPhase(
   return null;
 }
 
+/**
+ * Decide whether a powered→off transition should open a cooldown window, and with
+ * what baseline. Extracted from the card's stateful graph driver as a pure
+ * function so the transition is unit-testable.
+ *
+ * Opens only on a powered (heating/ready/idle) → off transition for which a
+ * session-start (pre-heat) temperature was captured. Without it — the card
+ * mounted mid-session, or was reloaded and lost the in-memory value — there is no
+ * live baseline, and the recorder-reconstruction path must rebuild the window
+ * instead. Returns the new anchor, or null to open nothing. Note this path does
+ * NOT gate on currentTemp vs target: a session stopped below target still opens a
+ * cooldown (reconstruction, by contrast, only fires above target).
+ */
+export function cooldownAnchorOnStop(
+  prevStatus: SaunaStatus | undefined,
+  status: SaunaStatus | undefined,
+  sessionStartTemp: number | undefined,
+  configTarget: number | undefined,
+  defaultBaseline: number,
+  now: number,
+): CooldownAnchor | null {
+  const wasPowered =
+    prevStatus === "heating" || prevStatus === "ready" || prevStatus === "idle";
+  if (wasPowered && status === "off" && sessionStartTemp !== undefined) {
+    return {
+      startedAt: now,
+      baselineTemp: configTarget ?? sessionStartTemp ?? defaultBaseline,
+    };
+  }
+  return null;
+}
+
 /** True once a cooldown window should close: back to baseline, or aged out. */
 export function isCooldownExpired(
   anchor: CooldownAnchor,

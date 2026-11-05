@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-05
+
+### Fixed
+- **Home Assistant 2026.11: editor toggle labels.** HA 2026.11 removed
+  `ha-formfield`, so the labels of the *Log version to console* and *Debug
+  logging* toggles in the card and badge editors no longer rendered. The toggles
+  now render through `ha-form`, which shows their labels on every supported HA
+  version.
+- **Home Assistant 2026.11: card-picker suggestion for the Harvia update
+  entity.** The built-in Marketplace, which replaces HACS in 2026.11, moves the
+  repository update entity to the `marketplace` platform and serves its icon
+  from the local brands API. The card is again suggested for that entity, on
+  both the Marketplace and HACS.
+
+### Changed
+- **Installation docs** describe the Marketplace for HA 2026.11+ (with a My
+  Home Assistant button), with the HACS steps kept for 2026.10 and older.
+
 ## [0.4.0] - 2026-06-16
 
 ### Fixed

@@ -21,6 +21,7 @@ import type {
 } from "./types";
 import {
   graphPhase,
+  cooldownAnchorOnStop,
   isCooldownExpired,
   mergeHistory,
   HEATUP_WINDOW_MS,
@@ -671,6 +672,9 @@ export class SaunaCard extends LitElement {
     ) {
       this._sessionStartTemp = s.currentTemp;
       this._sessionStartAt = now;
+      dlog(this._debug, "session start captured", {
+        startTemp: this._sessionStartTemp,
+      });
     }
 
     // Open a cooldown window when a running sauna is switched off. The previous
@@ -679,21 +683,34 @@ export class SaunaCard extends LitElement {
     // "off" (power off). We require a captured _sessionStartTemp, so this only
     // fires after a real heating session (the true pre-heat baseline) and never
     // on a mid-session mount, where we can't know how far the sauna has to cool.
-    if (
-      (prev === "heating" || prev === "ready" || prev === "idle") &&
-      status === "off" &&
-      this._sessionStartTemp !== undefined
-    ) {
-      // Baseline (temperature the room settles at): an explicit target wins,
-      // else the captured session-start (ambient) temp, else a generic default.
-      this._cooldownAnchor = {
-        startedAt: now,
-        baselineTemp:
-          this._config.cooldown_target_temp ??
-          this._sessionStartTemp ??
-          DEFAULT_COOLDOWN_TARGET,
-      };
+    const opened = cooldownAnchorOnStop(
+      prev,
+      status,
+      this._sessionStartTemp,
+      this._config.cooldown_target_temp,
+      DEFAULT_COOLDOWN_TARGET,
+      now,
+    );
+    if (opened) {
+      this._cooldownAnchor = opened;
       this._cooldownSamples = [];
+      dlog(this._debug, "cooldown anchor opened (live)", {
+        anchor: opened,
+        currentTemp: s?.currentTemp,
+        targetTemp: s?.targetTemp,
+      });
+    } else if (
+      (prev === "heating" || prev === "ready" || prev === "idle") &&
+      status === "off"
+    ) {
+      // A stop with no live anchor — typically a mid-session mount/reload lost
+      // _sessionStartTemp. The recorder-reconstruction path must rebuild it (and
+      // it only fires above target — see _maybeReconstructCooldown).
+      dlog(this._debug, "stop without live cooldown anchor", {
+        sessionStartTemp: this._sessionStartTemp,
+        currentTemp: s?.currentTemp,
+        targetTemp: s?.targetTemp,
+      });
     }
 
     // Close the cooldown window once the sauna is powered back on (an active
@@ -782,7 +799,13 @@ export class SaunaCard extends LitElement {
     if (this._config.show_cooldown_graph === false) return;
     const target = this._config.cooldown_target_temp ?? DEFAULT_COOLDOWN_TARGET;
     if (s.status !== "off") return;
-    if (s.currentTemp === undefined || s.currentTemp <= target) return;
+    if (s.currentTemp === undefined || s.currentTemp <= target) {
+      dlog(this._debug, "cooldown reconstruct skipped: not above target", {
+        currentTemp: s.currentTemp,
+        target,
+      });
+      return;
+    }
     if (!this.hass?.callWS) return;
     const switchId = s.entities.power;
     const tempId = s.entities.currentTemperature;
@@ -1967,8 +1990,14 @@ export class SaunaCard extends LitElement {
     }
     .chip.on {
       color: var(--primary-text-color);
-      border-color: var(--primary-color);
+      border-color: var(--sauna-heat-color);
+      /* Inset shadow over the 1px border reads as a ~2px ring without the
+         layout shift a 2px border would cause when toggling on/off. */
+      box-shadow: inset 0 0 0 1px var(--sauna-heat-color);
       background: var(--secondary-background-color);
+    }
+    .chip.on ha-icon {
+      color: var(--sauna-heat-color);
     }
     .chip {
       cursor: pointer;
@@ -2166,7 +2195,16 @@ export class SaunaCard extends LitElement {
       font-size: 1.1rem;
       color: var(--primary-text-color);
     }
-    /* status tint (from .status-heating/.status-ready) flows to icon + value */
+    /* Status tint colours the whole compact slot (icon + value). Set on the
+       container itself — the .status-heating/.status-ready utility classes share
+       specificity with .citem and lose to it (defined later), so the slot would
+       otherwise read grey mid-session. These two rules are more specific and win. */
+    .citem.status-heating {
+      color: var(--sauna-heat-color);
+    }
+    .citem.status-ready {
+      color: var(--success-color, #43a047);
+    }
     .citem.status-heating .cval,
     .citem.status-ready .cval {
       color: inherit;

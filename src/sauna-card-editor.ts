@@ -11,6 +11,7 @@ import {
 } from "./status";
 import { DEFAULT_DASHBOARD_TILES, DEFAULT_COMPACT_SLOTS } from "./sauna-card";
 import { MANUAL_ENTITY_CATALOG } from "./adapters/manual";
+import { renderAdvancedToggles } from "./editor/advanced-toggles";
 
 interface SchemaItem {
   name: string;
@@ -585,26 +586,9 @@ export class SaunaCardEditor extends LitElement {
     return html`<details class="section advfold">
       <summary>${t("editor.advanced", lang)}</summary>
       <div class="hint">${t("editor.advanced_hint", lang)}</div>
-      <ha-formfield .label=${t("editor.show_version", lang)}>
-        <ha-switch
-          .checked=${cfg.show_version !== false}
-          @change=${(e: Event) =>
-            this._emit({
-              show_version: (e.target as HTMLInputElement).checked
-                ? undefined
-                : false,
-            })}
-        ></ha-switch>
-      </ha-formfield>
-      <ha-formfield .label=${t("editor.debug", lang)}>
-        <ha-switch
-          .checked=${cfg.debug === true}
-          @change=${(e: Event) =>
-            this._emit({
-              debug: (e.target as HTMLInputElement).checked || undefined,
-            })}
-        ></ha-switch>
-      </ha-formfield>
+      ${renderAdvancedToggles(this.hass, cfg, lang, (patch) =>
+        this._emit(patch),
+      )}
       <div class="version-info">
         ${t("editor.card_version", lang)}: ${__VERSION__}
       </div>
@@ -772,7 +756,7 @@ export class SaunaCardEditor extends LitElement {
       user-select: none;
       padding: 2px 0;
     }
-    .advfold ha-formfield {
+    .advfold ha-form {
       display: block;
       margin-top: 6px;
     }
