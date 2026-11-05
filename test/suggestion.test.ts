@@ -81,19 +81,21 @@ describe("getEntitySuggestion", () => {
     });
   });
 
-  // HACS's update entity for the Harvia integration shows up under "harvia" in
-  // the picker but lives on platform `hacs`; its device is the repo, not the
-  // sauna. We tie it to the integration by the brands icon (keyed by domain)
-  // and resolve the actual sauna device by autodetect.
-  function hassWithHacsUpdate(opts: {
+  // The HACS (before HA 2026.11) or Marketplace (HA 2026.11+) update entity for
+  // the Harvia integration shows up under "harvia" in the picker but lives on
+  // platform `hacs`/`marketplace`; its device is the repo, not the sauna. We tie
+  // it to the integration by the brand icon (keyed by domain) and resolve the
+  // actual sauna device by autodetect.
+  function hassWithRepoUpdate(opts: {
+    platform: string;
     picture?: string;
     sauna?: { entity_id: string; device_id: string };
   }): Hass {
     const reg: Hass["entities"] = {
       "update.harvia_sauna_update": {
         entity_id: "update.harvia_sauna_update",
-        platform: "hacs",
-        device_id: "hacs_repo_dev",
+        platform: opts.platform,
+        device_id: "repo_dev",
       },
     };
     if (opts.sauna) {
@@ -115,35 +117,75 @@ describe("getEntitySuggestion", () => {
     } as Hass;
   }
 
-  it("suggests the card for the Harvia HACS update entity, resolving the sauna device", () => {
-    const hass = hassWithHacsUpdate({
-      picture: "https://brands.home-assistant.io/_/harvia_sauna/icon.png",
-      sauna: { entity_id: "climate.bastu_termostat", device_id: "dev1" },
-    });
-    expect(suggestEntity(hass, "update.harvia_sauna_update")).toEqual({
-      config: { type: "custom:sauna-card", device_id: "dev1" },
-    });
-  });
+  const SAUNA = { entity_id: "climate.bastu_termostat", device_id: "dev1" };
+  // Brand icon URL forms: brands CDN (HACS) and local brands API (Marketplace).
+  const pictures = {
+    cdn: (d: string) => `https://brands.home-assistant.io/_/${d}/icon.png`,
+    api: (d: string) => `/api/brands/integration/${d}/icon.png`,
+  };
 
-  it("does not suggest for the Harvia HACS update entity when no sauna device exists", () => {
-    const hass = hassWithHacsUpdate({
-      picture: "https://brands.home-assistant.io/_/harvia_sauna/icon.png",
+  describe.each(["hacs", "marketplace"])(
+    "repo update entity on platform %s",
+    (platform) => {
+      describe.each(Object.entries(pictures))(
+        "with %s brand icon",
+        (_form, pic) => {
+          it("suggests the card, resolving the sauna device", () => {
+            const hass = hassWithRepoUpdate({
+              platform,
+              picture: pic("harvia_sauna"),
+              sauna: SAUNA,
+            });
+            expect(suggestEntity(hass, "update.harvia_sauna_update")).toEqual({
+              config: { type: "custom:sauna-card", device_id: "dev1" },
+            });
+          });
+
+          it("does not suggest when no sauna device exists", () => {
+            const hass = hassWithRepoUpdate({
+              platform,
+              picture: pic("harvia_sauna"),
+            });
+            expect(
+              suggestEntity(hass, "update.harvia_sauna_update"),
+            ).toBeNull();
+          });
+
+          it("does not suggest for another integration's repo", () => {
+            const hass = hassWithRepoUpdate({
+              platform,
+              picture: pic("some_other"),
+              sauna: SAUNA,
+            });
+            expect(
+              suggestEntity(hass, "update.harvia_sauna_update"),
+            ).toBeNull();
+          });
+        },
+      );
+
+      it("does not suggest with no brand icon", () => {
+        // No entity_picture → can't tie it to an integration domain → no suggestion.
+        const hass = hassWithRepoUpdate({ platform, sauna: SAUNA });
+        expect(suggestEntity(hass, "update.harvia_sauna_update")).toBeNull();
+      });
+    },
+  );
+
+  it("does not suggest for an update entity on an unrelated platform", () => {
+    const hass = hassWithRepoUpdate({
+      platform: "some_other",
+      picture: pictures.api("harvia_sauna"),
+      sauna: SAUNA,
     });
     expect(suggestEntity(hass, "update.harvia_sauna_update")).toBeNull();
   });
 
-  it("does not suggest for a HACS update entity of another integration", () => {
-    const hass = hassWithHacsUpdate({
-      picture: "https://brands.home-assistant.io/_/some_other/icon.png",
-      sauna: { entity_id: "climate.bastu_termostat", device_id: "dev1" },
-    });
-    expect(suggestEntity(hass, "update.harvia_sauna_update")).toBeNull();
-  });
-
-  it("does not suggest for a HACS update entity with no brands icon", () => {
-    // No entity_picture → can't tie it to an integration domain → no suggestion.
-    const hass = hassWithHacsUpdate({
-      sauna: { entity_id: "climate.bastu_termostat", device_id: "dev1" },
+  it("does not treat a non-brands path as a brand icon", () => {
+    const hass = hassWithRepoUpdate({
+      platform: "marketplace",
+      picture: "/local/harvia_sauna/icon.png",
+      sauna: SAUNA,
     });
     expect(suggestEntity(hass, "update.harvia_sauna_update")).toBeNull();
   });

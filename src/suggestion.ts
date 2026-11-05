@@ -7,28 +7,45 @@ export interface EntitySuggestion {
 }
 
 /**
- * Extract the integration domain from a Home Assistant brands icon URL, e.g.
- * `https://brands.home-assistant.io/_/harvia_sauna/icon.png` -> `harvia_sauna`.
- * Returns null for anything that isn't a brands URL.
+ * Platforms that own the update entity tracking an installed community
+ * repository: `hacs` before Home Assistant 2026.11, `marketplace` from 2026.11
+ * (the built-in Marketplace migrates HACS's registry entries to its own
+ * platform).
+ */
+const REPO_UPDATE_PLATFORMS: ReadonlySet<string> = new Set([
+  "hacs",
+  "marketplace",
+]);
+
+/**
+ * Extract the integration domain from a brand icon URL. Two forms exist:
+ * - brands CDN (HACS): `https://brands.home-assistant.io/_/harvia_sauna/icon.png`
+ * - local brands API (Marketplace, HA 2026.11):
+ *   `/api/brands/integration/harvia_sauna/icon.png`
+ * Returns null for anything else.
  */
 function brandsDomain(url: unknown): string | null {
   if (typeof url !== "string") return null;
-  const m = /brands\.home-assistant\.io\/(?:_\/)?([a-z0-9_]+)\//.exec(url);
+  const m =
+    /brands\.home-assistant\.io\/(?:_\/)?([a-z0-9_]+)\//.exec(url) ??
+    /^\/api\/brands\/integration\/([a-z0-9_]+)\//.exec(url);
   return m ? m[1] : null;
 }
 
 /**
- * Is `entityId` the HACS update entity that tracks the Harvia integration repo?
- * Such an entity has `platform === "hacs"` and its `device_id` points at the
- * HACS repo device — not the sauna — so it falls outside the direct
- * platform check below. We tie it to the integration by the brands icon HACS
- * sets on it (keyed by the integration **domain**, .../_/harvia_sauna/icon.png),
- * which matches our own HARVIA_PLATFORM constant — robust against the renamable
+ * Is `entityId` the HACS/Marketplace update entity that tracks the Harvia
+ * integration repo? Such an entity lives on platform `hacs` or `marketplace`
+ * and its `device_id` points at the repository device — not the sauna — so it
+ * falls outside the direct platform check below. We tie it to the integration
+ * by the brand icon set on it (keyed by the integration **domain**), which
+ * matches our own HARVIA_PLATFORM constant — robust against the renamable
  * entity_id slug and free of any hardcoded GitHub repo id.
  */
-function isHarviaHacsUpdate(hass: Hass, entityId: string): boolean {
+function isHarviaRepoUpdate(hass: Hass, entityId: string): boolean {
   if (entityId.split(".")[0] !== "update") return false;
-  if (hass.entities?.[entityId]?.platform !== "hacs") return false;
+  const platform = hass.entities?.[entityId]?.platform;
+  if (platform === undefined || !REPO_UPDATE_PLATFORMS.has(platform))
+    return false;
   const picture = hass.states?.[entityId]?.attributes?.entity_picture;
   return brandsDomain(picture) === HARVIA_PLATFORM;
 }
@@ -42,9 +59,10 @@ function isHarviaHacsUpdate(hass: Hass, entityId: string): boolean {
  * thermostat — without cluttering the picker. The platform check is the real
  * relevance gate; anything outside harvia_sauna returns null.
  *
- * We also suggest for HACS's own update entity for the Harvia integration: it
- * shows up under "harvia" in the picker but lives on the platform `hacs` and
- * its device is the repo, not the sauna. There we resolve the actual sauna
+ * We also suggest for the HACS/Marketplace update entity for the Harvia
+ * integration: it shows up under "harvia" in the picker but lives on platform
+ * `hacs` (or `marketplace` from HA 2026.11) and its device is the repo, not the
+ * sauna. There we resolve the actual sauna
  * device by autodetect (and only suggest when one exists, so the card has
  * something to show).
  */
@@ -61,7 +79,7 @@ export function suggestEntity(
     return { config };
   }
 
-  if (isHarviaHacsUpdate(hass, entityId)) {
+  if (isHarviaRepoUpdate(hass, entityId)) {
     const device = findDevicesForPlatform(hass, HARVIA_PLATFORM)[0];
     if (!device) return null;
     return {
